@@ -6,7 +6,7 @@ This project converts a Korean-language lecture series on PyTorch internals into
 
 - **Framework**: Slidev (sli.dev) with `@slidev/theme-seriph`
 - **Language**: Korean (한국어) with English technical terms preserved as-is
-- **Source material**: 7 PDF lecture files in `lecture_files/` (git-ignored)
+- **Source material**: 7 PPTX lecture files in `lecture_files/` (git-ignored), with extraction scripts in `scripts/`
 - **Target**: One `.md` file per lecture in `slides/` directory, plus a main `slides.md` entry point
 
 ## Lecture Series Structure
@@ -187,6 +187,11 @@ pytorch-internal-lecture/
 │       ├── 01/                  # Images for lecture 01
 │       ├── 02/                  # Images for lecture 02
 │       └── ...
+├── scripts/
+│   ├── extract_pptx.py          # Extract slide content/notes to JSON
+│   ├── extract_images.py        # Extract images from PPTX by slide
+│   └── lectureXX_extracted.json # Extracted data (git-ignored)
+├── lecture_files/                # Source PPTX files (git-ignored)
 ├── components/                  # Custom Vue components if needed
 ├── package.json
 └── AGENTS.md                    # This file
@@ -203,9 +208,82 @@ pytorch-internal-lecture/
 - **Magic Move**: For code transformation animations (e.g., showing code evolution)
 - **PlantUML**: For complex UML-style diagrams if Mermaid is insufficient
 
+## PPTX-to-Slidev Conversion Workflow
+
+When converting a new lecture from PPTX to Slidev, follow this workflow:
+
+### Step 1: Extract PPTX Data
+
+Use the extraction scripts in `scripts/` to pull structured data and images from the PPTX file:
+
+```bash
+# Extract slide content (titles, texts, notes, shapes) to JSON
+python scripts/extract_pptx.py "lecture_files/XX - Title.pptx"
+# → outputs scripts/lectureXX_extracted.json
+
+# Extract images organized by slide number
+python scripts/extract_images.py "lecture_files/XX - Title.pptx" public/images/XX/
+# → outputs public/images/XX/slideNN_M.png (slide number _ image index)
+```
+
+### Step 2: Study the Extracted JSON
+
+The JSON file contains an array of slide objects with:
+- `slide_number`, `title`, `texts` — slide content
+- `notes` — speaker notes (structured summary + "Full transcript:" with verbatim lecture recording)
+- `has_images`, `image_count` — whether the slide has images
+- `shapes` — detailed shape/layout information
+
+### Step 3: Create Slidev Markdown
+
+Create `slides/XX-topic-name.md` following these conventions from existing lectures:
+
+1. **Cover slide**: `layout: cover` with back-to-TOC button
+   ```markdown
+   ---
+   layout: cover
+   ---
+   # Week N: Title
+   Pytorch + NPU 온라인 모임 #N | YYYY-MM-DD
+   <div class="abs-tl m-6">
+     <span @click="$slidev.nav.go(1)" class="cursor-pointer opacity-50 hover:opacity-100 text-sm">
+       ← 목차로 돌아가기
+     </span>
+   </div>
+   ```
+
+2. **All inner slides**: Use `level: 2` in frontmatter
+
+3. **Speaker notes**: Extract the structured summary from the `notes` field (before "Full transcript:"), place in `<!-- -->` HTML comments
+
+4. **Images**: Reference as `/images/XX/slideNN_M.png` matching extracted filenames
+
+5. **Agenda slides**: Highlight current section with orange dashed border:
+   ```html
+   <span class="text-orange-400 font-bold border border-orange-400 border-dashed px-2 py-1">Current Section</span>
+   ```
+
+6. **Layouts**: Use `<div class="grid grid-cols-2 gap-4 mt-4">` for two-column, `<v-click>` for progressive reveals, Mermaid for diagrams
+
+### Step 4: Update Entry Point
+
+Add the new lecture to `slides.md`:
+```markdown
+---
+src: ./slides/XX-topic-name.md
+---
+```
+
+### Tips
+
+- The JSON `notes` field often contains both a structured summary and a full transcript separated by "Full transcript:". Use only the **structured summary** for speaker notes.
+- Check `has_images: true` slides and cross-reference with actual filenames in `public/images/XX/` to ensure correct image references.
+- Dense PPTX slides with lots of text or multiple topics should be split into multiple Slidev slides.
+- Refer to `slides/02-eager-mode.md` as the canonical reference for formatting patterns.
+
 ## Conversion Priority
 
-1. Start with Lecture 01 (simplest, establishes patterns)
-2. Then Lecture 02 (introduces code-heavy slides and architecture diagrams)
-3. Then Lectures 03-05 (increasingly complex diagrams)
+1. ~~Start with Lecture 01 (simplest, establishes patterns)~~ ✅ Done
+2. ~~Then Lecture 02 (introduces code-heavy slides and architecture diagrams)~~ ✅ Done
+3. ~~Then Lectures 03-05 (increasingly complex diagrams)~~ ✅ Done
 4. Finally Lectures 06-07 (most complex, dense content with many diagrams and formulas)
