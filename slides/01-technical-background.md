@@ -183,17 +183,34 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
   - DirectX 8부터 시작. DirectX 9에서 HLSL 정의
 - Nvidia의 GeForce 3 (2001) : shader programmable한 최초의 GPU
 
+<!--
+Heterogeneous Computing은 CPU와 GPU를 함께 활용하여 더 빠르게 계산할 수 있도록 해주는 시스템입니다. 이 개념은 일반적으로 CPU가 수행하던 계산 중 일부를 GPU에게 offloading하여 성능을 향상시키는 방식입니다.
+
+이 기술은 그래픽스(Graphics)에서 시작되었습니다. 1992년 OpenGL은 실리콘 그래픽스에서 개발한 그래픽스 API로, 프로그래머가 그래픽스 연산을 소프트웨어적으로 프로그래밍할 수 있는 시작점이었습니다. 1995년 DirectX는 Windows PC 환경에서 GPU의 성능 향상과 함께 주요 표준으로 자리 잡았으며, NVIDIA와 ATI의 성장을 촉진시킨 중요한 계기가 되었습니다. 2000년대 초에는 Shader Programming이 등장하여 GPU가 프로그래밍 가능한 디바이스로 진화했습니다. 2001년 NVIDIA GeForce 3가 최초의 shader programmable GPU입니다.
+-->
+
+---
+level: 2
+---
+
+# Heterogeneous Computing: GPGPU의 등장
+
 **2007년 CUDA와 함께 GPGPU의 등장**
 
 - Nvidia가 개발한 GPU를 위한 일반적인 parallel programming model
 - 초기에는 High-Performance Computing (HPC) 시장을 타겟으로 함
 - Deep learning의 등장과 함께 AI 가속기를 위한 programming model로 진화
-- 이후 Apple이 주도한 OpenCL (2008), AMD/ARM이 주도한 HSA (2011)도 등장
+
+**이후 다른 플랫폼들도 등장**
+
+- Apple이 주도한 OpenCL (2008)
+- AMD/ARM이 주도한 HSA (2011)
+- 그러나 OpenCL과 HSA는 상용화에서 한계를 보였고, **CUDA가 사실상 표준**으로 자리잡음
 
 <!--
-Heterogeneous Computing은 CPU와 GPU를 함께 활용하여 더 빠르게 계산할 수 있도록 해주는 시스템입니다. 이 개념은 일반적으로 CPU가 수행하던 계산 중 일부를 GPU에게 offloading하여 성능을 향상시키는 방식입니다.
+2007년 NVIDIA는 CUDA(Compute Unified Device Architecture)를 발표하며 GPGPU(General Purpose GPU)의 시대를 열었습니다. 초기 CUDA는 머신러닝보다는 고성능 컴퓨팅(HPC)을 위한 병렬 프로그래밍 모델로 설계되었습니다. GPU의 성능이 슈퍼컴퓨터 수준에 가까워지면서, 이를 일반 개발자들이 활용할 수 있도록 CUDA를 도입한 것입니다.
 
-이 기술은 그래픽스(Graphics)에서 시작되었습니다. 1992년 OpenGL, 1995년 DirectX. 2000년대 초에는 Shader Programming이 등장하여 GPU가 프로그래밍 가능한 디바이스로 진화했습니다. 2001년 NVIDIA GeForce 3가 최초의 shader programmable GPU. 2007년 NVIDIA는 CUDA를 발표하며 GPGPU의 시대를 열었습니다. 초기 CUDA는 HPC를 위한 병렬 프로그래밍 모델로 설계되었으나, GPU의 성능이 슈퍼컴퓨터 수준에 가까워지면서 AI 가속기를 위한 programming model로 진화했습니다.
+이후 Apple의 OpenCL(2008), AMD/ARM의 HSA(2011)도 등장했지만 상용화에서 한계를 보였고, CUDA가 사실상 표준으로 자리 잡았습니다. 오늘날 PyTorch와 같은 머신러닝 프레임워크 내부에서도 CUDA 기반의 API가 광범위하게 사용되고 있으며, 많은 후발 주자들이 이를 기반으로 비슷한 구조를 구축하고 있습니다.
 -->
 
 ---
