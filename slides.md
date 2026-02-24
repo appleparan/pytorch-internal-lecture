@@ -24,3 +24,15 @@ src: ./slides/01-technical-background.md
 ---
 src: ./slides/02-eager-mode.md
 ---
+
+---
+src: ./slides/03-graph-mode.md
+---
+
+---
+src: ./slides/04-automatic-differentiation.md
+---
+
+---
+src: ./slides/05-distributed-programming.md
+---
