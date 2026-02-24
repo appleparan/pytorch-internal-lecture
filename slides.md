@@ -40,3 +40,7 @@ src: ./slides/05-distributed-programming.md
 ---
 src: ./slides/06-beyond-pytorch.md
 ---
+
+---
+src: ./slides/07-cpu-gpu-npu.md
+---
