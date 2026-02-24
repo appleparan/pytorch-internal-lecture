@@ -216,19 +216,39 @@ level: 2
 - 개념적인 모델 - SIMD, SPMD, MIMD
 - 구현 표준 - MPI, OpenMP
 
+<!--
+슈퍼컴퓨팅이란 엄청나게 복잡한 계산을 처리하기 위한 고성능 컴퓨팅 기술입니다. 슈퍼컴퓨팅은 많은 수의 컴퓨터를 네트워크로 연결해 하나의 큰 계산을 분산 처리하는 방식으로 작동합니다. 인터넷 서비스와의 본질적 차이는 fault 처리의 중요성입니다. 머신러닝의 경우에도 대규모 분산 학습에서는 fault 처리가 중요해집니다. MPI(Message Passing Interface)는 파이토치에서 구현된 분산 프로그래밍 모델의 기반이 되기도 합니다.
+-->
+
+---
+level: 2
+---
+
+# Supercomputing: Matrix Multiplication
+
 **Matrix multiplication이 가장 중요한 요소**
 
 - 과학에서 다루는 많은 자연 현상들이 선형대수로 표현됨
 - 선형대수의 가장 중요한 개념들은 결국 matrix multiplication로 귀결됨
-- 최적화 기술: Strassen algorithm, DeepMind's AlphaTensor
-- **BLAS** (Basic Linear Algebra Subprograms, 1979) - 다양한 linear algebra문제에 적용할 수 있는 low-level API
-  - 각 HW vendor들은 그들의 HW에 최적화된 BLAS 구현 출시
+
+**자연스럽게, matrix multiplication을 빠르게 처리할 수 있는 다양한 최적화 기술들이 등장**
+
+- Algorithmic efficiency 측면: Strassen algorithm, DeepMind's AlphaTensor
+
+**큰 matmul에 최적화된 보편적인 library의 등장**
+
+- **BLAS** (Basic Linear Algebra Subprograms, 1979)
+  - 다양한 linear algebra 문제에 적용할 수 있는 low-level API
+  - Matrix multiplication을 위한 **GEMM** 포함
+- 각 HW vendor들은 그들의 HW에 최적화된 BLAS 구현 출시
   - Nvidia: cuBLAS (2017), cuTLASS (2018)
 
 <!--
-슈퍼컴퓨팅이란 엄청나게 복잡한 계산을 처리하기 위한 고성능 컴퓨팅 기술입니다. 슈퍼컴퓨팅은 많은 수의 컴퓨터를 네트워크로 연결해 하나의 큰 계산을 분산 처리하는 방식으로 작동합니다. 인터넷 서비스와의 본질적 차이는 fault 처리의 중요성입니다. 머신러닝의 경우에도 대규모 분산 학습에서는 fault 처리가 중요해집니다.
+슈퍼컴퓨팅에서 가장 중요한 요소 중 하나는 매트릭스 곱셈(Matrix Multiplication)입니다. 많은 자연 현상과 과학적 문제들이 선형대수로 표현되며, 선형대수에서 가장 중요한 연산이 바로 매트릭스 곱셈입니다. 매트릭스 곱셈의 연산량은 매트릭스 크기에 따라 큐빅(N^3)에 비례하기 때문에, 이를 얼마나 빠르게 처리할 수 있는지가 전체 시스템의 성능에 큰 영향을 미칩니다.
 
-슈퍼컴퓨팅에서 가장 중요한 요소 중 하나는 매트릭스 곱셈(Matrix Multiplication)입니다. 많은 자연 현상과 과학적 문제들이 선형대수로 표현되며, 선형대수에서 가장 중요한 연산이 바로 매트릭스 곱셈입니다. BLAS는 1979년에 처음 발표된 저수준 API로, GEMM(General Matrix Multiply)을 포함합니다. NVIDIA의 cuBLAS는 클로즈드 소스이지만, cuTLASS는 오픈소스 라이브러리로 누구나 접근 가능합니다.
+Strassen 알고리즘은 매트릭스 곱셈의 복잡도를 낮추는 고급 알고리즘이며, 딥마인드의 AlphaTensor는 매트릭스 곱셈 커널을 최적화하여 계산 속도를 크게 향상시켰습니다.
+
+BLAS는 1979년에 처음 발표된 저수준 API로, GEMM(General Matrix Multiply)을 포함합니다. NVIDIA의 cuBLAS는 클로즈드 소스로 제공되지만, cuTLASS는 오픈소스 라이브러리로 누구나 접근 가능합니다.
 -->
 
 ---

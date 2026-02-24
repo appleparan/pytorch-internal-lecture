@@ -36,7 +36,7 @@ The series is divided into two parts:
 
 ### Slide Separation
 
-Each `---` in Slidev creates a new slide. Match the original PDF's slide boundaries. Each PDF page generally maps to one Slidev slide.
+Each `---` in Slidev creates a new slide. One PDF/PPTX page generally maps to one Slidev slide, but this is **not a strict 1:1 rule**. When a single source slide contains dense content (e.g., multiple distinct topics, long bullet lists, or detailed sub-sections), split it into 2 or more Slidev slides for readability. Conversely, very thin slides (e.g., a single line or image) can sometimes be merged. Prioritize **clarity and readability** over rigid page-to-slide mapping.
 
 ### Frontmatter per Lecture File
 
