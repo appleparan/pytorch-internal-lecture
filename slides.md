@@ -7,6 +7,8 @@ info: |
 transition: slide-left
 mdc: true
 hideInToc: true
+addons:
+  - slidev-component-scroll
 ---
 
 # 모두의 연구소 PyTorch + NPU랩
