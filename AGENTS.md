@@ -218,11 +218,10 @@ Use the extraction scripts in `scripts/` to pull structured data and images from
 
 ```bash
 # Extract slide content (titles, texts, notes, shapes) to JSON
-python scripts/extract_pptx.py "lecture_files/XX - Title.pptx"
-# → outputs scripts/lectureXX_extracted.json
+uv run --script scripts/extract_pptx.py "lecture_files/XX - Title.pptx" > scripts/lectureXX_extracted.json
 
 # Extract images organized by slide number
-python scripts/extract_images.py "lecture_files/XX - Title.pptx" public/images/XX/
+uv run --script scripts/extract_images.py "lecture_files/XX - Title.pptx" public/images/XX/
 # → outputs public/images/XX/slideNN_M.png (slide number _ image index)
 ```
 

@@ -36,3 +36,7 @@ src: ./slides/04-automatic-differentiation.md
 ---
 src: ./slides/05-distributed-programming.md
 ---
+
+---
+src: ./slides/06-beyond-pytorch.md
+---
