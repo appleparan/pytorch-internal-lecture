@@ -583,7 +583,15 @@ level: 2
 
 </v-clicks>
 
-<v-click>
+<!--
+PyTorch 2.0의 특징은 PyTorch 1.0의 성질을 거의 모두 inherit했으며, 개발자들이 NumPy를 사용하는 것과 비슷한 경험을 할 수 있도록 설계되었습니다. Heterogeneous Computing이 기본적인 기반으로 자리 잡고 있고, Distributed Programming Model을 제공합니다. Python → C++ → kernel language의 세 가지 언어 레이어로 구성되어 있으며, TorchDynamo를 통한 graph capturing, training과 inference 모두 지원합니다.
+-->
+
+---
+level: 2
+---
+
+# Pytorch 2.0: Backend Integration Points
 
 **Various backend integration points**
 
@@ -593,11 +601,7 @@ level: 2
 | Graph mode (JIT & AOT) | As a backend to TorchDynamo |
 | Graph mode (codegen) | As a backend to Inductor |
 
-</v-click>
-
 <!--
-PyTorch 2.0의 특징은 PyTorch 1.0의 성질을 거의 모두 inherit했으며, 개발자들이 NumPy를 사용하는 것과 비슷한 경험을 할 수 있도록 설계되었습니다. Heterogeneous Computing이 기본적인 기반으로 자리 잡고 있고, Distributed Programming Model을 제공합니다. Python → C++ → kernel language의 세 가지 언어 레이어로 구성되어 있으며, TorchDynamo를 통한 graph capturing, training과 inference 모두 지원합니다.
-
 Backend integration points로는 Eager mode에서는 새로운 dispatch target으로, Graph mode에서는 TorchDynamo와 Inductor의 backend로 통합할 수 있습니다.
 -->
 
