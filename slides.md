@@ -20,3 +20,7 @@ PyTorch Internal Lecture Series
 ---
 src: ./slides/01-technical-background.md
 ---
+
+---
+src: ./slides/02-eager-mode.md
+---
