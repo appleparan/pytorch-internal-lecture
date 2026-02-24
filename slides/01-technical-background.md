@@ -6,7 +6,7 @@ layout: cover
 
 Pytorch + NPU 온라인 모임 #1 | 2024-12-04
 
-<div class="abs-bl m-6">
+<div class="abs-tl m-6">
   <span @click="$slidev.nav.go(1)" class="cursor-pointer opacity-50 hover:opacity-100 text-sm">
     ← 목차로 돌아가기
   </span>
