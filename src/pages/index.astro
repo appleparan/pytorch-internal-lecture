@@ -1,0 +1,39 @@
+---
+import { getCollection } from 'astro:content';
+import '../styles/global.css';
+
+const lectures = await getCollection('lectures');
+const sorted = lectures.sort((a, b) => a.data.lecture - b.data.lecture);
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>모두의 연구소 PyTorch + NPU랩</title>
+  </head>
+  <body>
+    <div class="min-h-screen flex flex-col items-center justify-center p-8">
+      <h1 class="text-4xl font-bold mb-2">모두의 연구소 PyTorch + NPU랩</h1>
+      <p class="text-gray-400 mb-12">PyTorch Internal Lecture Series</p>
+
+      <div class="w-full max-w-2xl space-y-4">
+        {sorted.map((lecture) => (
+          <a
+            href={`/lectures/${lecture.id}`}
+            class="block p-6 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors border border-slate-700/50"
+          >
+            <div class="flex items-baseline gap-3">
+              <span class="text-orange-400 font-mono text-sm">
+                Week {lecture.data.lecture}
+              </span>
+              <span class="text-gray-400 text-sm">{lecture.data.date}</span>
+            </div>
+            <h2 class="text-xl font-semibold mt-2">{lecture.data.title}</h2>
+          </a>
+        ))}
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,20 +1,22 @@
 ---
-layout: cover
+title: "Distributed Programming in Pytorch"
+date: "2025-01-15"
+lecture: 5
 ---
+
+import Slide from '../../components/Slide.astro';
+import Reveal from '../../components/Reveal.astro';
+import Mermaid from '../../components/Mermaid.astro';
+
+<Slide layout="cover">
 
 # Week 5: Distributed Programming in Pytorch
 
 Pytorch + NPU 온라인 모임 #5 | 2025-01-15
 
-<div class="abs-tl m-6">
-  <span @click="$slidev.nav.go(1)" class="cursor-pointer opacity-50 hover:opacity-100 text-sm">
-    ← 목차로 돌아가기
-  </span>
-</div>
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Where We Are
 
@@ -51,13 +53,9 @@ level: 2
 </div>
 </div>
 
-<!--
-지금까지 진행한 내용: 기술적 배경(1주차), Eager 모드(2주차), Graph 모드(3주차), Autograd(4주차), 분산 프로그래밍(이번 주, 5주차). PyTorch 내부 기능들은 이번 주로 마무리할 예정. 다음 주(6주차)부터는 Beyond PyTorch를 다루며, Custom Kernel과 vLLM을 다룰 예정. 7주차부터는 하드웨어 초점으로 진행.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Pytorch 2.0 (from Week #1)
 
@@ -76,13 +74,9 @@ level: 2
     - As a backend to TorchDynamo
     - As a backend to Inductor
 
-<!--
-PyTorch 2.0의 주요 특성 중 오늘은 MPI와 비슷한 PyTorch의 distributed programming 모델에 대해서 이야기를 나눠볼 예정.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Outline
 
@@ -95,13 +89,9 @@ level: 2
 
 </div>
 
-<!--
-크게 네 부분으로 나눠서 설명할 예정. 전반적인 오버뷰, torchrun을 활용한 예제, CUDA와의 연결, 그리고 PyTorch가 제공하는 병렬화 패키지들.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # MPI vs OpenMP
 
@@ -134,13 +124,9 @@ Shared Memory
 
 </div>
 
-<!--
-병렬 프로그래밍 모델에서 대표적인 두 가지: MPI(Message Passing Interface)와 OpenMP(Open Multi-Processing). OpenMP는 Shared Memory 모델 기반으로 모든 프로세서가 동일한 메모리에 접근 가능하고, MPI는 Distributed Memory 모델 기반으로 프로세서 간 직접적인 메모리 접근 없이 메시지 전달을 통해 통신. PyTorch는 MPI 스타일을 따름.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # MPI vs OpenMP: Task 구성 방식
 
@@ -172,13 +158,9 @@ Master-Worker (Fork-Join) 모델
 
 </div>
 
-<!--
-MPI는 독립적인 프로세스들이 모여서 동작하는 방식. 모든 프로세스는 각자 독립적으로 시작하고, 메시지 패싱과 Barrier를 통해 통신. OpenMP는 Master-Worker 모델로 Fork-Join 패턴을 기반으로 병렬 태스크를 실행.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # MPI 프로그램 구조
 
@@ -199,20 +181,16 @@ level: 2
 </div>
 </div>
 
-<!--
-MPI 프로그램은 일반적으로 여러 프로세스에서 동일한 프로그램을 실행하는 방식으로 구성. 각 프로세스는 초기화를 수행한 후 병렬로 작업을 수행하고, rank에 따라 다르게 동작하도록 코드가 작성됨. PyTorch도 이러한 구조와 유사한 패턴을 따름.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Pytorch Distributed Programming: Concept
 
 <div class="grid grid-cols-2 gap-4 mt-4">
 <div>
 
-<v-clicks>
+<Reveal>
 
 - **Node**: A physical instance (with one or several GPUs)
 - **Process**: spawned from each node, 1 process : 1 GPU
@@ -222,13 +200,13 @@ level: 2
   - local: in Node
 - **Rendezvous**: gathering participants(nodes) of a training job, dynamically manageable
 
-</v-clicks>
+</Reveal>
 
 </div>
 <div>
 
-```mermaid
-graph TB
+<Mermaid>
+{`graph TB
     subgraph World
         subgraph Node1["Node 1"]
             R0["Rank 0<br/>(local rank 0)"]
@@ -242,24 +220,20 @@ graph TB
         end
     end
     RDV["Rendezvous"] --> Node1
-    RDV --> Node2
-```
+    RDV --> Node2`}
+</Mermaid>
 
 </div>
 </div>
 
-<!--
-PyTorch의 분산 프로그래밍 모델은 MPI의 프로세스 개념과 유사. 노드(node)는 여러 개의 프로세스를 실행할 수 있는 단위이고, 월드(world)는 모든 노드와 프로세스를 포함하는 전체 계산 범위. 랭크(rank)는 글로벌 랭크(전체 분산 환경에서의 프로세스 순서)와 로컬 랭크(한 노드 내에서의 프로세스 구분)가 있음. Rendezvous를 사용하여 어떤 머신들이 task에 참여할지 결정.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Overall Architecture
 
-```mermaid
-graph TB
+<Mermaid>
+{`graph TB
     subgraph Process["torch.distributed (process)"]
         subgraph HL["High-level packages"]
             DDP["DDP"]
@@ -283,16 +257,12 @@ graph TB
     C10D --> Backends
     GLOO --> CPU["CPU"]
     NCCL --> GPU["GPU"]
-    MPI --> MPILIB["MPI lib"]
-```
+    MPI --> MPILIB["MPI lib"]`}
+</Mermaid>
 
-<!--
-PyTorch 분산 처리 구조: 맨 아랫단에 communication backend(Gloo, NCCL, MPI)가 있고, 그 위에 c10d(distributed communication core layer)가 있어 collective/p2p API 인터페이스를 제공. 최상위에 DDP, FSDP, TP 등 모델 병렬화 패키지들이 위치.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Process Group
 
@@ -303,8 +273,8 @@ level: 2
 
 **Default process_group**
 
-```mermaid
-graph TB
+<Mermaid>
+{`graph TB
     subgraph PG["process_group (default)"]
         R0["Rank 0"]
         R1["Rank 1"]
@@ -312,16 +282,16 @@ graph TB
         R4["Rank 4"]
         R5["Rank 5"]
         R6["Rank 6"]
-    end
-```
+    end`}
+</Mermaid>
 
 </div>
 <div>
 
 **process_group with 2 subgroups**
 
-```mermaid
-graph TB
+<Mermaid>
+{`graph TB
     subgraph PG["process_group"]
         subgraph SG1["subgroup 1"]
             R0["Rank 0"]
@@ -333,19 +303,15 @@ graph TB
             R5["Rank 5"]
             R6["Rank 6"]
         end
-    end
-```
+    end`}
+</Mermaid>
 
 </div>
 </div>
 
-<!--
-프로세스 그룹은 통신을 위한 구성 단위. 전체 월드를 하나의 프로세스 그룹으로 표현하거나, 서브 프로세스 그룹을 가질 수 있어 계층적(hierarchical) 구조가 가능. 이를 통해 다양한 방식으로 프로세스를 묶어 통신을 수행할 수 있음.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Distributed Communication Layer (c10d)
 
@@ -363,13 +329,9 @@ Pytorch에서 제공하는 **distributed communication API**에 해당
 
 </div>
 
-<!--
-PyTorch의 c10d는 분산 커뮤니케이션의 핵심 backbone 역할. Collective Communication(집합적 통신)은 여러 프로세스가 동시에 데이터를 공유하거나 처리할 때 사용되며, P2P Communication은 개별 프로세스 간 직접적인 데이터 교환에 사용됨. MPI, NCCL, Gloo 같은 백엔드를 통해 구현.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Collective Communication: Scatter / Gather
 
@@ -388,9 +350,9 @@ https://pytorch.org/tutorials/intermediate/dist_tuto.html
 
 </div>
 
----
-level: 2
----
+</Slide>
+
+<Slide>
 
 # Collective Communication: Reduce / All-Reduce
 
@@ -409,9 +371,9 @@ https://pytorch.org/tutorials/intermediate/dist_tuto.html
 
 </div>
 
----
-level: 2
----
+</Slide>
+
+<Slide>
 
 # Collective Communication: Broadcast / All-Gather
 
@@ -430,9 +392,9 @@ https://pytorch.org/tutorials/intermediate/dist_tuto.html
 
 </div>
 
----
-level: 2
----
+</Slide>
+
+<Slide>
 
 # Communication Backends
 
@@ -452,13 +414,9 @@ level: 2
 - Third-party backend는 `c10d/Backend.hpp`를 구현해야 함
   - **21개 virtual function**으로 구성: `broadcast`, `allreduce`, `reduce`, `allgather`, ...
 
-<!--
-c10d 자체는 통신 API를 제공하는 인터페이스일 뿐, 실제 통신 로직을 구현하지 않음. 구체적인 통신은 Communication Backend에서 처리됨. PyTorch에서 주로 Gloo(CPU)와 NCCL(GPU)가 사용됨. backend.hpp에 정의된 약 21개의 virtual function들을 구현해야 함.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Outline
 
@@ -471,13 +429,9 @@ level: 2
 
 </div>
 
-<!--
-지금까지 PyTorch의 distributed 패키지가 어떻게 구성되어 있는지 살펴봤고, 이제 실제 사례로 torchrun을 통해 어떻게 동작하는지 살펴볼 예정.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # torchrun
 
@@ -505,19 +459,15 @@ torchrun --nnodes=2 --nproc_per_node=8 \
 
 </div>
 
-<!--
-torchrun은 PyTorch에서 기본 제공하는 분산 프로그램 실행을 위한 Top-level script. 반드시 사용해야 하는 것은 아니며, 필요한 기능을 조합하여 유사한 스크립트를 만들 수도 있음. 각 노드에서 torchrun을 실행하면 해당 노드들이 공동 작업을 수행하게 됨.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # torchrun을 시작하기 전 준비 단계
 
 **클러스터 설정**
 
-<v-clicks>
+<Reveal>
 
 - SSH기반 설정 (가장 단순)
   - `/etc/hosts`에 클러스터의 모든 노드의 IP와 hostname을 등록
@@ -527,7 +477,7 @@ level: 2
 - Slurm workload manager
 - Horovod
 
-</v-clicks>
+</Reveal>
 
 <div class="mt-4">
 
@@ -538,13 +488,9 @@ level: 2
 
 </div>
 
-<!--
-torchrun을 실행하기 전에 클러스터 설정이 필요. SSH를 이용한 수동 설정이나 Ray, Slurm, Horovod 등의 분산 클러스터 관리 패키지를 사용할 수 있음.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # torchrun를 시작
 
@@ -568,19 +514,15 @@ $ torchrun --nnodes=2 --nproc_per_node=8 --node_rank=1 \
     dist_matmul_allreduce.py
 ```
 
-<!--
-클러스터가 준비되면 각 노드에서 torchrun을 실행하면 됨. 각 노드에서 여러 개의 프로세스를 실행할 경우, 랭크를 변경하면서 여러 번 실행하면 됨. 중요한 파라미터들을 설정한 후 torchrun을 실행하면 각 프로세스가 실행되면서 전체적인 분산 학습이 시작됨.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # torchrun 수행 중 일어나는 일
 
 <div class="text-sm">
 
-<v-clicks>
+<Reveal>
 
 1. **torchrun 명령어 인자 parsing 및 초기화**
 2. **프로세스 생성**: python process
@@ -598,23 +540,19 @@ level: 2
 5. **부가 기능**: fault tolerance (w/ checkpointing and logging)
    - `--max-restarts=N`: 실패 시 N번까지 재시작 시도
 
-</v-clicks>
+</Reveal>
 
 </div>
 
-<!--
-torchrun이 실행되면 명령 처리 및 초기화, Python 프로세스 실행, Rendezvous 초기화, 클러스터 구성 후 PyTorch 실행 순서로 진행. PyTorch 실행 패턴은 MPI와 유사한 구조: 통신 백엔드 선택 및 생성, 데이터 로딩 및 분할, 모델 학습 및 계산 수행, 동기화, 프로세스 그룹 제거.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # torchrun 수행 중 일어나는 일: 랑데뷰 (rendezvous)
 
 각 프로세스에서 pytorch 스크립트 실행 전에 다음과 같은 것들을 해준다.
 
-<v-clicks>
+<Reveal>
 
 - 랑데뷰 instance가 만들어지고 IPC를 위해서 c10d backend를 초기화
   - Pytorch의 `DynamicRendezvousHandler` class를 사용
@@ -626,15 +564,11 @@ level: 2
 - 모든 프로세스가 준비가 되면 pytorch script를 실행하기 시작
 - **fault tolerance**: 한 노드가 실패하면 남아 있는 다른 노드에서 랑데뷰를 다시 시도
 
-</v-clicks>
+</Reveal>
 
-<!--
-Rendezvous는 분산 계산에 참여할 머신들의 집합을 구성하고 정보를 공유하는 과정. IPC를 위한 c10d 백엔드 초기화, Rendezvous Endpoint에 연결, 모든 프로세스가 Join할 때까지 대기, 각 프로세스에 랭크를 할당하고 실행 준비 완료. 이 과정이 완료되면 PyTorch의 분산 환경이 설정되고 각 프로세스에서 학습이 시작됨.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # torchrun 수행 중 일어나는 일: Task 수행 (1)
 
@@ -659,13 +593,9 @@ if __name__ == "__main__":
 - 각 프로세스에서 `dist_matmul_allreduce` 함수로 분산 행렬 연산 수행
 - **Rank 0**에서 최종 결과를 모아 출력
 
-<!--
-Rendezvous가 완료되면 torchrun은 PyTorch를 실행하여 본격적인 작업을 수행. Rank 0 프로세스와 기타 프로세스의 역할이 구분되며, dist_matmul_allreduce 함수에서 각 프로세스의 작업이 수행됨.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # torchrun 수행 중 일어나는 일: Task 수행 (2)
 
@@ -711,13 +641,9 @@ def local_matmul(local_A, local_B):
 </div>
 </div>
 
-<!--
-dist_matmul_allreduce 함수의 내부 구조: Local Rank를 기반으로 사용할 디바이스 설정, Backend 설정(NCCL), 데이터 broadcast 후 각 rank에 맞게 분배, local_matmul로 행렬 곱셈 수행, all_reduce로 결과 합산, destroy_process_group으로 정리.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Outline
 
@@ -730,17 +656,13 @@ level: 2
 
 </div>
 
-<!--
-지금까지 torch.distributed 패키지의 구조와 torchrun 예제를 살펴봤고, 이제 CUDA 및 NCCL과의 연결에 대해 알아볼 예정.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # CUDA와의 접점
 
-```python {all|3|4|5-6|7-8|9|10}
+```python {3, 4, 5-6, 7-8, 9, 10}
 def dist_matmul_allreduce(A, B, local_rank, world_size):
     # 1. CUDA Device 선택
     torch.cuda.set_device(local_rank)
@@ -759,13 +681,9 @@ def dist_matmul_allreduce(A, B, local_rank, world_size):
 
 - **1. CUDA Device 선택** / **2. 동기화 (CUDA runtime)** / **3. Process Group 생성** / **4. Process Group 제거**
 
-<!--
-dist_matmul_allreduce 함수에서 CUDA와 NCCL이 연결되는 포인트: GPU 및 백엔드 설정, distributed broadcast는 NCCL을 통한 collective communication, dist.all_reduce는 CUDA 인터페이스를 통해 수행, 프로세스 종료 과정에서도 CUDA와 상호작용.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # 1: CUDA Device 선택
 
@@ -788,9 +706,9 @@ level: 2
 
 </div>
 
----
-level: 2
----
+</Slide>
+
+<Slide>
 
 # 2: 동기화 (CUDA Runtime)
 
@@ -833,9 +751,9 @@ def all_reduce(tensor, op=ReduceOp.SUM,
 </div>
 </div>
 
----
-level: 2
----
+</Slide>
+
+<Slide>
 
 # 3: Process Group 생성 및 통신 채널 설정
 
@@ -874,9 +792,9 @@ dist.init_process_group(
 </div>
 </div>
 
----
-level: 2
----
+</Slide>
+
+<Slide>
 
 # 3: Process Group 생성 및 통신 채널 설정 (계속)
 
@@ -904,9 +822,9 @@ store = _create_c10d_store(
 )
 ```
 
----
-level: 2
----
+</Slide>
+
+<Slide>
 
 # 4: Process Group 제거
 
@@ -919,9 +837,9 @@ level: 2
   - 내부적으로 NCCLComm이 소멸되면서
   - `ncclCommDestroy()`를 호출하여 GPU 간 통신에 사용된 resource를 정리
 
----
-level: 2
----
+</Slide>
+
+<Slide>
 
 # Outline
 
@@ -934,13 +852,9 @@ level: 2
 
 </div>
 
-<!--
-CUDA backend가 c10d 뒤에 붙게 되면 디바이스들이 병렬로 큰 모델을 처리할 수 있게 됨. 이제 병렬 패키지들을 간단하게 살펴볼 예정.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Pytorch가 제공하는 모델 병렬화 패키지들
 
@@ -961,13 +875,9 @@ level: 2
 
 </div>
 
-<!--
-DDP는 동일한 모델을 여러 벌 만들어 throughput을 높이는 Data Parallel 방식. FSDP는 모델이 너무 커서 한 머신에 수용할 수 없을 때 weight를 여러 머신에 shard하여 저장하고, 연산 시 필요한 weight를 불러와 수행. Tensor Parallel은 weight뿐 아니라 연산 자체도 여러 머신에서 나누어 처리. 이 패키지들은 Python의 동적 클래스 생성을 이용하여 모델을 래핑하는 방식으로 구현됨.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # FSDP: Example Code
 
@@ -1025,13 +935,9 @@ https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html
 </div>
 </div>
 
-<!--
-FSDP 적용: 기본적으로 PyTorch 모델(Net 클래스)을 정의하고, FSDP를 사용하여 모델을 감싸서 새로운 모델 생성. Op 단위로 수행할 필요가 없는 경우 Op 그룹별로 weight를 샤딩할 수도 있어 통신 비용을 줄여 성능을 향상할 수 있음.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # FSDP: 내부동작
 
@@ -1051,9 +957,9 @@ level: 2
   - each layer: `all_gather` → computation → unsharding → `reduce_scatter`
     - (`_register_post_backward_hook`에서 등록)
 
----
-level: 2
----
+</Slide>
+
+<Slide>
 
 # Tensor Parallel: Example Code
 
@@ -1105,13 +1011,9 @@ https://pytorch.org/tutorials/intermediate/TP_tutorial.html
 </div>
 </div>
 
-<!--
-Tensor Parallel은 계산 자체를 쪼개서 병렬 수행하는 방식. 개발자가 모델의 특정 레이어에 대한 분할 계획(plan)을 설계해야 함. Megatron 등의 기존 기술을 활용하여 추상화되어 제공. Data Parallel은 가장 상위에 적용되고, TP와 PP는 모델 특성에 따라 적절한 조합이 필요.
--->
+</Slide>
 
----
-level: 2
----
+<Slide>
 
 # Next Week Preview: Beyond Pytorch
 
@@ -1130,14 +1032,10 @@ level: 2
 - vLLM이 제공하고 있는 최적화 기능들
 - vLLM이 요구하는 custom op들
 
-<!--
-다음 주에는 PyTorch만으로 해결되지 않는 기능들을 다룰 예정. Custom Kernel 작성 방법(CUDA, Triton 등)과 vLLM 구조 및 최적화 기법을 살펴볼 예정. Attention 연산은 context length가 길어질수록 연산량이 증가하여 최적화가 중요하며, 새로운 GPU가 나올 때마다 커널을 재작성할 필요성이 있음(Flash Attention v1, v2, v3의 발전 과정).
--->
+</Slide>
 
----
-level: 2
-layout: center
-class: text-center
----
+<Slide layout="center" class="text-center">
 
 # 감사합니다
+
+</Slide>

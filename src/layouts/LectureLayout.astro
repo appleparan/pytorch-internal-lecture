@@ -1,0 +1,39 @@
+---
+interface Props {
+  title: string;
+  lecture: number;
+}
+
+const { title, lecture } = Astro.props;
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} | PyTorch + NPU랩</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css"
+    />
+    <style>
+      html, body {
+        overflow: hidden;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="slide-deck" data-lecture={lecture}>
+      <slot />
+    </div>
+    <nav class="slide-nav" id="slide-nav">
+      <a href="/" style="color: #94a3b8; text-decoration: none; font-size: 0.75rem;">← 목록</a>
+      <button data-nav="prev" aria-label="Previous slide">&#8592;</button>
+      <span data-nav="counter">1 / ?</span>
+      <button data-nav="next" aria-label="Next slide">&#8594;</button>
+    </nav>
+    <script src="../scripts/slide-engine.js"></script>
+  </body>
+</html>
