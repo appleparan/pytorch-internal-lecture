@@ -1,0 +1,20 @@
+---
+import { getCollection, render } from 'astro:content';
+import LectureLayout from '../../layouts/LectureLayout.astro';
+import '../../styles/global.css';
+
+export async function getStaticPaths() {
+  const lectures = await getCollection('lectures');
+  return lectures.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<LectureLayout title={entry.data.title} lecture={entry.data.lecture}>
+  <Content />
+</LectureLayout>

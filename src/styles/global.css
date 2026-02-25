@@ -1,0 +1,175 @@
+@import 'tailwindcss';
+
+/* Slide base styles */
+.slide {
+  min-height: 100vh;
+  padding: 2rem 3rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.slide--cover {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #e2e8f0;
+}
+
+.slide--cover h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.slide--center {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.slide--default {
+  justify-content: flex-start;
+}
+
+/* Slide typography */
+.slide h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.slide h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.slide h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.slide ul, .slide ol {
+  margin-left: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.slide li {
+  margin-bottom: 0.25rem;
+}
+
+.slide p {
+  margin-bottom: 0.5rem;
+}
+
+.slide pre {
+  margin: 0.75rem 0;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.slide code {
+  font-size: 0.875rem;
+}
+
+.slide img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Reveal animation */
+[data-reveal] > .reveal-hidden {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+}
+
+[data-reveal] > .reveal-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+}
+
+/* Navigation bar */
+.slide-nav {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  color: #e2e8f0;
+  font-size: 0.875rem;
+  z-index: 50;
+  backdrop-filter: blur(4px);
+}
+
+.slide-nav button {
+  background: none;
+  border: none;
+  color: #e2e8f0;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  font-size: 1rem;
+  border-radius: 0.25rem;
+  transition: background 0.2s;
+}
+
+.slide-nav button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* KaTeX overrides for dark backgrounds */
+.slide--cover .katex {
+  color: #e2e8f0;
+}
+
+/* Body defaults */
+body {
+  margin: 0;
+  padding: 0;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+a {
+  color: #60a5fa;
+}
+
+a:hover {
+  color: #93bbfc;
+}
+
+/* Mermaid wrapper */
+.mermaid-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
