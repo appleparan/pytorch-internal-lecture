@@ -75,11 +75,14 @@ def parse_slidev_file(text: str) -> list[ParsedSlide]:
 
     slides: list[ParsedSlide] = []
 
-    # Split the file into raw slide blocks
-    # First, normalize: ensure file starts with ---
+    # Normalize: strip and remove the leading --- line
     text = text.strip()
-    if not text.startswith('---'):
-        text = '---\n' + text
+    # Slidev files start with ---\nfrontmatter\n---\ncontent\n---\n...
+    # Strip the leading --- so the first part after split is the frontmatter
+    if text.startswith('---\n'):
+        text = text[4:]  # Remove leading ---\n
+    elif text.startswith('---'):
+        text = text[3:]
 
     # Split on --- that appears at the start of a line
     parts = re.split(r'\n---\n', text)
@@ -101,8 +104,8 @@ def parse_slidev_file(text: str) -> list[ParsedSlide]:
             content = part
             i += 1
 
-        # Skip the very first empty slide if it's just the initial ---
-        if slide_index == 0 and not content and not frontmatter:
+        # Skip empty slides (no content and no meaningful frontmatter)
+        if not content and not frontmatter:
             slide_index += 1
             continue
 
@@ -247,6 +250,9 @@ def transform_content(content: str) -> str:
     content = re.sub(r'<br\s*>', '<br />', content)
     content = re.sub(r'<hr\s*>', '<hr />', content)
     content = re.sub(r'<img\s+([^>]*[^/])>', r'<img \1 />', content)
+
+    # 6c. Fix **C++** bold rendering (remark can't parse ++ adjacent to **)
+    content = re.sub(r'\*\*C\+\+\*\*', r'<strong>C++</strong>', content)
 
     # 7. Convert code block line highlighting: {all|1-2|3} -> {1-2, 3}
     def convert_code_highlight(match: re.Match[str]) -> str:

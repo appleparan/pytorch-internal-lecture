@@ -20,6 +20,7 @@ class SlideEngine {
     this.bindKeys();
     this.bindTouch();
     this.bindNavButtons();
+    this.bindHash();
     this.render();
   }
 
@@ -186,6 +187,13 @@ class SlideEngine {
         }
       }
     }, { passive: true });
+  }
+
+  bindHash() {
+    window.addEventListener('hashchange', () => {
+      this.loadFromHash();
+      this.render();
+    });
   }
 
   bindNavButtons() {
