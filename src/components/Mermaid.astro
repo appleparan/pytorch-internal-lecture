@@ -1,0 +1,42 @@
+---
+interface Props {
+  scale?: number;
+}
+
+const { scale = 1.0 } = Astro.props;
+---
+
+<div
+  class="mermaid-wrapper"
+  style={scale !== 1.0 ? `transform: scale(${scale}); transform-origin: top center;` : undefined}
+>
+  <pre class="mermaid"><slot /></pre>
+</div>
+
+<script>
+  import mermaid from 'mermaid';
+
+  // Only initialize once
+  if (!document.documentElement.dataset.mermaidInit) {
+    document.documentElement.dataset.mermaidInit = 'true';
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      securityLevel: 'loose',
+    });
+  }
+
+  // Run mermaid on all .mermaid elements
+  async function renderMermaid() {
+    await mermaid.run({
+      querySelector: '.mermaid',
+    });
+  }
+
+  // Render when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaid);
+  } else {
+    renderMermaid();
+  }
+</script>
