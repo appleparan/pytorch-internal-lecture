@@ -1,0 +1,917 @@
+---
+title: "Automatic Differentiation in Pytorch"
+date: "2025-01-08"
+lecture: 4
+---
+
+import Slide from '../../components/Slide.astro';
+import Reveal from '../../components/Reveal.astro';
+import Mermaid from '../../components/Mermaid.astro';
+
+<Slide>
+
+---
+layout: cover
+
+</Slide>
+
+<Slide>
+
+# Week 4: Automatic Differentiation in Pytorch
+
+Pytorch + NPU 온라인 모임 #4 | 2025-01-08
+
+</Slide>
+
+<Slide>
+
+# Agenda
+
+<div class="mt-4">
+
+- <span class="text-orange-400 font-bold border border-orange-400 border-dashed px-2 py-1">Background</span>
+  - <span class="text-orange-400 font-bold border border-orange-400 border-dashed px-2 py-1">Supervised Learning</span>
+  - <span class="text-orange-400 font-bold border border-orange-400 border-dashed px-2 py-1">Backprop</span>
+  - <span class="text-orange-400 font-bold border border-orange-400 border-dashed px-2 py-1">Automatic Differentiation</span>
+- Automatic Differentiation in Pytorch
+  - Pytorch 1.0: Autograd
+  - Pytorch 2.0: AOTAutograd
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Supervised Learning
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+**$f(x) = ax + b$**
+
+| | input | output |
+|---|---|---|
+| | $x_0$ | $y_0$ |
+| | $x_1$ | $y_1$ |
+| | $x_2$ | $y_2$ |
+
+<div class="mt-2 text-sm">
+
+- **model**: $f(x) = ax + b$
+- **training data**: $(x_i, y_i)$ 쌍
+- **weights**: $a$, $b$
+
+</div>
+
+</div>
+<div class="flex flex-col justify-center">
+
+**a와 b를 조정하여 최적의 함수를 찾아가는 과정**
+
+<Reveal>
+
+- Training data가 주어졌을 때 loss를 최소화하는 weight 값으로 조금씩 변해가는 과정
+- 기울기($a$)를 조금 조정하고, bias($b$)를 조금 이동
+- 점들을 가장 잘 표현하는 선을 찾아가는 것이 training
+
+</Reveal>
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# Supervised Learning: Forward & Backward
+
+<img src="/images/04/slide04_1.png" class="h-80 mx-auto" />
+
+<div class="text-sm mt-2">
+
+- **Forward**: 입력 데이터를 네트워크에 통과시켜 출력값 계산
+- **Loss Function**: 기대 출력과 예측 출력의 차이를 계산
+- **Backward**: 손실을 최소화하기 위해 가중치가 어떻게 변해야 하는지 gradient 계산
+- **Optimizer**: 계산된 gradient를 기반으로 가중치를 조정
+- 이 과정을 반복하여 손실을 줄이며 학습 진행 → **autodiff**
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# (Reverse-Mode) Automatic Differentiation
+
+An algorithm that implements back propagation that consists of
+
+<Reveal>
+
+- Construction of **computation graph**
+- Derivation of a **gradient function** at each node of computation graph
+- **Backward walking** of the graph to propagate gradients
+
+</Reveal>
+
+<div class="mt-4">
+<img src="/images/04/slide05_1.png" class="h-48 mx-auto" />
+</div>
+
+<div class="text-sm mt-2">
+
+Chain Rule: $\frac{dy}{dx} = \frac{dy}{dt} \cdot \frac{dt}{dx}$ where $t = g(x)$, $y = f(t)$
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Example
+
+$$f(x_1, x_2) = \ln(x_1) + x_1 x_2 - \sin(x_2)$$
+
+<div class="grid grid-cols-2 gap-2 mt-2">
+  <img src="/images/04/slide06_1.png" class="h-28" />
+  <img src="/images/04/slide06_2.png" class="h-32" />
+</div>
+
+<img src="/images/04/slide06_3.png" class="h-40 mx-auto mt-2" />
+
+<div class="text-sm mt-2">
+
+https://www.jmlr.org/papers/volume18/17-468/17-468.pdf
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Example: Forward & Backward 계산
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+  <img src="/images/04/slide07_1.png" class="h-72" />
+  <img src="/images/04/slide07_2.png" class="h-72" />
+</div>
+
+<div class="text-sm mt-4">
+
+**Forward**: $a=2, b=1$ → $c=a+b=3$, $d=b+1=2$, $e=c \cdot d = 6$
+
+**Backward**: $\frac{de}{da} = \frac{de}{dc} \cdot \frac{dc}{da} = 2 \cdot 1 = 2$, $\frac{de}{db} = \frac{de}{dc} \cdot \frac{dc}{db} + \frac{de}{dd} \cdot \frac{dd}{db} = 2 \cdot 1 + 3 \cdot 1 = 5$
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Agenda
+
+<div class="mt-4">
+
+- ~~Background~~
+  - ~~Supervised Learning~~
+  - ~~Backprop~~
+  - ~~Automatic Differentiation~~
+- <span class="text-orange-400 font-bold border border-orange-400 border-dashed px-2 py-1">Automatic Differentiation in Pytorch</span>
+  - <span class="text-orange-400 font-bold border border-orange-400 border-dashed px-2 py-1">Pytorch 1.0: Autograd</span>
+  - Pytorch 2.0: AOTAutograd
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Pytorch 1.0: Autograd
+
+**Eager mode를 위한 Pytorch의 autodiff**
+
+<Reveal>
+
+- 매 operator가 수행될 때마다 computation graph를 **incremental**하게 build up
+  - Dispatcher를 활용, operator overloading (Autograd dispatch key)
+- Tensor별로 gradient가 필요한지 선택 가능
+  - 불필요한 gradient 계산을 피하기 위해
+  - Backprop을 하기 전, transitive하게 gradient가 필요한 tensor를 선별
+- **Custom differentiable function** 제공
+
+</Reveal>
+
+</Slide>
+
+<Slide>
+
+# Example
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+```python
+x = torch.tensor(2.0)
+x.requires_grad = True
+y = x * 2
+z = y ** 2
+z.backward()
+print(x)
+print(y)
+print(z)
+print(x.grad)
+```
+
+</div>
+<div class="flex flex-col justify-center text-sm">
+
+```
+tensor(2., requires_grad=True)
+tensor(4., grad_fn=<MulBackward0>)
+tensor(16., grad_fn=<PowBackward0>)
+tensor(16.)
+```
+
+- $x = 2$, $y = 2x = 4$, $z = y^2 = 16$
+- $\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx} = 2y \cdot 2 = 8 \cdot 2 = 16$
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# Example: Step 1
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+```python {1-2}
+x = torch.tensor(2.0)
+x.requires_grad = True
+y = x * 2
+z = y ** 2
+z.backward()
+```
+
+</div>
+<div class="flex flex-col justify-center">
+
+**Computation Graph 상태:**
+
+```
+x:2 →
+```
+
+- $x = 2$로 초기화
+- `requires_grad = True`로 gradient 필요 마킹
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# Example: Step 2
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+```python {3}
+x = torch.tensor(2.0)
+x.requires_grad = True
+y = x * 2
+z = y ** 2
+z.backward()
+```
+
+</div>
+<div class="flex flex-col justify-center">
+
+**Computation Graph 상태:**
+
+```
+y:4 → [MulBackward0: 2]
+           ↑
+x:2 ───────┘
+```
+
+- $y = x \times 2 = 4$
+- `MulBackward0` grad function이 등록됨
+- x가 `requires_grad=True`이므로 y도 자동으로 gradient 추적
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# [참고] Forward에서 수행되는 AutoGrad kernel 예제: add
+
+<img src="/images/04/slide13_1.png" class="h-72 mx-auto" />
+
+<div class="text-sm mt-2">
+
+- `compute_requires_grad`: gradient가 필요한 계산인지 판별
+- 필요하면 `grad_fn` (예: `AddBackward0`)을 등록
+- `next_edges`로 backward graph를 생성
+- Forward 수행 중에 backward에 필요한 정보를 미리 기록
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# [참고] Grad Functions
+
+<div class="flex justify-center items-center h-64">
+<div class="border-2 border-dashed border-gray-400 p-8 rounded-lg text-center text-gray-400">
+
+Codegen된 example (TODO)
+
+`derivatives.yaml`에 정의된 Op들의 미분 규칙으로부터 자동 생성
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# Example: Step 3
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+```python {4}
+x = torch.tensor(2.0)
+x.requires_grad = True
+y = x * 2
+z = y ** 2
+z.backward()
+```
+
+</div>
+<div class="flex flex-col justify-center">
+
+**Computation Graph 상태:**
+
+```
+z:16 → [PowBackward: 2y]
+            ↑
+y:4  → [MulBackward0: 2]
+            ↑
+x:2  ───────┘
+```
+
+- $z = y^2 = 16$
+- `PowBackward` grad function 등록
+- Forward 완료, backward graph 준비 완료
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# Example: Step 4.1 - Backward 시작
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+```python {5}
+x = torch.tensor(2.0)
+x.requires_grad = True
+y = x * 2
+z = y ** 2
+z.backward()
+```
+
+</div>
+<div class="flex flex-col justify-center">
+
+**Backward 과정:**
+
+$$\frac{dz}{dz} = 1$$
+
+$$\text{PowBackward: } \frac{dz}{dy} = 2y$$
+
+- 출력 자신에 대한 gradient는 항상 **1**
+- $1$이 PowBackward로 전달됨
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# Example: Step 4.2 - Gradient 전파
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+**PowBackward 단계:**
+
+$$1 \times 2y = 1 \times 2 \times 4 = 8$$
+
+</div>
+<div>
+
+**MulBackward0 단계:**
+
+$$8 \times 2 = 16$$
+
+</div>
+</div>
+
+<div class="mt-4 text-center">
+
+$$\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx} = 8 \times 2 = 16$$
+
+</div>
+
+<div class="text-sm mt-4">
+
+- 위에서 온 민감도(gradient)가 계속 누적되면서 곱해지는 과정
+- 최종적으로 `x.grad = 16`이 저장됨
+- 더 복잡한 모델에서도 근본적으로 이 과정이 반복적으로 일어남
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Example: Step 4.3 - 최종 결과
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+```
+        1
+        ↓
+[PowBackward: 2y]  →  1 × 2×4 = 8
+        ↓
+[MulBackward0: 2]  →  8 × 2 = 16
+        ↓
+     x.grad = 16
+```
+
+</div>
+<div class="flex flex-col justify-center">
+
+```python
+print(x.grad)
+# tensor(16.)
+```
+
+<div class="mt-4">
+
+**검증:**
+
+$z = (2x)^2 = 4x^2$
+
+$\frac{dz}{dx} = 8x = 8 \times 2 = 16$ ✓
+
+</div>
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# [참고] backward(): Python → C++
+
+<div class="mt-4">
+
+```
+backward()
+  └→ run_backward()
+       └→ Engine::execute()
+            └→ graph_task->init_to_execute()
+                 execute_with_graph_task()
+                   └→ Engine::evaluate_function()
+                        └→ call_function()  ← 실제 grad function이 불리는 곳
+```
+
+</div>
+
+<div class="text-sm mt-4">
+
+- Python에서 `backward()` 호출 → C++ Autograd Engine으로 전달
+- `Engine::execute()`가 graph_task를 생성하고 실행 준비
+- `evaluate_function()`에서 실제 backward 계산 수행
+- Python 레벨에서는 wrapper만 존재, 실제 연산은 C++에서 수행
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Agenda
+
+<div class="mt-4">
+
+- ~~Background~~
+  - ~~Supervised Learning~~
+  - ~~Backprop~~
+  - ~~Automatic Differentiation~~
+- <span class="text-orange-400 font-bold border border-orange-400 border-dashed px-2 py-1">Automatic Differentiation in Pytorch</span>
+  - ~~Pytorch 1.0: Autograd~~
+  - <span class="text-orange-400 font-bold border border-orange-400 border-dashed px-2 py-1">Pytorch 2.0: AOTAutograd</span>
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# What Happens When Training with torch.compile()?
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+**Eager Mode**
+
+```python
+outputs = model(images)
+loss = F.cross_entropy(outputs, labels)
+loss.backward()
+```
+
+<div class="text-xs text-gray-400 mt-2">
+
+Typical training process in Pytorch eager mode
+
+</div>
+
+</div>
+<div>
+
+**Graph Mode**
+
+```python
+compiled_model = torch.compile(model)
+outputs = compiled_model(images)
+loss = F.cross_entropy(outputs, labels)
+loss.backward()
+```
+
+<div class="text-xs text-gray-400 mt-2">
+
+What happens if we apply `torch.compile()` to the model?
+
+</div>
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# Training + torch.compile()
+
+<img src="/images/04/slide22_1.png" class="h-36 mx-auto" />
+
+<div class="text-sm mt-2">
+
+1. Dynamo의 FX Graph가 **AOTAutograd**에 의해 compiled forward/backward를 포함하는 `torch.autograd.Function`으로 변환. Forward 실행 후 output의 backward는 compiled backward
+2. Loss 계산은 Autograd가 적용된 **eager mode**로 실행 → loss function의 grad function 산출
+3. Loss function의 grad function → compiled backward를 순차적으로 처리, model weight의 gradient 계산
+
+</div>
+
+<div class="text-xs text-gray-400 mt-2">
+
+AOTAutograd에 의해 생성된 compiled forward/backward functions (wrapped as `torch.autograd.Function`)
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# AOTAutograd Does the Magic
+
+<Mermaid>
+{`graph LR
+    M["nn.Module"] --> D["Dynamo"]
+    D --> FX["FX Graph"]
+    FX --> AOT["AOTAutograd + backend compiler"]
+    AOT --> F["torch.autograd.Function<br/>with compiled forward and<br/>backward functions"]`}
+</Mermaid>
+
+<div class="mt-4 text-sm">
+
+- **nn.Module** → Dynamo가 tracing하여 **FX Graph** 생성
+- FX Graph → AOTAutograd가 **forward/backward를 분리**하고 최적화
+- Forward/backward 각각 **backend compiler**로 컴파일
+- 최적화된 `torch.autograd.Function` 객체 생성 → 가속된 training 수행
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# AOTAutograd in Pytorch 2.0
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+**Graph mode backward의 challenges**
+
+- Autograd engine은 **C++**로 구현되어 있음
+  - Python 수준에서 tracing을 수행하는 Dynamo가 handle할 수 없음
+- Dynamo가 생성한 FxGraph에 들어있는 op들은 꽤 복잡
+  - Pytorch에는 **수천개의 op**이 있음
+  - Eager mode의 복잡성
+    - Aliasing, mutation, subclass, view/storage decoupling 등
+
+</div>
+<div>
+
+**AOT Autograd의 해결책**
+
+- Backward를 **C++ dispatcher 수준**에서 tracing
+  - 먼저 Dynamo로 forward FxGraph를 생성
+  - Autograd engine을 적용, backward 계산을 C++ dispatcher 수준에서 trace
+- FxGraph를 먼저 **normalization**한 이후에 tracing
+  - Functionalization
+  - Decomposition
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# AOTAutograd Architecture
+
+<img src="/images/04/slide25_1.png" class="h-64 mx-auto" />
+
+<div class="grid grid-cols-2 gap-4 mt-2 text-sm">
+<div>
+
+**Python 수준에서 자연스럽게 사용 가능**
+
+</div>
+<div>
+
+**Compile된 forward/backward function들을 생성, 속도 향상**
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# AOTAutograd 수행 순서
+
+<div class="text-sm">
+
+| 단계 | 과정 |
+|------|------|
+| **A** | Dynamo가 생성한 FxGraph를 input으로 받음 |
+| **B** | Forward와 backward를 합친 **joint 함수**를 생성 |
+| **C** | Joint trace를 normalize (Functionalization 적용 등) |
+| **D** | Joint 함수를 수행하며 실행된 op을 C++ dispatcher 수준에서 trace |
+| **E** | Decomposition 적용 |
+| **F** | Joint trace로부터 **joint FxGraph** 생성 |
+| **G** | Joint FxGraph를 forward/backward로 **분리** |
+| **H** | Forward/backward를 compile, compiled function 생성 |
+| **I** | Compiled function들을 묶어 최종 `torch.autograd.Function` 생성 |
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# AOTAutograd 코드 레벨 동작
+
+<div class="text-xs overflow-y-auto h-80">
+
+```python
+# A: 최상위 함수
+aot_dispatch_autograd(flat_fn)
+  # Joint FX Graph 생성
+  fx_g = aot_dispatch_autograd_graph(flat_fn, ...)
+    # B: Joint 함수 생성
+    joint_fn_to_trace = create_joint(flat_fn, ...)
+      def inner_fn(...)
+        outs = fn(*primals)                    # Forward 실행
+        backward_out = torch.autograd.grad(...)  # Backward 실행
+        return outs, backward_out
+    # C: Normalization 수행
+    joint_fn_to_trace = create_functionalize_fn(joint_fn_to_trace, ...)
+    joint_fn_to_trace = aot_dispatch_subclass(joint_fn_trace, ...)
+    # D, E, F: Tracing + Decomposition + FxGraph 생성
+    fx_g = _create_graph(joint_fn_to_trace, ...)
+  # G: Partitioning
+  fw_module, bw_module = partition_fn(fx_g, ...)
+  # H: Compile 수행
+  compiled_fw_func = fw_compiler(fw_module, ...)
+  compiled_bw_func = bw_compiler(bw_module, ...)
+  # I: 최종 결과물 생성
+  compiled_fn = AOTDispatchAutograd.post_compile(compiled_fw_func, ...)
+```
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# AOTAutograd 실행 예제
+
+<img src="/images/04/slide28_1.png" class="h-80 mx-auto" />
+
+</Slide>
+
+<Slide>
+
+# Joint Graph 생성
+
+<div class="grid grid-cols-2 gap-4 mt-2">
+<div>
+
+<img src="/images/04/slide29_1.png" class="h-16" />
+
+<div class="text-xs mt-1">Dynamo가 만들어낸 FxGraph → Joint graph의 forward 부분에 해당</div>
+
+<img src="/images/04/slide29_3.png" class="h-28 mt-2" />
+
+<div class="text-xs mt-1">f()를 수행한 후 grad()를 호출 → forward와 backward를 수행하는 함수</div>
+
+</div>
+<div>
+
+<img src="/images/04/slide29_2.png" class="h-28" />
+
+<div class="text-xs mt-1">이걸 trace해서 joint graph를 생성할 수 있음</div>
+
+<div class="text-sm mt-4">
+
+**Joint Function의 Input 구성:**
+- **Forward Input**: 원래 모델의 입력값
+- **Backward Input**: Loss로부터 전달되는 gradient (grad_outs)
+- Forward에서 계산된 중간 tensor는 Joint Graph에 이미 포함
+
+</div>
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# Joint Graph Example
+
+<img src="/images/04/slide30_1.png" class="h-56 mx-auto" />
+
+<img src="/images/04/slide30_2.png" class="h-12 mx-auto mt-2" />
+
+<div class="text-sm mt-2 text-center">
+
+Forward와 backward가 하나의 그래프에 포함되어 있으며, Min-Cut 알고리즘으로 partition 가능
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Decomposition (+ Functionalization) As Needed
+
+<img src="/images/04/slide31_1.png" class="h-72 mx-auto" />
+
+<div class="text-sm mt-2 text-center">
+
+Eager mode의 복잡한 연산을 명시적으로 표현하고, 단순한 Op들로 분해하는 과정
+
+Torch IR → ATen IR → Core ATen IR → Prims IR
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Min-Cut Algorithm을 적용, forward / backward로 분리
+
+<div class="grid grid-cols-1 gap-4 mt-4">
+  <img src="/images/04/slide32_1.png" class="h-28 mx-auto" />
+  <img src="/images/04/slide32_2.png" class="h-24 mx-auto" />
+</div>
+
+<div class="text-sm text-center mt-4">
+
+Joint FxGraph를 Min-Cut Algorithm으로 forward와 backward로 분리 후 각각 컴파일
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Activation Checkpointing
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div>
+
+<img src="/images/04/slide33_1.png" class="h-24" />
+
+<div class="text-xs mt-1">Batch size가 커질수록 중간 activation도 같이 커짐</div>
+
+</div>
+<div>
+
+<img src="/images/04/slide33_2.png" class="h-36" />
+
+<div class="text-xs mt-1">
+
+- Segment별 input activation만 저장
+- Backward 수행시, segment별로 forward를 다시 수행
+
+</div>
+
+</div>
+</div>
+
+<div class="text-sm mt-2">
+
+- **Recomputation**: 중간 activation을 저장하지 않고 필요할 때 다시 계산하여 메모리 절약
+- 메모리 사용량 감소 vs 추가 연산 비용의 trade-off
+- Joint graph를 통해 forward와 backward 간의 텐서 관계를 파악하여 효율적으로 적용 가능
+
+</div>
+
+</Slide>
+
+<Slide>
+
+# Compiled model = torch.autograd.Function
+
+**Compiled model with both forward / backward = a function with a custom backend = `torch.autograd.Function`**
+
+<div class="grid grid-cols-2 gap-4 mt-4">
+<div class="text-sm">
+
+PyTorch combines the following two concepts into `torch.autograd.Function`:
+
+1. Code that does not contain PyTorch operations (C++, CUDA, numpy) working with function transforms
+2. Custom gradient rules (like JAX's `custom_vjp`/`custom_jvp`)
+
+</div>
+<div>
+
+<img src="/images/04/slide34_1.png" class="h-48" />
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+# 결과적으로
+
+<div class="text-sm">
+
+**1** Compile된 `forward()` 호출
+
+</div>
+
+<img src="/images/04/slide35_1.png" class="h-28 mx-auto" />
+
+<div class="text-sm mt-2">
+
+**2** 추가로 compile된 `backward()`가 output tensor의 grad function으로 등록됨
+
+**3** `loss.backward()` 수행과정에서 compile된 `backward()`를 실행
+
+</div>
+
+<img src="/images/04/slide35_2.png" class="h-20 mx-auto mt-2" />
+
+<div class="text-xs text-gray-400 text-center mt-2">
+
+등록된 Backend가 forward/backward 각각 컴파일
+
+</div>
+
+</Slide>
