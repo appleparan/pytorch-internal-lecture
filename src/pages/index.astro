@@ -12,11 +12,22 @@ const sorted = lectures.sort((a, b) => a.data.lecture - b.data.lecture);
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>모두의 연구소 PyTorch + NPU랩</title>
+    <script is:inline>
+      (function() {
+        var t = localStorage.getItem('theme');
+        if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
   </head>
   <body>
     <header class="site-header">
       <nav>
         <a href="/" class="nav-home">PyTorch + NPU랩</a>
+        <button class="theme-toggle" type="button" aria-label="Toggle dark mode">
+          <span class="icon-sun">&#9788;</span>
+          <span class="icon-moon">&#9790;</span>
+        </button>
       </nav>
     </header>
 
@@ -36,5 +47,7 @@ const sorted = lectures.sort((a, b) => a.data.lecture - b.data.lecture);
         ))}
       </div>
     </div>
+
+    <script src="../scripts/theme-toggle.js"></script>
   </body>
 </html>

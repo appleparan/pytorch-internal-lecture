@@ -18,11 +18,22 @@ const { title, lecture, date } = Astro.props;
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css"
     />
+    <script is:inline>
+      (function() {
+        var t = localStorage.getItem('theme');
+        if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
   </head>
   <body>
     <header class="site-header">
       <nav>
         <a href="/" class="nav-home">PyTorch + NPU랩</a>
+        <button class="theme-toggle" type="button" aria-label="Toggle dark mode">
+          <span class="icon-sun">&#9788;</span>
+          <span class="icon-moon">&#9790;</span>
+        </button>
       </nav>
     </header>
 
@@ -44,5 +55,7 @@ const { title, lecture, date } = Astro.props;
         <a href="/">← 목록으로 돌아가기</a>
       </div>
     </footer>
+
+    <script src="../scripts/theme-toggle.js"></script>
   </body>
 </html>

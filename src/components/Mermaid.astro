@@ -21,7 +21,7 @@ const { scale = 1.0 } = Astro.props;
     document.documentElement.dataset.mermaidInit = 'true';
     mermaid.initialize({
       startOnLoad: false,
-      theme: 'dark',
+      theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
       securityLevel: 'loose',
     });
   }
