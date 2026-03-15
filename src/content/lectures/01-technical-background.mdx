@@ -5,347 +5,236 @@ lecture: 1
 ---
 
 
-
 # Week 1: Pytorch의 기술적인 배경
 
 Pytorch + NPU 온라인 모임 #1 | 2024-12-04
 
 
----
+## 소개
+
+이 강의는 PyTorch + NPU 랩의 첫 번째 온라인 모임으로, PyTorch의 기술적 배경을 다룹니다.
+
+랩장은 리벨리온에서 SW를 개발하고 있으며, 컴파일러 연구/개발을 오랫동안 해왔습니다. 리벨리온 NPU를 PyTorch에 붙이는 일과 PyTorch Foundation에서 리벨리온을 대표하는 일을 하고 있고, PyTorch KR의 PyTorch Core SIG를 만들어 관심 있는 분들과 함께 커뮤니티 활동도 해볼 계획입니다.
+
+### 랩 1기 목표
+
+**랩 차원의 목표**로는 PyTorch internal에 관심 있는 사람들을 모으고, 함께 공부하고 성장하며, 공부한 결과를 강의자료로 정리하여 더 많은 사람들이 PyTorch internal을 쉽게 공부할 수 있도록 공유하는 것입니다. **개인적인 목표**로는 공부한 내용을 바탕으로 리벨리온 NPU를 PyTorch에 더 잘 붙여보고, 많은 분들이 PyTorch upstream에 기여하여 한국이 PyTorch upstream에서 큰 지분을 가져갈 수 있기를 바랍니다.
+
+### 랩 운영 방안
+
+- **랩장**: 랩 운영 총괄, 강의자료 초안 작성
+- **Offline 참여자**: 강의 전 강의자료 보강, Q&A 대응
+- **Online 참여자**: 강의 또는 강의자료에 대한 피드백/질문을 통해 강의자료 품질 향상에 기여
+
+온라인 모임은 12월 4일부터 매주 수요일 저녁 7시에 진행되며, 휴일을 제외하고 총 12회 예정입니다. 강의자료는 GitHub과 Google Group을 통해 사전 배포됩니다. 간단한 질문은 슬라이드에 코멘트로, 복잡한 질문은 [GitHub repo](https://github.com/PyTorchKorea/pytorchcore-kr)에 issue로 남기면 됩니다.
 
 
-# 환영합니다
+## ML Framework이란
+
+ML Framework은 AI Ecosystem에서 다음과 같은 역할을 합니다:
+
+- **OS**이자 — AI 가속기를 추상화된 computing resource로 제공
+- **Programming Language**이자 — Model을 쉽게 작성할 수 있도록 API 제공
+- **Compiler** — 작성된 모델을 computing resource로 mapping
+
+이처럼 ML Framework에는 **다양한 기술적인 background가 혼재**되어 있습니다.
+
+PyTorch, TensorFlow, JAX 등의 ML Framework은 단순히 모델을 기술하는 것뿐 아니라 GPU와 같은 AI 가속기를 효과적으로 활용하는 것이 핵심입니다. 프로그래밍 언어적 성격으로 모델을 직접 작성하고 제공하며, 컴파일러 역할로 단순히 AI 가속기에 매핑하는 것이 아니라 트랜스포메이션 과정을 통해 하드웨어 타겟에 최적화합니다.
+
+ML Framework의 발전은 이전의 훌륭한 연구들과 산업적 성과가 축적되어 만들어진 결과물입니다. 그 역사와 과정을 살펴보면, 굉장히 중요한 기술적 흐름들이 있었고, 결국 이런 흐름들이 합쳐져서 우리가 지금 쓰고 있는 ML Framework이 되었습니다.
+
+> **Q: PyTorch의 경우, ML 컴파일러의 이름이 있을까요?**
+>
+> 컴파일러의 정의를 먼저 살펴봐야 합니다. PyTorch 1.x에도 `torch.jit.trace` 등 컴파일러 유사 기능이 포함되어 있었으나, 당시에는 컴파일러 기능이 프레임워크의 중심이 아니었습니다. PyTorch 2.0에서는 **Dynamo**(torch.jit.trace를 대체), **Inductor**(본격적인 컴파일러), **Triton**(도메인 특화 언어)이 주요 ML 컴파일러 컴포넌트로 작동합니다.
 
 
----
+## 오늘 다룰 주제들
 
+이 강의에서는 ML Framework의 기술적 배경과 설계 공간을 다룹니다.
 
-# 랩장 소개
+**ML Framework의 배경 기술:**
+- Heterogeneous computing with GPU — Graphics에서 GPGPU로의 발전
+- Supercomputing — BLAS, MPI 등 고성능 컴퓨팅 기술
+- ML compiler — XLA, TensorRT, TVM 등
+- Numerical Computing for Data Science — NumPy로 대표되는 도구 생태계
 
-- 리벨리온에서 SW를 개발하고 있습니다
-- 컴파일러 연구 / 개발을 오랫동안 해 왔습니다
-- Pytorch에 관심이 매우 높습니다
-  - 리벨리온 NPU를 Pytorch에 붙이는 일을 하고 있습니다
-  - Pytorch Foundation에서 리벨리온을 대표하는 일을 하고 있습니다
-  - Pytorch KR의 Pytorch Core SIG를 만들고, 운영시작하려 합니다
-
-
----
-
-
-# 랩 1기 목표
-
-**랩 차원의 목표**
-
-- Pytorch internal에 관심있는 사람들을 모으고 싶습니다
-- Pytorch internal에 대해 함께 공부하고 성장하고 싶습니다
-- 더욱 더 많은 사람들이 Pytorch internal을 쉽게 공부할 수 있도록 저희가 함께 공부한 결과를 강의자료로 정리, 공유하고 싶습니다
-
-**개인적인 목표**
-
-- 개인적으로는 공부한 내용을 바탕으로 리벨리온 NPU를 Pytorch에 더 잘 붙여보고 싶습니다
-- 많은 분들이 Pytorch upstream에 기여할 수 있으면 좋겠습니다
-
-
----
-
-
-# 랩 운영 방안
-
-**랩 구성원들의 역할**
-
-- 랩장: 랩 운영 총괄. 강의자료 초안 작성
-- Offline 참여자: 강의전 강의자료 보강. Q&A 대응
-- Online 참여자: 강의 혹은 강의자료에 대한 피드백 혹은 질문 → 강의자료 품질 향상에 기여
-
-**온라인 모임**
-
-- 12월 4일부터 매주 수요일 저녁 7시 - 휴일 제외 총 12회
-- 매주 강의 전에 강의 slide 배포 (GitHub + Google Group을 통한 공지)
-  - 강의 자료에 대한 간단한 질문은 slide에 코멘트로
-  - 좀더 복잡한 질문은 GitHub repo에 issue로
-
-**GitHub repo 운영**
-
-- https://github.com/PyTorchKorea/pytorchcore-kr
-
-
----
-
-
-# ML Framework
-
-AI Ecosystem의
-
-
-- **OS**이자 (AI 가속기를 추상화된 computing resource로 제공)
-- **Programming Language**이자 (Model을 쉽게 작성할 수 있도록 API 제공)
-- **Compiler** (작성된 모델을 computing resource로 mapping)
-
-
-**다양한 기술적인 background가 혼재되어 있음!**
-
-
----
-
-
-# 오늘 다룰 topic들
-
-<div class="grid grid-cols-2 gap-4">
-<div>
-
-**ML Framework: background**
-
-- Heterogeneous computing with GPU
-  - Graphics: OpenGL (1992), DirectX (1995)
-  - GPGPU: HLSL (2002), CUDA (2007), OpenCL (2009), HSA (2011)
-- Supercomputing
-  - Fast multiplication - BLAS (1979), cuBLAS (2017), cuTLASS (2019)
-  - Distributed programming - MPI (1992)
-- ML compiler
-  - XLA (Google), TensorRT (Nvidia), TVM (OctoAI), Glow (Meta), etc
-- Numerical Computing for Data Science
-  - Matlab (1970s), R (1993), NumPy (2005)
-
-</div>
-<div>
-
-**Design space**
-
+**설계 공간(Design Space):**
 - Two (or three) language problems
-- Eager vs. graph mode
-  - Define-and-run and define-by-run
-- Interpretation vs. \{just-in-time, ahead of time\} compilation
+- Eager vs. graph mode (define-and-run vs. define-by-run)
+- Interpretation vs. JIT/AOT compilation
 
-<div class="mt-4 font-bold text-lg">
+그리고 최종적으로 **Convergence on PyTorch** — 이 모든 기술이 PyTorch로 수렴하고 있는 흐름을 살펴봅니다.
 
-**Convergence on Pytorch**
 
-</div>
-</div>
-</div>
+## Heterogeneous Computing with GPU
 
+Heterogeneous Computing은 CPU와 GPU를 함께 활용하여 더 빠르게 계산할 수 있도록 해주는 시스템입니다. 일반적으로 CPU가 수행하던 계산 중 일부를 GPU에게 offloading하여 성능을 향상시키는 방식입니다.
 
----
+ML Framework의 핵심은 단순히 모델을 기술하는 것뿐 아니라 GPU와 같은 AI 가속기를 효과적으로 활용하는 것이기 때문에, CPU와 AI 가속기를 잘 결합하여 사용하는 Heterogeneous Computing은 매우 중요한 배경 기술입니다.
 
+### Graphics에서의 시작
 
-# Heterogeneous Computing with GPU
+이 기술의 시작점은 GUI, 컴퓨터 게임 등을 위한 **Graphics**입니다.
 
-CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시스템
+- **OpenGL (1992)** — 실리콘 그래픽스가 개발한 Graphics API로, 프로그래머가 그래픽스 연산을 소프트웨어적으로 프로그래밍할 수 있는 시작점이었습니다. 다만 OpenGL 자체는 상업적으로 큰 성공을 거두지는 못했습니다.
+- **DirectX (1995)** — Microsoft가 개발한 Graphics API로, Windows PC의 보급과 함께 실질적인 업계 표준으로 자리잡았습니다. GPU의 성능 향상과 함께 주요 표준이 되었으며, Nvidia와 ATI(현재 AMD)의 성장을 촉진시킨 중요한 계기가 되었습니다.
 
-- 일반적으로 CPU가 특정 계산을 GPU에게 offloading함으로써 성능 향상
+### Shader Programming의 등장 (2000년대 초)
 
-**시작점은 GUI, 컴퓨터 게임 등을 위한 Graphics**
+2000년대 초에는 GPU 프로그래밍에 큰 변화를 가져온 **Shader Programming**이 등장했습니다. 이전에는 GPU가 fixed function만 수행할 수 있었지만, 이제 개발자가 GPU를 프로그래밍 가능한 디바이스로 활용할 수 있게 되었습니다.
 
-- OpenGL (1992) - 실리콘 그래픽스가 개발한 Graphics API
-- DirectX (1995) - Microsoft가 개발한 Graphics API
-  - Windows PC의 보급과 함께 실질적인 업계 표준으로 자리잡음
-  - Nvidia, ATI (2006년 AMD와 합병)등이 성장하게된 동력
+- **Nvidia GeForce 3 (2001)** — 최초로 Shader Programming을 지원한 GPU로, 하드웨어적으로 셰이더 기능을 도입했습니다.
+- **DirectX 8과 HLSL** — Microsoft는 DirectX 8에서 High-Level Shading Language(HLSL)를 정의하여 개발자들이 고급 언어로 GPU를 프로그래밍할 수 있도록 지원했습니다.
 
-**2000년대 초 shader programming의 등장**
+이 시기를 기점으로 GPU는 단순한 그래픽스 연산 디바이스에서 범용 연산에 적합한 프로그래머블한 디바이스로 진화했습니다.
 
-- Graphics 개발자가 high-level programming 언어를 사용, GPU를 programming하기 시작
-  - DirectX 8부터 시작. DirectX 9에서 HLSL 정의
-- Nvidia의 GeForce 3 (2001) : shader programmable한 최초의 GPU
+### GPGPU의 등장 (2007년)
 
+2007년 Nvidia는 **CUDA**(Compute Unified Device Architecture)를 발표하며, GPGPU(General Purpose GPU)의 시대를 열었습니다.
 
----
+- CUDA는 GPU를 위한 일반적인 parallel programming model로, 초기에는 High-Performance Computing(HPC) 시장을 타겟으로 했습니다. GPU의 성능이 슈퍼컴퓨터 수준에 가까워지면서, 이를 일반 개발자들이 활용할 수 있도록 CUDA를 도입한 것입니다.
+- Deep learning의 등장과 함께 AI 가속기를 위한 programming model로 진화했습니다.
 
+이후 다른 플랫폼들도 등장했습니다:
+- **OpenCL (2008)** — Apple이 주도
+- **HSA (2011)** — AMD/ARM이 주도
 
-# Heterogeneous Computing: GPGPU의 등장
+그러나 OpenCL과 HSA는 상용화에서 한계를 보였고, **CUDA가 사실상 표준**으로 자리잡았습니다. 오늘날 PyTorch와 같은 ML Framework 내부에서도 CUDA 기반의 API가 광범위하게 사용되고 있으며, 많은 후발 주자들이 이를 기반으로 비슷한 구조를 구축하고 있습니다.
 
-**2007년 CUDA와 함께 GPGPU의 등장**
 
-- Nvidia가 개발한 GPU를 위한 일반적인 parallel programming model
-- 초기에는 High-Performance Computing (HPC) 시장을 타겟으로 함
-- Deep learning의 등장과 함께 AI 가속기를 위한 programming model로 진화
+## Supercomputing
 
-**이후 다른 플랫폼들도 등장**
+슈퍼컴퓨팅은 엄청나게 복잡한 계산을 처리하기 위한 고성능 컴퓨팅 기술입니다. 최근에는 머신러닝이 대표적인 예시로 떠오르고 있지만, 20년 전만 해도 주로 물리학 시뮬레이션, 천문학, 기후 모델링, 로켓 개발 등 과학 연구와 시뮬레이션 분야에서 사용되었습니다.
 
-- Apple이 주도한 OpenCL (2008)
-- AMD/ARM이 주도한 HSA (2011)
-- 그러나 OpenCL과 HSA는 상용화에서 한계를 보였고, **CUDA가 사실상 표준**으로 자리잡음
+### 슈퍼컴퓨팅과 인터넷 서비스의 차이
 
+슈퍼컴퓨팅은 많은 수의 컴퓨터를 네트워크로 연결해 **하나의 큰 계산을 분산 처리**하는 방식으로 작동합니다. 구글의 데이터센터나 클라우드 기술도 유사한 구조를 가지고 있지만, 본질적인 차이가 존재합니다:
 
----
+- **인터넷 서비스**는 독립적이고 간단한 계산을 대량으로 처리하는 데 중점을 둡니다.
+- **슈퍼컴퓨팅**은 하나의 거대한 계산을 여러 컴퓨터에서 나누어 처리하며, 모든 작업이 연결되어 있습니다. 따라서 작업 중 하나라도 오류가 발생하면 전체 계산이 망가질 수 있어 **"Fault"의 처리가 매우 중요**합니다.
 
+머신러닝의 경우에도 인퍼런스는 독립적인 작업이 많지만, 대규모 분산 학습에서는 하나의 작업이 매우 크기 때문에 fault 처리가 더욱 중요해집니다.
 
-# Supercomputing
+### 병렬/분산 프로그래밍 모델
 
-엄청나게 복잡한 계산을 처리하기 위한 computing 기술
+슈퍼컴퓨팅의 발전과 함께 다양한 병렬 및 분산 프로그래밍 모델이 등장했습니다:
+- **개념적인 모델** — SIMD, SPMD, MIMD
+- **구현 표준** — MPI, OpenMP
 
-- 응용분야: scientific research and simulation (physics, astrophysics, climate modeling 등)
+특히 MPI(Message Passing Interface)는 PyTorch에서 구현된 분산 프로그래밍 모델의 기반이 되기도 합니다.
 
-**보통 많은 수의 컴퓨터를 네트워크로 연결하고 큰 계산을 나누어 처리**
+### Matrix Multiplication
 
-- 대규모 인터넷 서비스도 계산 총량은 엄청나지만 많은 수의 독립된, 간단한 계산을 처리하는 점이 다름
-- "Fault"의 처리가 수퍼컴퓨팅에서 매우 중요 (vs. 대규모 인터넷 서비스)
+슈퍼컴퓨팅에서 가장 중요한 요소 중 하나는 **Matrix Multiplication**입니다. 과학에서 다루는 많은 자연 현상들이 선형대수로 표현되며, 선형대수의 가장 중요한 개념들은 결국 matrix multiplication으로 귀결됩니다.
 
-**다양한 parallel/distributed programming model이 등장**
+매트릭스 곱셈의 연산량은 매트릭스 크기에 따라 N³에 비례하기 때문에, 이를 얼마나 빠르게 처리할 수 있는지가 전체 시스템의 성능에 큰 영향을 미칩니다.
 
-- 개념적인 모델 - SIMD, SPMD, MIMD
-- 구현 표준 - MPI, OpenMP
+**최적화 기술:**
+- Algorithmic efficiency 측면: **Strassen algorithm**, DeepMind의 **AlphaTensor** 등
 
+**표준 라이브러리 — BLAS:**
+- **BLAS** (Basic Linear Algebra Subprograms, 1979) — 다양한 linear algebra 문제에 적용할 수 있는 low-level API로, Matrix multiplication을 위한 **GEMM**(General Matrix Multiply)을 포함합니다.
+- 각 HW vendor들은 자사 하드웨어에 최적화된 BLAS 구현을 출시합니다:
+  - Nvidia: **cuBLAS** (2017, closed-source), **CUTLASS** (2018, 오픈소스)
 
----
 
+## ML Compiler
 
-# Supercomputing: Matrix Multiplication
+ML Compiler는 정적인 graph로 전환된 ML model을 특정 hardware에 맞게 최적화해주는 컴파일러입니다.
 
-**Matrix multiplication이 가장 중요한 요소**
+ML Framework으로 개발자들이 표현한 model은 대부분 "동적"입니다. ML compiler를 적용하기 위해서는:
+1. 동적으로 표현된 model을 특정한 "정적" model로 고정하고
+2. 이를 ML compiler가 이해할 수 있는 format으로 전환하여
+3. 최종적으로 HW가 실행할 수 있는 binary를 생성합니다.
 
-- 과학에서 다루는 많은 자연 현상들이 선형대수로 표현됨
-- 선형대수의 가장 중요한 개념들은 결국 matrix multiplication로 귀결됨
+### On-Device AI에서의 활용
 
-**자연스럽게, matrix multiplication을 빠르게 처리할 수 있는 다양한 최적화 기술들이 등장**
+서버에서 GPU로 훈련된 모델을 On-Device AI 가속기에서 수행하기 위해 많이 쓰이며, Qualcomm Snapdragon, Samsung Exynos, Google Tensor 등이 대표적입니다.
 
-- Algorithmic efficiency 측면: Strassen algorithm, DeepMind's AlphaTensor
+### 서버에서의 활용 확대
 
-**큰 matmul에 최적화된 보편적인 library의 등장**
+서버에서도 점점 활성화되고 있는 추세입니다:
 
-- **BLAS** (Basic Linear Algebra Subprograms, 1979)
-  - 다양한 linear algebra 문제에 적용할 수 있는 low-level API
-  - Matrix multiplication을 위한 **GEMM** 포함
-- 각 HW vendor들은 그들의 HW에 최적화된 BLAS 구현 출시
-  - Nvidia: cuBLAS (2017), cuTLASS (2018)
+| 하드웨어 | 프레임워크 | 컴파일러 |
+|---------|-----------|---------|
+| Google TPU | TensorFlow, JAX | XLA |
+| Nvidia GPU | TensorFlow, PyTorch | TensorRT |
+| Rebellions NPU | TensorFlow, PyTorch | RBLN Compiler |
 
+**PyTorch 2.0의 등장으로 이 흐름은 더욱 가속화될 것**입니다.
 
----
+### PyTorch에서의 ML Compiler
 
+PyTorch 1.x에서도 JIT Trace가 모델을 정적 형태로 변환해주는 역할을 했지만, 본격적인 ML 컴파일러로서의 역할은 제한적이었습니다.
 
-# ML Compiler
+PyTorch 2.0에서는 ML 컴파일러 기능이 대폭 강화되었습니다:
+- **Dynamo** — JIT Trace를 대체하는 컴포넌트로, 컴파일러와 유사한 역할 수행
+- **Inductor** — 본격적인 ML 컴파일러로, 모델 최적화 및 하드웨어 실행 효율화 담당
+- **Triton** — 도메인 특화 언어(DSL)로, GPU를 위한 커널 최적화 작업에 활용
 
-정적인 graph로 전환된 ML model을 특정 hardware에 맞게 최적화해주는 컴파일러
 
+## Numerical Computing for Data Science
 
-- ML framework으로 개발자들이 표현한 model은 대부분 "동적"
-- ML compiler를 적용하기 위해선
-  - 동적으로 표현된 model을 특정한 "정적" model로 고정하고
-  - 이를 ML compiler가 이해할 수 있는 format으로 전환
-  - 최종적으로 HW가 실행할 수 있는 binary를 생성
+Data science는 통계, 컴퓨터 과학, 수학 등의 도구를 활용하여 데이터를 분석하고 대상을 이해하는 융합 학문입니다. 많은 과학자/엔지니어들이 업무의 일부로 자연스럽게 data scientist 역할을 수행합니다.
 
+### Data Scientist가 선호하는 도구의 특성
 
-**서버에서 GPU로 훈련된 모델을 On-Device AI 가속기에서 수행하기 위해 많이 쓰임**
+Data scientist들은 복잡한 수학 함수를 직접 구현하기보다는, 잘 만들어진 도구나 라이브러리를 활용하는 것을 선호합니다:
+- **Predefined math functions** — 미리 정의된 수학 함수들
+- **Interactive mode** — 데이터를 즉시 처리하고 결과를 확인하는 대화형 작업 방식
+- **Visualization** — 시각화 도구
 
-- Qualcomm Snapdragon / Samsung Exynos / Google Tensor
+### NumPy의 등장과 Python의 부상
 
-**서버에서도 점점 활성화되고 있는 추세**
+SAS (1966), SPSS (1968), Matlab (1970s), R (1993) 등이 선구적인 역할을 했으나, **NumPy (2005)의 등장과 함께 Python이 대세**로 자리잡았습니다. SciPy, Matplotlib, pandas, scikit-learn 등의 생태계가 형성되었고, Jupyter의 등장으로 더욱 많은 사람들이 쉽게 접근할 수 있게 되었습니다.
 
-- Google TPU + \{TensorFlow, JAX\} + XLA
-- Nvidia GPU + \{TensorFlow, Pytorch\} + TensorRT
-- Rebellions NPU + \{TensorFlow, Pytorch\} + RBLN Compiler
-- **Pytorch 2.0의 등장으로 더욱 가속화될 것**
+**ML도 사용성 측면에서 같은 추세**를 보이고 있습니다. NumPy는 TensorFlow와 PyTorch의 API 설계와도 밀접한 관련이 있으며, 특히 텐서 연산 처리 방식에서 공통점이 많습니다.
 
+흥미로운 점은, NumPy가 PyTorch의 개발에 영향을 준 뒤, 최근에는 NumPy 창시자의 회사가 PyTorch 2.0에 많은 기여를 하고 있다는 것입니다. 이제 PyTorch는 NumPy 코드를 네이티브로 지원하며, NumPy 코드를 수정 없이 작성하면 Dynamo와 Inductor를 통해 바이트코드로 동적 변환 후 CUDA 코드로 컴파일하여 GPU에서 실행할 수 있습니다.
 
----
 
+## Two (or More) Language Problems
 
-# Numerical Computing for Data Science
+Python은 사용하기 쉽지만 **성능 문제**가 있습니다. 이를 해결하기 위한 세 가지 접근법이 있습니다:
 
-**Data science**
+**해결책 #1 — 고성능 Python compiler를 개발**
+- Cython의 성능이 점점 좋아지고 있으며, PyPy같은 대안 프로젝트도 존재합니다.
 
-- 통계, 컴퓨터 과학, 수학 등의 도구를 활용, 데이터를 분석하여 대상을 이해하는 융합 학문
-- 많은 과학자 / 엔지니어들이 업무의 일부로 자연스럽게 data scientist 역할을 수행
+**해결책 #2 — Python 언어를 증강**
+- Modular의 Mojo 프로젝트가 대표적인 시도입니다.
 
-**Data scientist들은 손쉽게 접근할 수 있는 도구를 선호**
+**해결책 #3 — 다른 언어로 작성된 모듈과 binding**
+- pybind11을 통한 Python + C++11 결합이 대표적이며, NumPy와 PyTorch가 이 방식을 채택하고 있습니다.
+- 추가로 AI 가속기로 offloading하여 성능을 극대화합니다.
 
-- Predefined math functions
-- Interactive mode
-- Visualization
 
-**Numpy의 등장과 함께 Python이 대세로 자리잡음**
-
-- SAS (1966), SPSS (1968), Matlab (1970s), R (1993) 등이 선구적인 역할
-- Numpy (2005)의 등장과 함께 Python이 대세가 됨
-  - SciPy, Matplotlib, pandas, scikit, ...
-- Jupyter의 등장으로 더욱더 많은 사람들이 쉽게 접근할 수 있게 됨
-- **ML도 사용성 측면에서 같은 추세**
-
-
----
-
-
-# Two (or More) Language Problems
-
-<div class="grid grid-cols-[1fr_3fr] gap-6 mt-4">
-
-<div class="flex items-center justify-center">
-  <div class="text-center p-4 bg-red-500/20 rounded-lg border border-red-400">
-    <span class="text-lg font-bold">Python의<br/>성능 문제</span>
-  </div>
-</div>
-
-<div>
-
-
-<div class="mb-4 p-3 bg-blue-500/10 rounded-lg border border-blue-400/30">
-  <span class="font-bold text-blue-300">해결책 #1</span> — 고성능 Python compiler를 개발
-  <div class="text-sm ml-4 mt-1 opacity-80">Cython 성능이 점점 좋아지고 있음 / PyPy같은 대안 프로젝트도 존재</div>
-</div>
-
-<div class="mb-4 p-3 bg-green-500/10 rounded-lg border border-green-400/30">
-  <span class="font-bold text-green-300">해결책 #2</span> — Python 언어를 증강
-  <div class="text-sm ml-4 mt-1 opacity-80">Modular의 Mojo 프로젝트</div>
-</div>
-
-<div class="mb-4 p-3 bg-orange-500/10 rounded-lg border border-orange-400/30">
-  <span class="font-bold text-orange-300">해결책 #3</span> — 다른 언어로 작성된 모듈과 binding
-  <div class="text-sm ml-4 mt-1 opacity-80">pybind11: Python + C++11 → Numpy, Pytorch</div>
-  <div class="text-sm ml-4 mt-1 opacity-80">+ 추가로 가속기로 offloading</div>
-</div>
-
-
-</div>
-</div>
-
-
----
-
-
-# Eager vs. Graph Mode
-
-<div class="grid grid-cols-2 gap-8">
-<div>
+## Eager vs. Graph Mode
 
 ### Eager mode
 
-- API 호출 → operator가 **곧바로 실행**됨
+API 호출 시 operator가 **곧바로 실행**됩니다.
 
 ### Graph mode
 
-- API 호출 → graph를 **점진적으로 생성**
-- Graph가 완성되면 목적에 맞게 변환 적용 후 수행
-  - Back propagation을 위한 backward graph 생성
-  - 성능 향상을 위한 최적화 수행 (예: op fusion)
+API 호출 시 graph를 **점진적으로 생성**합니다. Graph가 완성되면 목적에 맞게 변환을 적용한 후 수행합니다:
+- Back propagation을 위한 backward graph 생성
+- 성능 향상을 위한 최적화 수행 (예: op fusion)
 
-</div>
-<div>
+Eager mode와 graph mode를 명확히 구분할 수 있지만, 실제로는 두 가지가 동시에 작동하는 경우가 많습니다. 예를 들어, forward 단계에서는 eager mode로 계산이 진행되지만, autograd를 켜면 backward 단계에서는 gradient 계산을 위한 graph가 생성됩니다. 이처럼 forward에서는 eager mode를, backward에서는 graph mode가 작동합니다.
 
 ### Graph mode를 접근하는 방법
 
 **TF1의 접근법 (define-and-run)**
-- 개발자에게 명시적으로 graph를 생성
+- 개발자에게 명시적으로 graph를 생성하도록 요구
 
-**Pytorch, TF2, JAX의 접근법 (define-by-run)**
-- 개발자는 eager mode를 가정하고 model 작성
-- 개발자가 작성한 eager mode기반 model으로부터 graph를 추출
+**PyTorch, TF2, JAX의 접근법 (define-by-run)**
+- 개발자는 eager mode를 가정하고 model을 작성
+- 개발자가 작성한 eager mode 기반 model로부터 graph를 추출
 
-</div>
-</div>
-
-<div class="mt-4 grid grid-cols-2 gap-4 text-center text-sm">
-  <div class="p-2 bg-yellow-500/10 rounded border border-yellow-400/30">TF2, Pytorch → Eager, Graph 모두 가능</div>
-  <div class="p-2 bg-blue-500/10 rounded border border-blue-400/30">JAX → Graph만 가능</div>
-</div>
+TF2와 PyTorch는 Eager, Graph 모두 가능하고, JAX는 Graph만 가능합니다.
 
 
----
-
-
-# TF1 vs. Pytorch Examples
-
-<div class="grid grid-cols-2 gap-8">
-<div>
+## TF1 vs. PyTorch 코드 비교
 
 ### TF1
 
@@ -358,14 +247,9 @@ with tf.Session() as s:
     print(c.eval())
 ```
 
-<div class="mt-4 text-sm p-2 bg-yellow-500/10 rounded border border-yellow-400/30">
-"c"는 matmul의 결과를 의미하지만 실제 결과값을 알기위해선 "eval"을 호출하여 그래프를 실행해야함
-</div>
+TensorFlow 1.x에서는 `tf.constant`와 `tf.matmul` 같은 연산자들이 실제 계산을 수행하지 않고, 계산 과정을 그래프로 만듭니다. `c`를 평가하기 전까지는 실제 값을 알 수 없으며, `Session`을 생성한 뒤 `eval()`을 호출해야 비로소 계산 결과를 얻을 수 있습니다.
 
-</div>
-<div>
-
-### Pytorch
+### PyTorch
 
 ```python
 x1 = torch.rand(2, 3)
@@ -374,21 +258,12 @@ y = x1 + x2
 print(y)
 ```
 
-<div class="mt-4 text-sm p-2 bg-green-500/10 rounded border border-green-400/30">
-"y"는 "+"가 실행된 결과를 가지고 있음. Pytorch eager mode에서는 별도의 그래프 실행 과정이 필요 없음
-</div>
-
-</div>
-</div>
+PyTorch의 eager mode에서는 각 줄의 연산이 즉시 수행되며, `y`는 `+`가 실행된 결과를 바로 가지고 있습니다. 별도의 그래프 실행 과정이 필요 없으며, 코드 한 줄 한 줄이 실시간으로 계산됩니다.
 
 
----
+## Graph Capture: TF2와 PyTorch 비교
 
-
-# Graph Capture: TF2 | Pytorch 2
-
-<div class="grid grid-cols-2 gap-8">
-<div>
+그래프 모드에서는 어떻게 그래프를 뽑아낼 것인가가 매우 중요합니다. TF1은 프로그래머들에게 명시적으로 그래프를 그려달라고 요청했지만, TF2나 PyTorch는 eager 모드로 모델을 만들어주면 거기서 자체적으로 그래프를 뽑아내는 방식을 사용합니다.
 
 ### TF2
 
@@ -399,10 +274,9 @@ with g.as_default():
     assert c.graph is g
 ```
 
-</div>
-<div>
+TF2는 TF1의 흔적이 남아있어, 그래프를 명시적으로 construct한 다음 context로 묶어서 처리합니다. 이 context 안에서 eager 모드로 모델을 기술하면 그래프가 캡처되는 구조입니다.
 
-### Pytorch 1 & 2
+### PyTorch 1 & 2
 
 ```python
 def Foo(x, y):
@@ -414,38 +288,26 @@ foo = Foo
 x = torch.rand(3, 4)
 y = torch.rand(3, 4)
 
-# Pytorch 1
+# PyTorch 1
 traced_foo = torch.jit.trace(foo, (x, y))
 traced_foo(x, y)
 
-# Pytorch 2
+# PyTorch 2
 optimized_foo = torch.compile(foo)
 optimized_foo(x, y)
 ```
 
-</div>
-</div>
+PyTorch 1과 2는 모두 100% eager 모드를 지원합니다. PyTorch 1에서는 `torch.jit.trace`를 이용해 trace를 뽑아 그래프 모드를 수행했고, PyTorch 2에서는 이를 더 범용적으로 사용할 수 있는 `torch.compile`을 도입했습니다. 특히 trace를 뽑아내는 기능은 **Dynamo**라는 기술을 통해 더 체계적으로 대응하고 있습니다.
 
 
----
+## 이것은 새로운 것이 아니다
 
-
-# This is not new
-
-<div class="grid grid-cols-2 gap-8 mt-4">
-<div>
-
-Eager mode에서 graph를 추출하는 기법의 역사적 배경:
-
+Eager mode에서 graph를 추출하는 기법은 역사적으로 깊은 배경을 가지고 있습니다:
 
 - **Trace scheduling** for VLIW compiler (1981)
 - **Out-Of-Order Execution** in Pentium Pro (1995)
 - **Trace cache** (1996)
 - **Chrome V8 Engine** (2008)
-
-
-</div>
-<div>
 
 <img src="/images/01/slide16_1.png" class="rounded shadow-lg" alt="Trace Scheduling paper by Joseph A. Fisher, 1981" />
 
@@ -453,41 +315,36 @@ Eager mode에서 graph를 추출하는 기법의 역사적 배경:
 Fisher, J.A. "Trace Scheduling: A Technique for Global Microcode Compaction" IEEE Trans. on Computers, 1981
 </div>
 
-</div>
-</div>
+PGO(Profile-Guided Optimization)는 프로그램의 동적인 특성을 컴파일 타임에 활용해 최적화를 수행하는 더 넓은 개념이며, 트레이스 스케줄링은 PGO에서 사용하는 특정 기법 중 하나입니다. 동적인 실행 경로(Trace)를 추출하여 브랜치 예측을 통해 자주 실행되는 경로를 추적하고, 이 경로에 최적화된 스케줄링을 수행합니다. 양질의 프로파일 데이터가 필요하며, 올바른 트레이스를 만들어 롤백 없이 효율적인 성능을 제공하는 것이 핵심입니다.
 
 
----
-
-
-# Convergence on Pytorch
+## Convergence on PyTorch
 
 <div class="flex justify-center mt-4">
   <img src="/images/01/slide17_1.png" class="h-96 rounded shadow-lg" alt="vLLM tweet - PyTorch as a Narrow Waist for hardware abstractions" />
 </div>
 
+ML Framework에는 방대한 양의 배경 기술이 있지만, 시간이 흘러감에 따라 점점 더 잘 정리되어 "이런 문제는 이렇게 풀면 좋겠다"라는 것이 5년, 10년 전보다 훨씬 더 잘 정립되어 있습니다. 그리고 그런 것들이 잘 통합되어 있는 형태가 바로 PyTorch입니다.
 
----
-
-
-# Pytorch 2.0
+대표적인 예로 **vLLM**이 있습니다. vLLM은 PyTorch 위에 올라가는 기술로, 하드웨어를 붙이기 위해 "일단 PyTorch에 잘 붙여봐라"라는 구체적인 요구 조건을 내걸었습니다. 하드웨어 종속적인 부분들은 먼저 PyTorch에 잘 통합하고, 그 다음에 제공하라는 정식 정책을 수립한 것입니다. 이 ML 에코시스템에서 다양한 하드웨어를 잘 추상화하고 단순화시키는 **"Narrow Waist"** 역할로 PyTorch가 점점 더 보편적으로 받아들여지고 있습니다.
 
 
-- **NumPy-like experience**
-- **Heterogeneous computing** as an underneath foundation
-- **MPI-like** distributed programming model
-- Integration with **compute libraries / ML compiler**
-- Three language layers: **Python → C++ → kernel language** (ex: CUDA, Triton)
-- **Define-by-run** /w graph capturing with TorchDynamo
-- Support both **training and inference**
+## PyTorch 2.0
 
+PyTorch 2.0은 PyTorch 1.0의 특성을 거의 모두 계승하면서, 앞서 다룬 여러 기술적 배경을 종합하여 구현된 프레임워크입니다.
 
----
+**핵심 특징:**
+- **NumPy-like experience** — 텐서 구조, 사전 정의된 수학 함수, 대화형 환경, Jupyter Notebook 호환성
+- **Heterogeneous computing** as an underneath foundation — 다양한 하드웨어에서 효율적으로 동작
+- **MPI-like** distributed programming model — 분산 프로그래밍 기본 지원
+- Integration with **compute libraries / ML compiler** — Eager mode에서는 컴퓨팅 라이브러리, Graph mode에서는 ML 컴파일러와 통합
+- Three language layers: **Python → C++ → kernel language** (예: CUDA, Triton) — 멀티 랭귀지 솔루션
+- **Define-by-run** with graph capturing via TorchDynamo — Eager mode 중심으로 Graph mode를 부드럽게 지원
+- Support both **training and inference** — PyTorch 2.0에서 가장 크게 변화한 부분
 
+### Backend Integration Points
 
-# Pytorch 2.0: Backend Integration Points
-
-**Various backend integration points**
+다양한 하드웨어와 원활히 연결될 수 있도록 통합 포인트를 잘 정의하고 있습니다:
 
 | Mode | Integration |
 |------|-------------|
@@ -496,36 +353,40 @@ Fisher, J.A. "Trace Scheduling: A Technique for Global Microcode Compaction" IEE
 | Graph mode (codegen) | As a backend to Inductor |
 
 
----
+## 향후 강의 계획
 
+앞으로의 강의는 크게 **기초**와 **심화** 두 파트로 나누어 진행됩니다.
 
-# 향후 강의 계획
+### PyTorch internal: 기초 (3회)
 
-<div class="grid grid-cols-2 gap-8">
-<div>
-
-### Pytorch internal: 기초 (3회)
-
-1. Pytorch internal에 대한 개요
-2. Pytorch eager mode
-3. Pytorch graph mode
+1. PyTorch internal에 대한 개요 — 전체 인터널 구성, 코드베이스를 바라보는 방법
+2. PyTorch eager mode
+3. PyTorch graph mode
 4. Putting things together: training, finetuning, inference
 
-</div>
-<div>
+### PyTorch internal: 심화 (8회)
 
-### Pytorch internal: 심화 (8회)
-
-1. Pytorch + Nvidia GPU
-2. Pytorch + parallelism
-3. Pytorch + LLM + inference
-4. Pytorch + 리벨리온 NPU
-
-</div>
-</div>
+1. PyTorch + Nvidia GPU — 가장 잘 통합되어 있는 GPU 연동 방식과 활용법
+2. PyTorch + parallelism — 분산 프로그래밍 위에서의 병렬 프로그래밍
+3. PyTorch + LLM + inference — PyTorch를 활용한 LLM 인퍼런스
+4. PyTorch + 리벨리온 NPU — NPU(리벨리온 관점)와의 연동
 
 
----
+## Q&A
 
+### TorchScript와 Python/C++ 관계
 
-# 감사합니다
+> **Q: TorchScript는 Python과 C++ 사이에 위치해 있다고 봐도 되나요?**
+
+그렇게 보기는 어렵습니다. TorchScript는 PyTorch에서 그래프 모드를 지원하기 위한 기술 중 하나로 보는 것이 더 적절합니다.
+
+### CUDA와 Triton의 차이점
+
+> **Q: CUDA와 Triton은 어떻게 다른가요?**
+
+- **라이선스**: CUDA는 proprietary, Triton은 오픈소스
+- **설계 목적**: CUDA는 픽셀 단위의 fine-grained 스레드 처리, Triton은 코스 그레인한 데이터 청크 단위 처리
+- **프로그래밍 모델**: CUDA는 SPIR-V 기반, Triton은 Python 데코레이터 형태의 API 제공
+- **최적화 방식**: Triton은 컴파일러가 복잡한 최적화를 처리하는 전략 채택
+
+Triton은 단순한 Python API가 아닌, Python 신택스를 사용한 도메인 특화 언어(DSL)로 보는 것이 더 정확합니다. PyTorch 2.0에서 기본으로 채택한 커널 프로그래밍 언어로 이해할 수 있습니다.
