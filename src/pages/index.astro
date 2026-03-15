@@ -14,23 +14,24 @@ const sorted = lectures.sort((a, b) => a.data.lecture - b.data.lecture);
     <title>모두의 연구소 PyTorch + NPU랩</title>
   </head>
   <body>
-    <div class="min-h-screen flex flex-col items-center justify-center p-8">
-      <h1 class="text-4xl font-bold mb-2">모두의 연구소 PyTorch + NPU랩</h1>
-      <p class="text-gray-400 mb-12">PyTorch Internal Lecture Series</p>
+    <header class="site-header">
+      <nav>
+        <a href="/" class="nav-home">PyTorch + NPU랩</a>
+      </nav>
+    </header>
 
-      <div class="w-full max-w-2xl space-y-4">
+    <div class="index-container">
+      <h1 class="index-title">모두의 연구소 PyTorch + NPU랩</h1>
+      <p class="index-subtitle">PyTorch Internal Lecture Series</p>
+
+      <div class="lecture-list">
         {sorted.map((lecture) => (
-          <a
-            href={`/lectures/${lecture.id}`}
-            class="block p-6 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors border border-slate-700/50"
-          >
-            <div class="flex items-baseline gap-3">
-              <span class="text-orange-400 font-mono text-sm">
-                Week {lecture.data.lecture}
-              </span>
-              <span class="text-gray-400 text-sm">{lecture.data.date}</span>
+          <a href={`/lectures/${lecture.id}`} class="lecture-card">
+            <div class="lecture-card-meta">
+              <span class="lecture-card-week">Week {lecture.data.lecture}</span>
+              <span>{lecture.data.date}</span>
             </div>
-            <h2 class="text-xl font-semibold mt-2">{lecture.data.title}</h2>
+            <div class="lecture-card-title">{lecture.data.title}</div>
           </a>
         ))}
       </div>

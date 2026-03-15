@@ -4,19 +4,16 @@ date: "2025-01-08"
 lecture: 4
 ---
 
-import Slide from '../../components/Slide.astro';
-import Reveal from '../../components/Reveal.astro';
 import Mermaid from '../../components/Mermaid.astro';
 
-<Slide layout="cover">
 
 # Week 4: Automatic Differentiation in Pytorch
 
 Pytorch + NPU 온라인 모임 #4 | 2025-01-08
 
-</Slide>
 
-<Slide>
+---
+
 
 # Agenda
 
@@ -32,9 +29,9 @@ Pytorch + NPU 온라인 모임 #4 | 2025-01-08
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Supervised Learning
 
@@ -62,20 +59,18 @@ Pytorch + NPU 온라인 모임 #4 | 2025-01-08
 
 **a와 b를 조정하여 최적의 함수를 찾아가는 과정**
 
-<Reveal>
 
 - Training data가 주어졌을 때 loss를 최소화하는 weight 값으로 조금씩 변해가는 과정
 - 기울기($a$)를 조금 조정하고, bias($b$)를 조금 이동
 - 점들을 가장 잘 표현하는 선을 찾아가는 것이 training
 
-</Reveal>
 
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Supervised Learning: Forward & Backward
 
@@ -91,21 +86,19 @@ Pytorch + NPU 온라인 모임 #4 | 2025-01-08
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # (Reverse-Mode) Automatic Differentiation
 
 An algorithm that implements back propagation that consists of
 
-<Reveal>
 
 - Construction of **computation graph**
 - Derivation of a **gradient function** at each node of computation graph
 - **Backward walking** of the graph to propagate gradients
 
-</Reveal>
 
 <div class="mt-4">
 <img src="/images/04/slide05_1.png" class="h-48 mx-auto" />
@@ -117,9 +110,9 @@ Chain Rule: $\frac{dy}{dx} = \frac{dy}{dt} \cdot \frac{dt}{dx}$ where $t = g(x)$
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Example
 
@@ -138,9 +131,9 @@ https://www.jmlr.org/papers/volume18/17-468/17-468.pdf
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Example: Forward & Backward 계산
 
@@ -157,9 +150,9 @@ https://www.jmlr.org/papers/volume18/17-468/17-468.pdf
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Agenda
 
@@ -175,15 +168,14 @@ https://www.jmlr.org/papers/volume18/17-468/17-468.pdf
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Pytorch 1.0: Autograd
 
 **Eager mode를 위한 Pytorch의 autodiff**
 
-<Reveal>
 
 - 매 operator가 수행될 때마다 computation graph를 **incremental**하게 build up
   - Dispatcher를 활용, operator overloading (Autograd dispatch key)
@@ -192,11 +184,9 @@ https://www.jmlr.org/papers/volume18/17-468/17-468.pdf
   - Backprop을 하기 전, transitive하게 gradient가 필요한 tensor를 선별
 - **Custom differentiable function** 제공
 
-</Reveal>
 
-</Slide>
+---
 
-<Slide>
 
 # Example
 
@@ -231,9 +221,9 @@ tensor(16.)
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Example: Step 1
 
@@ -263,9 +253,9 @@ x:2 →
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Example: Step 2
 
@@ -298,9 +288,9 @@ x:2 ───────┘
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # [참고] Forward에서 수행되는 AutoGrad kernel 예제: add
 
@@ -315,9 +305,9 @@ x:2 ───────┘
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # [참고] Grad Functions
 
@@ -331,9 +321,9 @@ Codegen된 example (TODO)
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Example: Step 3
 
@@ -368,9 +358,9 @@ x:2  ───────┘
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Example: Step 4.1 - Backward 시작
 
@@ -400,9 +390,9 @@ $$\text{PowBackward: } \frac{dz}{dy} = 2y$$
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Example: Step 4.2 - Gradient 전파
 
@@ -437,9 +427,9 @@ $$\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx} = 8 \times 2 = 16$$
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Example: Step 4.3 - 최종 결과
 
@@ -477,9 +467,9 @@ $\frac{dz}{dx} = 8x = 8 \times 2 = 16$ ✓
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # [참고] backward(): Python → C++
 
@@ -506,9 +496,9 @@ backward()
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Agenda
 
@@ -524,9 +514,9 @@ backward()
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # What Happens When Training with torch.compile()?
 
@@ -568,9 +558,9 @@ What happens if we apply `torch.compile()` to the model?
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Training + torch.compile()
 
@@ -590,9 +580,9 @@ AOTAutograd에 의해 생성된 compiled forward/backward functions (wrapped as 
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # AOTAutograd Does the Magic
 
@@ -613,9 +603,9 @@ AOTAutograd에 의해 생성된 compiled forward/backward functions (wrapped as 
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # AOTAutograd in Pytorch 2.0
 
@@ -646,9 +636,9 @@ AOTAutograd에 의해 생성된 compiled forward/backward functions (wrapped as 
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # AOTAutograd Architecture
 
@@ -667,9 +657,9 @@ AOTAutograd에 의해 생성된 compiled forward/backward functions (wrapped as 
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # AOTAutograd 수행 순서
 
@@ -689,9 +679,9 @@ AOTAutograd에 의해 생성된 compiled forward/backward functions (wrapped as 
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # AOTAutograd 코드 레벨 동작
 
@@ -724,17 +714,17 @@ aot_dispatch_autograd(flat_fn)
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # AOTAutograd 실행 예제
 
 <img src="/images/04/slide28_1.png" class="h-80 mx-auto" />
 
-</Slide>
 
-<Slide>
+---
+
 
 # Joint Graph 생성
 
@@ -768,9 +758,9 @@ aot_dispatch_autograd(flat_fn)
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Joint Graph Example
 
@@ -784,9 +774,9 @@ Forward와 backward가 하나의 그래프에 포함되어 있으며, Min-Cut �
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Decomposition (+ Functionalization) As Needed
 
@@ -800,9 +790,9 @@ Torch IR → ATen IR → Core ATen IR → Prims IR
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Min-Cut Algorithm을 적용, forward / backward로 분리
 
@@ -817,9 +807,9 @@ Joint FxGraph를 Min-Cut Algorithm으로 forward와 backward로 분리 후 각�
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Activation Checkpointing
 
@@ -853,9 +843,9 @@ Joint FxGraph를 Min-Cut Algorithm으로 forward와 backward로 분리 후 각�
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Compiled model = torch.autograd.Function
 
@@ -877,9 +867,9 @@ PyTorch combines the following two concepts into `torch.autograd.Function`:
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # 결과적으로
 
@@ -906,5 +896,3 @@ PyTorch combines the following two concepts into `torch.autograd.Function`:
 등록된 Backend가 forward/backward 각각 컴파일
 
 </div>
-
-</Slide>

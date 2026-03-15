@@ -4,25 +4,21 @@ date: "2024-10-05"
 lecture: 1
 ---
 
-import Slide from '../../components/Slide.astro';
-import Reveal from '../../components/Reveal.astro';
-import Mermaid from '../../components/Mermaid.astro';
 
-<Slide layout="cover">
 
 # Week 1: Pytorch의 기술적인 배경
 
 Pytorch + NPU 온라인 모임 #1 | 2024-12-04
 
-</Slide>
 
-<Slide>
+---
+
 
 # 환영합니다
 
-</Slide>
 
-<Slide>
+---
+
 
 # 랩장 소개
 
@@ -33,9 +29,9 @@ Pytorch + NPU 온라인 모임 #1 | 2024-12-04
   - Pytorch Foundation에서 리벨리온을 대표하는 일을 하고 있습니다
   - Pytorch KR의 Pytorch Core SIG를 만들고, 운영시작하려 합니다
 
-</Slide>
 
-<Slide>
+---
+
 
 # 랩 1기 목표
 
@@ -50,9 +46,9 @@ Pytorch + NPU 온라인 모임 #1 | 2024-12-04
 - 개인적으로는 공부한 내용을 바탕으로 리벨리온 NPU를 Pytorch에 더 잘 붙여보고 싶습니다
 - 많은 분들이 Pytorch upstream에 기여할 수 있으면 좋겠습니다
 
-</Slide>
 
-<Slide>
+---
+
 
 # 랩 운영 방안
 
@@ -73,29 +69,25 @@ Pytorch + NPU 온라인 모임 #1 | 2024-12-04
 
 - https://github.com/PyTorchKorea/pytorchcore-kr
 
-</Slide>
 
-<Slide>
+---
+
 
 # ML Framework
 
 AI Ecosystem의
 
-<Reveal>
 
 - **OS**이자 (AI 가속기를 추상화된 computing resource로 제공)
 - **Programming Language**이자 (Model을 쉽게 작성할 수 있도록 API 제공)
 - **Compiler** (작성된 모델을 computing resource로 mapping)
 
-</Reveal>
 
-<Reveal items={false}><div class="mt-8 text-center text-xl text-orange-400 font-bold">
-  다양한 기술적인 background가 혼재되어 있음!
-</div></Reveal>
+**다양한 기술적인 background가 혼재되어 있음!**
 
-</Slide>
 
-<Slide>
+---
+
 
 # 오늘 다룰 topic들
 
@@ -133,9 +125,9 @@ AI Ecosystem의
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Heterogeneous Computing with GPU
 
@@ -156,9 +148,9 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
   - DirectX 8부터 시작. DirectX 9에서 HLSL 정의
 - Nvidia의 GeForce 3 (2001) : shader programmable한 최초의 GPU
 
-</Slide>
 
-<Slide>
+---
+
 
 # Heterogeneous Computing: GPGPU의 등장
 
@@ -174,9 +166,9 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
 - AMD/ARM이 주도한 HSA (2011)
 - 그러나 OpenCL과 HSA는 상용화에서 한계를 보였고, **CUDA가 사실상 표준**으로 자리잡음
 
-</Slide>
 
-<Slide>
+---
+
 
 # Supercomputing
 
@@ -194,9 +186,9 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
 - 개념적인 모델 - SIMD, SPMD, MIMD
 - 구현 표준 - MPI, OpenMP
 
-</Slide>
 
-<Slide>
+---
+
 
 # Supercomputing: Matrix Multiplication
 
@@ -217,15 +209,14 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
 - 각 HW vendor들은 그들의 HW에 최적화된 BLAS 구현 출시
   - Nvidia: cuBLAS (2017), cuTLASS (2018)
 
-</Slide>
 
-<Slide>
+---
+
 
 # ML Compiler
 
 정적인 graph로 전환된 ML model을 특정 hardware에 맞게 최적화해주는 컴파일러
 
-<Reveal>
 
 - ML framework으로 개발자들이 표현한 model은 대부분 "동적"
 - ML compiler를 적용하기 위해선
@@ -233,9 +224,6 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
   - 이를 ML compiler가 이해할 수 있는 format으로 전환
   - 최종적으로 HW가 실행할 수 있는 binary를 생성
 
-</Reveal>
-
-<Reveal items={false}>
 
 **서버에서 GPU로 훈련된 모델을 On-Device AI 가속기에서 수행하기 위해 많이 쓰임**
 
@@ -248,11 +236,9 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
 - Rebellions NPU + \{TensorFlow, Pytorch\} + RBLN Compiler
 - **Pytorch 2.0의 등장으로 더욱 가속화될 것**
 
-</Reveal>
 
-</Slide>
+---
 
-<Slide>
 
 # Numerical Computing for Data Science
 
@@ -275,9 +261,9 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
 - Jupyter의 등장으로 더욱더 많은 사람들이 쉽게 접근할 수 있게 됨
 - **ML도 사용성 측면에서 같은 추세**
 
-</Slide>
 
-<Slide>
+---
+
 
 # Two (or More) Language Problems
 
@@ -291,7 +277,6 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
 
 <div>
 
-<Reveal>
 
 <div class="mb-4 p-3 bg-blue-500/10 rounded-lg border border-blue-400/30">
   <span class="font-bold text-blue-300">해결책 #1</span> — 고성능 Python compiler를 개발
@@ -309,14 +294,13 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
   <div class="text-sm ml-4 mt-1 opacity-80">+ 추가로 가속기로 offloading</div>
 </div>
 
-</Reveal>
 
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Eager vs. Graph Mode
 
@@ -354,9 +338,9 @@ CPU와 GPU를 함께 활용, 더 빠르게 계산할 수 있도록 해주는 시
   <div class="p-2 bg-blue-500/10 rounded border border-blue-400/30">JAX → Graph만 가능</div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # TF1 vs. Pytorch Examples
 
@@ -397,9 +381,9 @@ print(y)
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Graph Capture: TF2 | Pytorch 2
 
@@ -442,9 +426,9 @@ optimized_foo(x, y)
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # This is not new
 
@@ -453,14 +437,12 @@ optimized_foo(x, y)
 
 Eager mode에서 graph를 추출하는 기법의 역사적 배경:
 
-<Reveal>
 
 - **Trace scheduling** for VLIW compiler (1981)
 - **Out-Of-Order Execution** in Pentium Pro (1995)
 - **Trace cache** (1996)
 - **Chrome V8 Engine** (2008)
 
-</Reveal>
 
 </div>
 <div>
@@ -474,9 +456,9 @@ Fisher, J.A. "Trace Scheduling: A Technique for Global Microcode Compaction" IEE
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Convergence on Pytorch
 
@@ -484,13 +466,12 @@ Fisher, J.A. "Trace Scheduling: A Technique for Global Microcode Compaction" IEE
   <img src="/images/01/slide17_1.png" class="h-96 rounded shadow-lg" alt="vLLM tweet - PyTorch as a Narrow Waist for hardware abstractions" />
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Pytorch 2.0
 
-<Reveal>
 
 - **NumPy-like experience**
 - **Heterogeneous computing** as an underneath foundation
@@ -500,11 +481,9 @@ Fisher, J.A. "Trace Scheduling: A Technique for Global Microcode Compaction" IEE
 - **Define-by-run** /w graph capturing with TorchDynamo
 - Support both **training and inference**
 
-</Reveal>
 
-</Slide>
+---
 
-<Slide>
 
 # Pytorch 2.0: Backend Integration Points
 
@@ -516,9 +495,9 @@ Fisher, J.A. "Trace Scheduling: A Technique for Global Microcode Compaction" IEE
 | Graph mode (JIT & AOT) | As a backend to TorchDynamo |
 | Graph mode (codegen) | As a backend to Inductor |
 
-</Slide>
 
-<Slide>
+---
+
 
 # 향후 강의 계획
 
@@ -545,10 +524,8 @@ Fisher, J.A. "Trace Scheduling: A Technique for Global Microcode Compaction" IEE
 </div>
 </div>
 
-</Slide>
 
-<Slide layout="center" class="text-center">
+---
+
 
 # 감사합니다
-
-</Slide>

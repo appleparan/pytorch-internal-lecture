@@ -15,6 +15,6 @@ const { entry } = Astro.props;
 const { Content } = await render(entry);
 ---
 
-<LectureLayout title={entry.data.title} lecture={entry.data.lecture}>
+<LectureLayout title={entry.data.title} lecture={entry.data.lecture} date={entry.data.date}>
   <Content />
 </LectureLayout>

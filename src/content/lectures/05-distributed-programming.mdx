@@ -4,19 +4,16 @@ date: "2025-01-15"
 lecture: 5
 ---
 
-import Slide from '../../components/Slide.astro';
-import Reveal from '../../components/Reveal.astro';
 import Mermaid from '../../components/Mermaid.astro';
 
-<Slide layout="cover">
 
 # Week 5: Distributed Programming in Pytorch
 
 Pytorch + NPU 온라인 모임 #5 | 2025-01-15
 
-</Slide>
 
-<Slide>
+---
+
 
 # Where We Are
 
@@ -53,9 +50,9 @@ Pytorch + NPU 온라인 모임 #5 | 2025-01-15
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Pytorch 2.0 (from Week #1)
 
@@ -74,9 +71,9 @@ Pytorch + NPU 온라인 모임 #5 | 2025-01-15
     - As a backend to TorchDynamo
     - As a backend to Inductor
 
-</Slide>
 
-<Slide>
+---
+
 
 # Outline
 
@@ -89,9 +86,9 @@ Pytorch + NPU 온라인 모임 #5 | 2025-01-15
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # MPI vs OpenMP
 
@@ -124,9 +121,9 @@ Shared Memory
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # MPI vs OpenMP: Task 구성 방식
 
@@ -158,9 +155,9 @@ Master-Worker (Fork-Join) 모델
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # MPI 프로그램 구조
 
@@ -181,16 +178,15 @@ Master-Worker (Fork-Join) 모델
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Pytorch Distributed Programming: Concept
 
 <div class="grid grid-cols-2 gap-4 mt-4">
 <div>
 
-<Reveal>
 
 - **Node**: A physical instance (with one or several GPUs)
 - **Process**: spawned from each node, 1 process : 1 GPU
@@ -200,7 +196,6 @@ Master-Worker (Fork-Join) 모델
   - local: in Node
 - **Rendezvous**: gathering participants(nodes) of a training job, dynamically manageable
 
-</Reveal>
 
 </div>
 <div>
@@ -226,9 +221,9 @@ Master-Worker (Fork-Join) 모델
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Overall Architecture
 
@@ -260,9 +255,9 @@ Master-Worker (Fork-Join) 모델
     MPI --> MPILIB["MPI lib"]`}
 </Mermaid>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Process Group
 
@@ -309,9 +304,9 @@ Master-Worker (Fork-Join) 모델
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Distributed Communication Layer (c10d)
 
@@ -329,9 +324,9 @@ Pytorch에서 제공하는 **distributed communication API**에 해당
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Collective Communication: Scatter / Gather
 
@@ -350,9 +345,9 @@ https://pytorch.org/tutorials/intermediate/dist_tuto.html
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Collective Communication: Reduce / All-Reduce
 
@@ -371,9 +366,9 @@ https://pytorch.org/tutorials/intermediate/dist_tuto.html
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Collective Communication: Broadcast / All-Gather
 
@@ -392,9 +387,9 @@ https://pytorch.org/tutorials/intermediate/dist_tuto.html
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Communication Backends
 
@@ -414,9 +409,9 @@ https://pytorch.org/tutorials/intermediate/dist_tuto.html
 - Third-party backend는 `c10d/Backend.hpp`를 구현해야 함
   - **21개 virtual function**으로 구성: `broadcast`, `allreduce`, `reduce`, `allgather`, ...
 
-</Slide>
 
-<Slide>
+---
+
 
 # Outline
 
@@ -429,9 +424,9 @@ https://pytorch.org/tutorials/intermediate/dist_tuto.html
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # torchrun
 
@@ -459,15 +454,14 @@ torchrun --nnodes=2 --nproc_per_node=8 \
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # torchrun을 시작하기 전 준비 단계
 
 **클러스터 설정**
 
-<Reveal>
 
 - SSH기반 설정 (가장 단순)
   - `/etc/hosts`에 클러스터의 모든 노드의 IP와 hostname을 등록
@@ -477,7 +471,6 @@ torchrun --nnodes=2 --nproc_per_node=8 \
 - Slurm workload manager
 - Horovod
 
-</Reveal>
 
 <div class="mt-4">
 
@@ -488,9 +481,9 @@ torchrun --nnodes=2 --nproc_per_node=8 \
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # torchrun를 시작
 
@@ -514,15 +507,14 @@ $ torchrun --nnodes=2 --nproc_per_node=8 --node_rank=1 \
     dist_matmul_allreduce.py
 ```
 
-</Slide>
 
-<Slide>
+---
+
 
 # torchrun 수행 중 일어나는 일
 
 <div class="text-sm">
 
-<Reveal>
 
 1. **torchrun 명령어 인자 parsing 및 초기화**
 2. **프로세스 생성**: python process
@@ -540,19 +532,17 @@ $ torchrun --nnodes=2 --nproc_per_node=8 --node_rank=1 \
 5. **부가 기능**: fault tolerance (w/ checkpointing and logging)
    - `--max-restarts=N`: 실패 시 N번까지 재시작 시도
 
-</Reveal>
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # torchrun 수행 중 일어나는 일: 랑데뷰 (rendezvous)
 
 각 프로세스에서 pytorch 스크립트 실행 전에 다음과 같은 것들을 해준다.
 
-<Reveal>
 
 - 랑데뷰 instance가 만들어지고 IPC를 위해서 c10d backend를 초기화
   - Pytorch의 `DynamicRendezvousHandler` class를 사용
@@ -564,11 +554,9 @@ $ torchrun --nnodes=2 --nproc_per_node=8 --node_rank=1 \
 - 모든 프로세스가 준비가 되면 pytorch script를 실행하기 시작
 - **fault tolerance**: 한 노드가 실패하면 남아 있는 다른 노드에서 랑데뷰를 다시 시도
 
-</Reveal>
 
-</Slide>
+---
 
-<Slide>
 
 # torchrun 수행 중 일어나는 일: Task 수행 (1)
 
@@ -593,9 +581,9 @@ if __name__ == "__main__":
 - 각 프로세스에서 `dist_matmul_allreduce` 함수로 분산 행렬 연산 수행
 - **Rank 0**에서 최종 결과를 모아 출력
 
-</Slide>
 
-<Slide>
+---
+
 
 # torchrun 수행 중 일어나는 일: Task 수행 (2)
 
@@ -641,9 +629,9 @@ def local_matmul(local_A, local_B):
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Outline
 
@@ -656,9 +644,9 @@ def local_matmul(local_A, local_B):
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # CUDA와의 접점
 
@@ -681,9 +669,9 @@ def dist_matmul_allreduce(A, B, local_rank, world_size):
 
 - **1. CUDA Device 선택** / **2. 동기화 (CUDA runtime)** / **3. Process Group 생성** / **4. Process Group 제거**
 
-</Slide>
 
-<Slide>
+---
+
 
 # 1: CUDA Device 선택
 
@@ -706,9 +694,9 @@ def dist_matmul_allreduce(A, B, local_rank, world_size):
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # 2: 동기화 (CUDA Runtime)
 
@@ -751,9 +739,9 @@ def all_reduce(tensor, op=ReduceOp.SUM,
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # 3: Process Group 생성 및 통신 채널 설정
 
@@ -792,9 +780,9 @@ dist.init_process_group(
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # 3: Process Group 생성 및 통신 채널 설정 (계속)
 
@@ -822,9 +810,9 @@ store = _create_c10d_store(
 )
 ```
 
-</Slide>
 
-<Slide>
+---
+
 
 # 4: Process Group 제거
 
@@ -837,9 +825,9 @@ store = _create_c10d_store(
   - 내부적으로 NCCLComm이 소멸되면서
   - `ncclCommDestroy()`를 호출하여 GPU 간 통신에 사용된 resource를 정리
 
-</Slide>
 
-<Slide>
+---
+
 
 # Outline
 
@@ -852,9 +840,9 @@ store = _create_c10d_store(
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Pytorch가 제공하는 모델 병렬화 패키지들
 
@@ -875,9 +863,9 @@ store = _create_c10d_store(
 
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # FSDP: Example Code
 
@@ -935,9 +923,9 @@ https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # FSDP: 내부동작
 
@@ -957,9 +945,9 @@ https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html
   - each layer: `all_gather` → computation → unsharding → `reduce_scatter`
     - (`_register_post_backward_hook`에서 등록)
 
-</Slide>
 
-<Slide>
+---
+
 
 # Tensor Parallel: Example Code
 
@@ -1011,9 +999,9 @@ https://pytorch.org/tutorials/intermediate/TP_tutorial.html
 </div>
 </div>
 
-</Slide>
 
-<Slide>
+---
+
 
 # Next Week Preview: Beyond Pytorch
 
@@ -1032,10 +1020,8 @@ https://pytorch.org/tutorials/intermediate/TP_tutorial.html
 - vLLM이 제공하고 있는 최적화 기능들
 - vLLM이 요구하는 custom op들
 
-</Slide>
 
-<Slide layout="center" class="text-center">
+---
+
 
 # 감사합니다
-
-</Slide>
