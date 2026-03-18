@@ -326,44 +326,42 @@ Dispatch logic은 call stack에서 반복적으로 등장하며, 템플릿으로
 
 ### PyTorch Dispatcher
 
-<div class="grid grid-cols-2 gap-4 mt-4">
-<div>
-  <img src="/images/02/slide13_1.png" class="h-80" />
-</div>
-<div class="flex flex-col justify-center text-sm">
+<img src="/images/02/slide13_1.png" class="h-80 mx-auto" />
 
 Edward Z. Yang(Meta)이 구현한 Dispatcher는 virtual function의 V-table과 비슷한 개념이지만, 같은 op이 다른 컨텍스트에서 다르게 사용되는 모든 경우를 처리하기 위해 별도로 설계된 데이터 구조와 알고리즘입니다. Dispatch table에는 key에 해당하는 function pointer가 들어 있으며, key 하나만이 아니라 여러 개의 key가 동시에 의미를 가지도록 설계되어 있습니다.
 
 상세 설명: http://blog.ezyang.com/2020/09/lets-talk-about-the-pytorch-dispatcher/
-
-</div>
-</div>
 
 
 ## Call Stack을 단계별로 구분
 
 ### 개발자가 직접 작성한 부분
 
-Call stack에서 자동 생성 코드와 dispatch logic을 제외하면, 개발자가 직접 작성한 핵심 부분이 드러납니다:
+Call stack이 55단계나 되니 엄청나게 복잡한 구조라고 생각할 수 있지만, 실제로는 많은 부분이 자동 생성된 코드이거나 반복적으로 수행되는 dispatcher logic입니다. 이러한 요소들을 제외하고 나면, 개발자가 실제로 신경 써서 작성해야 하는 코드는 생각보다 적습니다. 남은 부분은 크게 두 가지인데, 하나는 matmul이 input shape에 따라 적절한 연산을 선택하는 비교적 일반적인 코드(#25-26)이고, 다른 하나는 CUDA에서 mm operator가 실행되기 위해 필요한 device-specific 구현(#0-4)입니다. 이처럼 실제 mm operator와 밀접하게 연관된 함수들은 관리할 수 있을 정도로 간소화됩니다.
 
-```
-#0  at::cuda::blas::gemm<float>                    ← CUDA로 구현된 mm
-#1-3 operator at .../native/cuda/Blas.cpp
-#4  at::native::structured_mm_out_cuda::impl        ← CUDA mm 구현체
-#5  at:: at build/.../RegisterCUDA.cpp               (자동생성)
-#6-9  (dispatch logic)
-#10-13 (redispatch logic)
-#14-15 VariableType (autograd)                        (자동생성)
-#16-19 (dispatch logic)
-#20-24 Dispatcher::call → Tensor::mm
-#25 at::native::_matmul_impl                         ← matmul 구현체
-#26 at::native::matmul
-#27 at:: at RegisterCompositeImplicitAutograd.cpp      (자동생성)
-#28-35 (dispatch logic)
-#36 at::Tensor::matmul
-#37-38 THPVariable_matmul                              (자동생성, Python binding)
-#39-54 (CPython / libc)
-```
+<details>
+<summary><strong>개발자가 직접 작성한 코드 vs 자동 생성/dispatch 코드</strong></summary>
+
+| # | Call Stack | 구분 |
+|---|-----------|------|
+| **#0** | **`at::cuda::blas::gemm<float>` at `CUDABlas.cpp:1127`** | **CUDA로 구현된 mm — cuBLAS GEMM 호출** |
+| **#1-3** | **`operator` at `native/cuda/Blas.cpp:457`** | **CUDA mm 내부 구현** |
+| **#4** | **`at::native::structured_mm_out_cuda::impl` at `native/cuda/Blas.cpp:604`** | **CUDA mm 구현체** |
+| #5 | `at::` at `build/.../RegisterCUDA.cpp:12173` | (자동생성) |
+| #6-9 | dispatch logic | |
+| #10-13 | redispatch logic | |
+| #14-15 | `VariableType` (autograd) | (자동생성) |
+| #16-19 | dispatch logic | |
+| #20-24 | `Dispatcher::call` → `Tensor::mm` | |
+| **#25** | **`at::native::_matmul_impl` at `LinearAlgebra.cpp:2031`** | **matmul 구현체 — input shape에 따라 mm, bmm 등으로 분기** |
+| **#26** | **`at::native::matmul` at `LinearAlgebra.cpp:2181`** | **matmul 진입점** |
+| #27 | `at::` at `RegisterCompositeImplicitAutograd.cpp:2774` | (자동생성) |
+| #28-35 | dispatch logic | |
+| #36 | `at::Tensor::matmul` | |
+| #37-38 | `THPVariable_matmul` | (자동생성, Python binding) |
+| #39-54 | CPython / libc | |
+
+</details>
 
 ### 전체 과정 요약
 
