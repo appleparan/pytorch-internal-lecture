@@ -14,7 +14,12 @@ Pytorch + NPU 온라인 모임 #2 | 2024-12-11
 
 ## 소개
 
-이번 강의는 PyTorch 기초의 첫 번째 시간으로, Eager mode에 대해 다룹니다. 먼저 Eager mode의 high-level architecture를 살펴본 뒤, 실제 `torch.matmul`을 수행할 때 어떤 일이 일어나는지를 call stack을 통해 분석합니다. 이후 Eager mode의 세부 구성 요소인 Tensor, Operator, Runtime을 살펴보고, 마지막으로 PyTorch의 빌드 과정과 빌드 산출물에 대해 개요를 정리합니다.
+이번 강의는 PyTorch 기초의 첫 번째 시간으로, Eager mode에 대해 다룹니다. 크게 네 부분으로 구성됩니다:
+
+1. **Eager mode의 high-level architecture**
+2. **`torch.matmul` 예제** — call stack을 통해 **Operator(Op)**가 실제로 어떻게 dispatch되고 실행되는지를 분석합니다
+3. **Eager mode에 대한 detail** — `torch.matmul` 예제에서 등장한 개념들을 **Tensor**, **Operator**, **Runtime** 세 축으로 나눠 상세히 살펴봅니다
+4. **PyTorch build** — 빌드 과정과 빌드 산출물에 대한 개요
 
 ### Intro
 
@@ -676,9 +681,13 @@ at::cuda::blas::gemm_and_bias<scalar_t>(
 참고: https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/Blas.cpp
 
 
-## Eager Mode에 대한 Detail: Tensor
+## Eager Mode에 대한 Detail
 
-### Tensor의 구조
+지금까지 `torch.matmul` 예제를 통해 Operator가 dispatch되고 실행되는 전체 흐름을 살펴보았습니다. 이제부터는 Eager mode를 구성하는 세 가지 핵심 요소인 **Tensor**, **Operator**, **Runtime**을 각각 상세히 살펴봅니다.
+
+### Tensor
+
+#### Tensor의 구조
 
 <Mermaid>
 {`graph LR
@@ -698,7 +707,7 @@ at::cuda::blas::gemm_and_bias<scalar_t>(
 - **metadata**: storage offset, size, stride, elem 갯수, dtype
 - **autograd**: gradient, grad graph, variable version
 
-### Tensor의 Lifecycle: 생성
+#### Tensor의 Lifecycle: 생성
 
 **Scratch로 새로 만들어지는 경우:**
 - `aten/src/ATen/native/TensorFactories.cpp`에 구현된 함수들을 통해 생성
@@ -725,7 +734,7 @@ at::cuda::blas::gemm_and_bias<scalar_t>(
 </div>
 </div>
 
-### Tensor의 Lifecycle: 소멸
+#### Tensor의 Lifecycle: 소멸
 
 **`at::Tensor`의 소멸:**
 - Python에서 `torch.tensor`가 제거되는 시점에 소멸
@@ -737,7 +746,7 @@ at::cuda::blas::gemm_and_bias<scalar_t>(
 - `at::Tensor`에서 reference count ptr로 관리
 - `c10::Storage`를 공유하는 `at::Tensor`들이 **모두 소멸돼야** 할당된 memory가 정리됨
 
-### Tensor를 가지고 할 수 있는 일들
+#### Tensor를 가지고 할 수 있는 일들
 
 ```python
 >>> a = torch.tensor([[1., 2.], [3., 4.]])
@@ -762,7 +771,7 @@ tensor([[110., 126., 134., 154.]])
 >>> h = g.contiguous()       # Contiguous
 ```
 
-### View와 Storage 분리
+#### View와 Storage 분리
 
 같은 data를 **해석만 달리함**으로써 변환하는 시간과 memory를 절약하는 것이 핵심 개념입니다:
 
@@ -793,7 +802,7 @@ at::Tensor my_add_cuda(const at::Tensor& ta, const at::Tensor& tb) {
 **차원의 확장** — 없는 차원을 추가하거나 크기가 1인 차원을 확장하는 경우 (예: `(3, 4)` → `(1, 3, 4)` 또는 `(3, 1, 4)`). `torch.unsqueeze`, `torch.expand` 등이 해당되며, Storage는 공유하고 metadata만 변경됩니다.
 
 
-## Eager Mode에 대한 Detail: Operator
+### Operator
 
 Operator 실행과 관련된 핵심 개념들은 다음과 같습니다:
 
@@ -805,7 +814,7 @@ Operator 실행과 관련된 핵심 개념들은 다음과 같습니다:
 
 참고: http://blog.ezyang.com/2020/09/lets-talk-about-the-pytorch-dispatcher/
 
-### Kernel
+#### Kernel
 
 <img src="/images/02/slide36_1.png" class="h-96 mx-auto" />
 
@@ -815,22 +824,22 @@ Generated Autograd Kernel for `add`
 
 </div>
 
-### Registration API
+#### Registration API
 
 <img src="/images/02/slide37_1.png" class="h-80 mx-auto" />
 
 - Kernel을 Dispatcher에 등록하는 API
 - `Register{Backend}.cpp`는 `gen.py`가 `native_functions.yaml`로부터 생성
 
-### Dispatcher
+#### Dispatcher
 
 <img src="/images/02/slide38_1.png" class="h-96 mx-auto" />
 
-### Dispatch Key와 Dispatch Key Set
+#### Dispatch Key와 Dispatch Key Set
 
 <img src="/images/02/slide39_1.png" class="h-96 mx-auto" />
 
-### Dispatch Key Set이 정해지는 과정
+#### Dispatch Key Set이 정해지는 과정
 
 <div class="grid grid-cols-2 gap-2">
   <img src="/images/02/slide40_1.png" class="h-80" />
@@ -838,11 +847,11 @@ Generated Autograd Kernel for `add`
 </div>
 
 
-## Eager Mode에 대한 Detail: Runtime
+### Runtime
 
 Runtime은 실제 디바이스에서 연산을 수행하기 위한 저수준 인프라를 제공합니다. 주요 구성 요소는 Device, Stream, Event, DeviceGuard, Allocator, Generator입니다.
 
-### Device
+#### Device
 
 **Tensor가 저장되어 있는 device를 표현합니다.**
 
@@ -867,7 +876,7 @@ Unique한 `c10::Device`는 `gDevicePool`에 들어있는 `sycl::device`와 **1:1
 
 </div>
 
-### Stream
+#### Stream
 
 Heterogeneous computing에서의 실행 모델에서, host가 device로 command/data를 전달하면 device가 이를 처리합니다. Host는 device 완료를 기다리지 않고 **asynchronous**하게 동작합니다.
 
@@ -894,7 +903,7 @@ Heterogeneous computing에서의 실행 모델에서, host가 device로 command/
   - CUDA: `cudaStreamSynchronize` 호출
 - **`wait(event)`**: `event.block(stream)` 호출
 
-### Event
+#### Event
 
 **Event**는 device progress를 확인하거나 **stream 간의 dependence를 제어**하기 위해 사용합니다.
 
@@ -970,7 +979,7 @@ Device specific한 부분은 결국 **DeviceGuard에 의존**합니다.
   - XPU: `sycl::event`에 `wait_and_throw` 호출
   - CUDA: `cudaEventSynchronize` 호출
 
-### DeviceGuard
+#### DeviceGuard
 
 **DeviceGuard**는 특정한 device, stream, event의 안전한 사용을 보장하는 장치입니다:
 
@@ -1009,7 +1018,7 @@ Device specific한 부분은 결국 **DeviceGuard에 의존**합니다.
 
 </div>
 
-### VirtualGuardImpl API
+#### VirtualGuardImpl API
 
 <div class="grid grid-cols-2 gap-4">
 <div>
@@ -1047,7 +1056,7 @@ Device specific한 부분은 결국 **DeviceGuard에 의존**합니다.
 </div>
 </div>
 
-### Allocator
+#### Allocator
 
 **Device memory를 관리하는 structure**입니다. 대부분의 중요한 함수들이 **virtual**로 정의되어 있습니다:
 
@@ -1064,7 +1073,7 @@ virtual void copy_data(void* dest, const void* src, std::size_t count);
 
 (`c10/core/Allocator.h`)
 
-### Random Number Generator
+#### Random Number Generator
 
 - **Pseudo Random Number Generator (PRNG)** engine을 사용하는 interface
 - 사용자는 seed를 제공하거나 상태를 확인할 수 있음
