@@ -285,6 +285,11 @@ a:hover {
   margin: 1.5rem 0;
 }
 
+.mermaid-wrapper svg {
+  max-width: 100%;
+  height: auto;
+}
+
 /* ===== Grid layouts from slides — keep functional, adapt for prose ===== */
 .article-body .grid {
   margin: 1rem 0;

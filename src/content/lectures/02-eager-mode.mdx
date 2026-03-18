@@ -687,89 +687,146 @@ at::cuda::blas::gemm_and_bias<scalar_t>(
 
 ### Tensor
 
+Operator에 대해서는 앞서 충분히 다뤘으므로, 이제 operator의 입출력이 되는 tensor가 내부적으로 어떻게 구성되는지 살펴봅니다. Tensor는 Python과 C++ 양쪽에서 동일하게 표현되어야 하고, GPU 등 다양한 device의 memory 할당까지 고려해야 하기 때문에 설계가 단순하지 않습니다.
+
 #### Tensor의 구조
 
 <Mermaid>
-{`graph LR
+{`graph TD
     T["at::Tensor"] --> TI["c10::TensorImpl"]
-    TI --> S["c10::Storage"]
-    S -->|shared ptr| SI["c10::StorageImpl"]
+    TI -->|data| S["c10::Storage"]
     TI --> MD["metadata"]
-    TI --> AG["autograd"]`}
+    TI --> AG["AutogradMeta"]
+    AG -->|grad| G["at::Tensor (gradient)"]
+    S -->|shared ptr| SI["c10::StorageImpl"]`}
 </Mermaid>
 
-- Python `torch.tensor`는 C++ `at::Tensor`에 대응
-- `c10::TensorImpl`이 실제 구현체
-  - `at::Tensor`가 `c10::TensorImpl`을 member로 가지고 있음
-- `c10::Storage`에 data가 보관
-  - 여러 `at::Tensor`가 같은 `c10::StorageImpl`을 공유 가능
-  - `c10::Storage`는 reference count pointer로 관리됨
-- **metadata**: storage offset, size, stride, elem 갯수, dtype
-- **autograd**: gradient, grad graph, variable version
+참고: [PyTorch internals (Edward Z. Yang)](http://blog.ezyang.com/2019/05/pytorch-internals/)
 
-#### Tensor의 Lifecycle: 생성
+PyTorch 내부에서 대부분의 구현은 C++로 되어 있습니다. Python의 `torch.tensor`는 내부적으로 `at::Tensor`라는 C++ 객체에 대응되며, 이 객체는 `c10::TensorImpl`이라는 구현체(`impl`)를 통해 대부분의 정보를 관리합니다.
 
-**Scratch로 새로 만들어지는 경우:**
+- **`at::Tensor`** — `c10::TensorImpl`을 `intrusive_ptr`로 가리키는 얇은 wrapper
+- **`c10::TensorImpl`** — 실제 구현체로, 핵심 정보를 가짐:
+  - **metadata** — sizes, strides, storage offset, dtype, device. Stride를 통해 `tensor[i][j]`를 `data_ptr[i * stride[0] + j * stride[1]]`로 접근
+  - **`c10::Storage`** 
+    — 실제 data가 저장되는 공간. 
+    - 예를 들어 GPU에 메모리가 할당되면, 그 메모리 덩어리가 이 `StorageImpl`과 1:1로 매핑됨.
+    - `shared_ptr`로 관리되므로 여러 tensor가 같은 storage를 공유할 수 있으며, 이것이 view의 핵심 
+    - view를 생성하면 새 storage가 아닌 기존 storage를 공유하면서 metadata만 다른 tensor가 만들어짐
+- **`AutogradMeta`** — gradient, `grad_fn` 등 autograd 관련 bookkeeping 정보를 tensor 단위로 저장. `requires_grad=False`이면 null로 최적화됨
+
+#### Tensor의 Lifecycle
+
+Tensor의 lifecycle은 **생성**, **소멸**, **복사**의 세 가지 과정으로 나눌 수 있습니다.
+
+**생성 — scratch로 새로 만드는 경우:**
 - `aten/src/ATen/native/TensorFactories.cpp`에 구현된 함수들을 통해 생성
-- `empty()`, `zeros()`, `ones()` 등
+  - `empty()`, `zeros()`, `ones()` 등
 
-**기존 tensor로부터 파생되어 만들어지는 경우:**
+**생성 — 기존 tensor로부터 파생되는 경우:**
+
+기존 tensor로부터 파생될 때는 두 가지로 나뉩니다. 별도의 storage를 갖는 경우와, 기존 tensor의 storage를 공유하는 경우입니다. Storage를 공유하는 것이 바로 view이며, 이때 새 storage가 생성되지 않고 `shared_ptr`로 reference만 공유하여 reference count가 증가합니다.
 
 <div class="grid grid-cols-2 gap-4 mt-2">
 <div>
 
 **Storage를 새로 만드는 경우**
-- `at::native::clone()`을 통한 복제본 생성
+- `at::native::clone()`(`TensorFactories.cpp`)을 통한 복제본 생성
 - 별도의 `c10::Storage`를 가진 `at::Tensor`
-- `at::native::copy_()`를 통해 복제
+- metadata와 실제 data는 `at::native::copy_()`를 통해 복제
 
 </div>
 <div>
 
-**Storage를 기존 tensor와 공유하는 경우**
-- `TensorShape.cpp`에 구현된 함수를 통해 view 생성
+**Storage를 기존 tensor와 공유하는 경우 (view)**
+- `aten/src/ATen/native/TensorShape.cpp`에 구현된 함수를 통해 view 생성
 - `at::native::alias_with_sizes_and_strides()` 등
-- **대부분의 경우에 해당**
+- 명시적으로 `clone()`을 호출하지 않는 한 대부분 이 경우에 해당
+- `at::Tensor`는 새로 만들지만 `c10::Storage`는 `shared_ptr`로 공유
 
 </div>
 </div>
 
-#### Tensor의 Lifecycle: 소멸
+**소멸:**
+
+Tensor가 소멸된다고 해서 storage까지 바로 소멸되지는 않습니다.
 
 **`at::Tensor`의 소멸:**
 - Python에서 `torch.tensor`가 제거되는 시점에 소멸
   - 명시적으로 객체를 제거 (`del` keyword 사용)
-  - 또는 garbage collection에 의해 객체가 제거될 때
+  - 또는 garbage collection에 의해 자연스럽게 소멸
+- Python 측 객체가 소멸되면 C++ `at::Tensor`와 내부 포인터들도 함께 해제
 - `THPVariable_subclass_dealloc`이 entry point
 
 **`c10::Storage`의 소멸:**
-- `at::Tensor`에서 reference count ptr로 관리
-- `c10::Storage`를 공유하는 `at::Tensor`들이 **모두 소멸돼야** 할당된 memory가 정리됨
+- `shared_ptr`의 reference count가 감소하지만, 다른 tensor(view 등)가 공유 중이면 바로 소멸되지 않음
+- Reference count가 **0이 되는 시점**에 비로소 `StorageImpl`과 실제 device memory가 정리됨
 
 #### Tensor를 가지고 할 수 있는 일들
 
+Tensor로 할 수 있는 일들은 모두 operator(op)에 해당하며, op의 동작 방식에 따라 다음과 같이 분류할 수 있습니다.
+
+| 분류 | | 예시 |
+|---|---|---|
+| operator 수행 결과를 tensor에 직접 반영 → in-place operator | | `add_()`, `transpose_()` |
+| operator 수행 결과로 새로운 tensor가 생성 | 실제 연산이 일어나는 경우 → 새로운 storage가 생김 | `matmul()`, `add()`, 산술 연산 |
+| | 기존 data의 재배치만 일어나는 경우 — view만 생기는 경우 | `reshape()`, `transpose()` |
+| | 기존 data의 재배치만 일어나는 경우 — 새로운 storage가 생기는 경우 | `clone()`, `contiguous()` |
+
+<div class="grid grid-cols-2 gap-4 mt-2">
+<div>
+
+**In-place operator**
 ```python
 >>> a = torch.tensor([[1., 2.], [3., 4.]])
 >>> b = torch.tensor([[5., 6.], [7., 8.]])
->>> a.add_(b)               # In-place addition
+>>> a.add_(b)
 tensor([[ 6.,  8.], [10., 12.]])
->>> a.transpose_(0, 1)      # In-place transpose
+>>> a.transpose_(0, 1)
 tensor([[ 6., 10.], [ 8., 12.]])
->>> c = torch.matmul(a, b)  # Matrix multiplication
+```
+
+</div>
+<div>
+
+**새로운 storage 생성 (연산)**
+```python
+>>> c = torch.matmul(a, b)
 >>> print(c)
 tensor([[100., 116.], [124., 144.]])
->>> d = torch.add(c, 10)    # Scalar addition
+>>> d = torch.add(c, 10)
 >>> print(d)
 tensor([[110., 126.], [134., 154.]])
->>> e = torch.reshape(d, (4, 1))   # Reshape
+```
+
+</div>
+<div>
+
+**View만 생성 (storage 공유)**
+```python
+>>> e = torch.reshape(d, (4, 1))
 >>> print(e)
 tensor([[110.], [126.], [134.], [154.]])
->>> f = torch.transpose(e, 0, 1)   # Transpose
+>>> f = torch.transpose(e, 0, 1)
 >>> print(f)
 tensor([[110., 126., 134., 154.]])
->>> g = f.clone()            # Clone (new storage)
->>> h = g.contiguous()       # Contiguous
 ```
+
+</div>
+<div>
+
+**새로운 storage 생성 (재배치)**
+```python
+>>> g = f.clone()
+>>> print(g)
+tensor([[110., 126., 134., 154.]])
+>>> h = g.contiguous()
+>>> print(h)
+tensor([[110., 126., 134., 154.]])
+```
+
+</div>
+</div>
 
 #### View와 Storage 분리
 
@@ -795,11 +852,30 @@ at::Tensor my_add_cuda(const at::Tensor& ta, const at::Tensor& tb) {
 }
 ```
 
-**차원의 변경** — 차원의 합계는 같지만 각 차원의 크기가 다른 경우 (예: `(2, 6)` → `(3, 4)` 또는 `(6, 2)`). 실제 storage의 data는 변경되지 않고, metadata(size, stride)만 변경됩니다. `torch.reshape`, `torch.view` 등이 해당됩니다.
+**차원의 변경** — 차원의 합계는 같지만 각 차원의 크기가 다른 경우. Storage data는 변경되지 않고 metadata(size, stride)만 변경됩니다.
 
-**차원의 축소** — 특정 차원을 제거하거나 크기를 축소하는 경우 (예: `(2, 3, 4)` → `(2, 12)` 또는 `(24,)`). `torch.flatten`, `torch.squeeze` 등이 해당되며, Storage는 공유하고 metadata만 변경됩니다.
+| Operator | 설명 | 예시 |
+|---|---|---|
+| `view()` | 차원을 변경하며, stride를 자동 계산하여 설정 | `x = torch.arange(6).view(2, 3)` |
+| `transpose()` | 두 차원의 순서를 교환한 view 생성 | `y = x.transpose(0, 1)` |
+| `permute()` | 모든 차원의 순서를 재배한 view 생성 | `y = x.permute(2, 0, 1)` |
+| `as_strided()` | 차원과 stride를 직접 지정해 view 생성 | `y = torch.as_strided(x, (2, 2), (1, 2))` |
 
-**차원의 확장** — 없는 차원을 추가하거나 크기가 1인 차원을 확장하는 경우 (예: `(3, 4)` → `(1, 3, 4)` 또는 `(3, 1, 4)`). `torch.unsqueeze`, `torch.expand` 등이 해당되며, Storage는 공유하고 metadata만 변경됩니다.
+**차원의 축소** — 특정 차원을 제거하거나 크기를 축소하는 경우 (예: `(2, 3, 4)` → `(2, 12)` 또는 `(24,)`). Storage는 공유하고 metadata만 변경됩니다.
+
+| Operator | 설명 | 예시 |
+|---|---|---|
+| `flatten()` | 지정 범위의 차원을 하나로 합침 | `y = x.flatten(1, 2)` |
+| `squeeze()` | 크기가 1인 차원을 제거 | `y = x.squeeze(0)` |
+| `reshape()` | 원소 수가 같은 새 shape으로 변환 | `y = x.reshape(2, 12)` |
+
+**차원의 확장** — 없는 차원을 추가하거나 크기가 1인 차원을 확장하는 경우 (예: `(3, 4)` → `(1, 3, 4)`). Storage는 공유하고 metadata만 변경됩니다.
+
+| Operator | 설명 | 예시 |
+|---|---|---|
+| `unsqueeze()` | 지정 위치에 크기 1인 차원을 추가 | `y = x.unsqueeze(0)` |
+| `expand()` | 크기가 1인 차원을 반복 없이 확장 | `y = x.expand(3, 4)` |
+| `broadcast_to()` | 목표 shape으로 broadcast | `y = x.broadcast_to(2, 3, 4)` |
 
 
 ### Operator
