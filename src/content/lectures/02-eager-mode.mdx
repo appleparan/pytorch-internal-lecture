@@ -1038,13 +1038,15 @@ Runtime은 실제 디바이스에서 연산을 수행하기 위한 저수준 인
 
 (`c10/core/Device.h`)
 
-<img src="/images/02/slide43_1.png" class="h-80 mx-auto mt-4" />
-
-<div class="text-center mt-4 text-sm">
+```cpp
+sycl::device& get_raw_device(DeviceIndex device) {
+  initDevicePoolCallOnce();
+  check_device_index(device);
+  return *gDevicePool.devices[device];
+}
+```
 
 Unique한 `c10::Device`는 `gDevicePool`에 들어있는 `sycl::device`와 **1:1 관계** (XPU 예시)
-
-</div>
 
 #### Stream
 
@@ -1056,9 +1058,37 @@ Heterogeneous computing에서의 실행 모델에서, host가 device로 command/
 - Device는 stream에서 **FIFO 순서**로 command를 처리
 - 각 device마다 **stream pool**이 존재
 
+<Mermaid>
+{`flowchart LR
+    HOST["host"]
+
+    subgraph D1["device 1 · stream pool"]
+        Q1[["stream (FIFO)"]]
+        Q2[["stream (FIFO)"]]
+    end
+
+    subgraph D2["device 2 · stream pool"]
+        Q3[["stream (FIFO)"]]
+        Q4[["stream (FIFO)"]]
+    end
+
+    HOST -- "command 삽입" --> Q1
+    HOST -- "command 삽입" --> Q2
+    HOST -- "command 삽입" --> Q3
+    HOST -- "command 삽입" --> Q4
+`}
+</Mermaid>
+
 (`c10/core/Stream.h` | XPU의 `sycl::queue`에 대응)
 
-<img src="/images/02/slide45_1.png" class="h-72 mx-auto mt-4" />
+```cpp
+// Return whether all asynchronous work previously enqueued on this stream
+// has completed running on the device.
+bool Stream::query() const {
+  impl::VirtualGuardImpl impl{device_.type()};  // ← DeviceGuard를 통해 device specific 구현체와 연결
+  return impl.queryStream(*this);
+}
+```
 
 - `c10/core`의 구현체는 **device agnostic**
 - Device specific 구현체와의 연결은 **DeviceGuard**를 통해 이루어짐
@@ -1066,12 +1096,15 @@ Heterogeneous computing에서의 실행 모델에서, host가 device로 command/
 **Stream API:**
 
 - **`query()`**: stream에 삽입된 모든 command가 처리되었는지 여부를 반환
-  - XPU: `sycl::queue`에 `ext_oneapi_empty` 호출
-  - CUDA: `cudaStreamQuery` 호출
+  - `c10::Stream::query()` → `c10::impl::VirtualGuardImpl::queryStream` → `c10::impl::DeviceGuardImplInterface::queryStream` (virtual)
+    - XPU 구현: `c10::xpu::impl::XPUGuardImpl::queryStream` → `c10::xpu::XPUStream::query` → `sycl::queue`에 `ext_oneapi_empty` 호출해 queue가 비어있는지 확인
+    - CUDA 구현: `c10::cuda::impl::CUDAGuardImpl::queryStream` → `c10::cuda::CUDAStream::query` → DeviceGuard를 선언하고 `cudaStreamQuery`를 호출해 stream의 command가 모두 처리되었는지 확인
 - **`synchronize()`**: host가 stream 안의 모든 command가 처리될 때까지 대기
-  - XPU: `sycl::queue`에 `wait_and_throw` 호출
-  - CUDA: `cudaStreamSynchronize` 호출
-- **`wait(event)`**: `event.block(stream)` 호출
+  - `c10::Stream::synchronize` → `c10::impl::VirtualGuardImpl::synchronizeStream` → `c10::impl::DeviceGuardImplInterface::synchronizeStream` (virtual)
+    - XPU 구현: `c10::xpu::impl::XPUGuardImpl::synchronizeStream` → `c10::xpu::XPUStream::synchronize` → `sycl::queue`에 `wait_and_throw`를 호출해 queue에 삽입된 모든 command가 처리될 때까지 대기
+    - CUDA 구현: `c10::cuda::impl::CUDAGuardImpl::synchronizeStream` → `c10::cuda::CUDAStream::synchronize` → DeviceGuard를 선언하고 `c10::cuda::stream_synchronize`를 호출 → `cudaStreamSynchronize`를 호출해 stream의 모든 command가 처리될 때까지 대기
+- **`wait(event)`**:
+  - `c10::Stream::wait` → `event.block(stream)`
 
 #### Event
 
@@ -1107,12 +1140,16 @@ Heterogeneous computing에서의 실행 모델에서, host가 device로 command/
 
 **Event 구현 방식:**
 
+`Event`는 `InlineEvent<VirtualGuardImpl>`을 **멤버로 소유**하며, 실제 동작은 이 멤버를 통해 위임됩니다:
+
 ```cpp
 // c10/core/Event.h
 struct Event final {
-    impl::InlineEvent<impl::VirtualGuardImpl> impl_;
+    impl::InlineEvent<impl::VirtualGuardImpl> impl_;  // ← 구현을 멤버로 소유
 };
+```
 
+```cpp
 // c10/core/impl/InlineEvent.h
 template <typename T>
 struct InlineEvent final {
@@ -1123,7 +1160,7 @@ struct InlineEvent final {
     void synchronize();
 
     void* event_ = nullptr;
-    T backend_;
+    T backend_;                          // VirtualGuardImpl — DeviceGuard에 의존
     DeviceType device_type_;
     DeviceIndex device_index_ = -1;
     EventFlag flag_ = EventFlag::PYTORCH_DEFAULT;
@@ -1131,23 +1168,34 @@ struct InlineEvent final {
 };
 ```
 
-Device specific한 부분은 결국 **DeviceGuard에 의존**합니다.
+Device specific한 부분은 `T backend_`(`VirtualGuardImpl`)를 통해 결국 **DeviceGuard에 의존**합니다:
 
 **Event API 상세:**
 
-- **`record(stream)`**: stream에 record command를 삽입
-  - XPU: `sycl::queue`에 `ext_oneapi_submit_barrier` 호출
-  - CUDA: `cudaEventRecord` 호출
-- **`recordOnce(stream)`**: record가 한 번만 호출되도록 보장 (Event는 thread-safe하지 않아서 사용)
-- **`block(stream)`**: record command가 처리될 때까지 대기하라는 block command를 삽입
-  - XPU: `sycl::queue`에 `ext_oneapi_submit_barrier` 호출 (sycl::event list를 argument로)
-  - CUDA: `cudaStreamWaitEvent` 호출
-- **`query()`**: record command가 처리되었는지 여부를 반환
-  - XPU: `sycl::event`의 `command_execution_status`가 `complete`인지 확인
-  - CUDA: `cudaEventQuery` 호출
-- **`synchronize()`**: host가 record command가 처리될 때까지 대기
-  - XPU: `sycl::event`에 `wait_and_throw` 호출
-  - CUDA: `cudaEventSynchronize` 호출
+- **다양한 getter들**: `device()`, `device_type()`, `device_index()`, `flag()`, `was_marked_for_recording()`, `eventId()`
+- **`record(stream)`**: 주어진 stream에 record command를 삽입. record command가 처리되어야 이 event를 기다리는 stream이 재시작할 수 있음
+  - stream과 event의 **device type, index는 같아야 함**
+  - `c10::Event::record` → `c10::impl::InlineEvent<c10::impl::VirtualGuardImpl>::record` → `c10::impl::VirtualGuardImpl::record` → `c10::impl::DeviceGuardImplInterface::record` (virtual)
+    - XPU 구현: `c10::xpu::impl::XPUGuardImpl::record` → stream의 `sycl::queue`에 `ext_oneapi_submit_barrier`를 호출해 event에 record를 호출하기 이전의 command를 모두 처리한 후 `sycl::event`를 선언함
+    - CUDA 구현: `c10::cuda::impl::CUDAGuardImpl::record` → 주어진 stream의 device로 `setDevice`하고 `cudaEventRecord`를 호출하고 원래 device로 `setDevice`함
+  - `c10::impl::DeviceGuardImplInterface::record`를 수행한 후 `was_marked_for_recording_`을 `true`로 변경
+- **`recordOnce(stream)`**: Event는 thread-safe하지 않아서 record가 한 번만 호출되도록 보장
+  - `c10::Event::recordOnce` → `c10::impl::InlineEvent<c10::impl::VirtualGuardImpl>::recordOnce` → `c10::impl::InlineEvent<c10::impl::VirtualGuardImpl>::record`
+  - `was_marked_for_recording_`이 `false`일 때만 record 실행
+- **`block(stream)`**: event에 record를 호출했을 때 삽입된 record command가 처리될 때까지 대기하라는 **block command**를 stream에 삽입. stream은 block command를 처리할 때 record command의 처리 여부를 확인함
+  - stream과 event의 **device type은 같아야** 하지만 **device index는 다를 수 있음**
+  - 같은 device index여도 block command가 stream에서 처리되기 전까지 계속 command를 처리해 record command를 처리할 수 있으므로 **deadlock이 발생하지 않음**
+  - `c10::Event::block` → `c10::impl::InlineEvent<c10::impl::VirtualGuardImpl>::block` → `c10::impl::VirtualGuardImpl::block` → `c10::impl::DeviceGuardImplInterface::block` (virtual)
+    - XPU 구현: `c10::xpu::impl::XPUGuardImpl::block` → stream의 `sycl::queue`에 `sycl::event` list를 argument로 `ext_oneapi_submit_barrier`를 호출. `ext_oneapi_submit_barrier`는 `cudaStreamWaitEvent`과 같은 역할
+    - CUDA 구현: `c10::cuda::impl::CUDAGuardImpl::block` → `cudaStreamWaitEvent`를 호출. 주어진 stream은 event의 record command가 처리될 때까지 대기함
+- **`query()`**: event에 record를 호출했을 때 삽입된 record command가 처리되었는지 여부를 반환. record를 호출한 적이 없으면 항상 `true`를 반환
+  - `c10::Event::query` → `c10::impl::InlineEvent<c10::impl::VirtualGuardImpl>::query` → `c10::impl::VirtualGuardImpl::queryEvent` → `c10::impl::DeviceGuardImplInterface::queryEvent` (virtual)
+    - XPU 구현: `c10::xpu::impl::XPUGuardImpl::queryEvent` → `sycl::event`의 `command_execution_status`가 `event_command_status::complete`인지 여부를 반환
+    - CUDA 구현: `c10::cuda::impl::CUDAGuardImpl::queryEvent` → event에 대응되는 CUDA event에 `cudaEventQuery`를 호출해 event의 record command가 처리되었는지 여부를 반환
+- **`synchronize()`**: host가 event에 record를 호출했을 때 삽입된 record command가 처리될 때까지 대기
+  - `c10::Event::synchronize` → `c10::impl::InlineEvent<c10::impl::VirtualGuardImpl>::synchronize` → `c10::impl::VirtualGuardImpl::synchronizeEvent` → `c10::impl::DeviceGuardImplInterface::synchronizeEvent` (virtual)
+    - XPU 구현: `c10::xpu::impl::XPUGuardImpl::synchronizeEvent` → `sycl::event`에 `wait_and_throw`를 호출
+    - CUDA 구현: `c10::cuda::impl::CUDAGuardImpl::synchronizeEvent` → CUDA event에 `cudaEventSynchronize`를 호출해 event의 record command가 처리될 때까지 대기
 
 #### DeviceGuard
 
@@ -1157,86 +1205,88 @@ Device specific한 부분은 결국 **DeviceGuard에 의존**합니다.
 - **RAII** (Resource Acquisition Is Initialization) 디자인 패턴
 - Nesting된 형태로 사용 가능
 
-```
-┌─────────────────────────────────┐
-│  device1                        │
-│  ┌───────────────────────────┐  │
-│  │  DeviceGuard (1 → 2)     │  │
-│  │  ┌─────────────────────┐  │  │
-│  │  │  DeviceGuard (2 → 3)│  │  │
-│  │  │  device3             │  │  │
-│  │  └─────────────────────┘  │  │
-│  │  device2 (restored)       │  │
-│  └───────────────────────────┘  │
-│  device1 (restored)             │
-└─────────────────────────────────┘
-```
 
-<img src="/images/02/slide53_1.png" class="h-80 mx-auto mt-4" />
+<img src="/images/02/deviceguard_nested_diagram.svg" class="h-80 mx-auto mt-4" />
+
+**DeviceGuard 사용 예제** — CUDA stream의 `query()` 구현:
+
+```cpp
+bool query() const {
+  DeviceGuard guard{stream_.device()};
+  cudaError_t err = C10_CUDA_ERROR_HANDLED(cudaStreamQuery(stream()));
+
+  if (err == cudaSuccess) {
+    return true;
+  } else if (err != cudaErrorNotReady) {
+    C10_CUDA_CHECK(err);
+  } else {
+    // ignore and clear the error if not ready
+    (void)cudaGetLastError();
+  }
+
+  return false;
+}
+```
 
 <div class="text-center mt-4 text-sm">
 
-사용 예제: current device가 `stream_.device`로 세팅되고, guard가 소멸되며 원복
+사용 예제: current device가 `stream_.device()`로 세팅되고, guard가 소멸되며 원복
 
 </div>
 
-<img src="/images/02/slide54_1.png" class="h-72 mx-auto mt-4" />
+**구현 방식: `DeviceGuard` → `InlineDeviceGuard` → `XPUGuardImpl` (device-specific)**
 
-<div class="text-center mt-4">
+**1단계: `DeviceGuard`** — RAII wrapper로 `guard_.reset_device()`를 호출:
 
-구현 방식: `DeviceGuard` → `InlineDeviceGuard` → `XPUGuardImpl` (device-specific)
+```cpp
+void reset_device(at::Device device) {
+  guard_.reset_device(device);
+}
+```
 
-</div>
+**2단계: `InlineDeviceGuard`** — `VirtualGuardImpl`을 통해 device-specific 구현체로 위임:
+
+```cpp
+template <typename U = T>
+typename std::enable_if_t<std::is_same_v<U, VirtualGuardImpl>> reset_device(
+    at::Device device,
+    const impl::DeviceGuardImplInterface* impl = nullptr) {
+  auto index = device.index();
+  if (index == -1)
+    return;
+  if (device.type() == original_device_.type()) {
+    AT_ASSERT(impl == nullptr || impl->type() == device.type());
+    impl_.setDevice(device);
+```
+
+**3단계: `XPUGuardImpl`** (device-specific) — 실제 device 전환 수행:
+
+```cpp
+void setDevice(Device d) const override {
+  TORCH_INTERNAL_ASSERT(d.is_xpu());
+  c10::xpu::set_device(d.index());
+}
+```
 
 #### VirtualGuardImpl API
 
-<div class="grid grid-cols-2 gap-4">
-<div>
-
-**Device 관련**
-- `exchangeDevice`
-- `getDevice`
-- `setDevice`
-- `uncheckedSetDevice`
-- `deviceCount`
-
-**Stream 관련**
-- `getStream`
-- `getNewStream`
-- `getDefaultStream`
-- `getStreamFromGlobalPool`
-- `exchangeStream`
-
-</div>
-<div>
-
-**Event 관련**
-- `record`
-- `block`
-- `queryEvent`
-- `destroyEvent`
-
-**Stream 동기화**
-- `queryStream`
-- `synchronizeStream`
-
-**기타**
-- `recordDataPtrOnStream`
-
-</div>
-</div>
+| 분류 | API |
+|---|---|
+| **Device 관련** | `exchangeDevice`, `getDevice`, `setDevice`, `uncheckedSetDevice`, `deviceCount` |
+| **Stream 관련** | `getStream`, `getNewStream`, `getDefaultStream`, `getStreamFromGlobalPool`, `exchangeStream` |
+| **Event 관련** | `record`, `block`, `queryEvent`, `destroyEvent` |
+| **Stream 동기화** | `queryStream`, `synchronizeStream` |
+| **기타** | `recordDataPtrOnStream` |
 
 #### Allocator
 
 **Device memory를 관리하는 structure**입니다. 대부분의 중요한 함수들이 **virtual**로 정의되어 있습니다:
 
-```cpp
-virtual DataPtr allocate(size_t n);
-virtual clone(const void* data, std::size_t n);
-virtual bool is_simple_data_ptr(const DataPtr& data_ptr);
-virtual DeleterFnPtr raw_deleter();
-virtual void copy_data(void* dest, const void* src, std::size_t count);
-```
+- `virtual DataPtr allocate(size_t n)`
+- `virtual clone(const void* data, std::size_t n)`
+- `virtual bool is_simple_data_ptr(const DataPtr& data_ptr)`
+- `virtual DeleterFnPtr raw_deleter()`
+- `virtual void copy_data(void* dest, const void* src, std::size_t count)`
 
 - Device specific allocator는 이 structure를 **상속받아 구현**
 - **DataPtr**: device에 잡힌 메모리를 표현하기 위한 class (device와 그 device 내 주소에 해당하는 pointer를 보유)
@@ -1248,7 +1298,17 @@ virtual void copy_data(void* dest, const void* src, std::size_t count);
 - **Pseudo Random Number Generator (PRNG)** engine을 사용하는 interface
 - 사용자는 seed를 제공하거나 상태를 확인할 수 있음
 
-<img src="/images/02/slide57_1.png" class="h-48 mx-auto mt-4" />
+Common methods for all generators:
+
+- `virtual void set_current_seed(uint64_t seed) = 0`
+- `virtual void set_offset(uint64_t offset) = 0`
+- `virtual uint64_t get_offset() const = 0`
+- `virtual uint64_t current_seed() const = 0`
+- `virtual uint64_t seed() = 0`
+- `virtual void set_state(const c10::TensorImpl& new_state) = 0`
+- `virtual c10::intrusive_ptr<c10::TensorImpl> get_state() const = 0`
+- `const c10::intrusive_ptr<c10::GeneratorImpl>& getIntrusivePtr() const`
+- `c10::intrusive_ptr<c10::GeneratorImpl> clone(const c10::intrusive_ptr<c10::GeneratorImpl>& generator_state) const`
 
 - ATen Generator는 **device agnostic**한 class
 - Device specific한 구현을 위해 `c10::GeneratorImpl`을 제공
