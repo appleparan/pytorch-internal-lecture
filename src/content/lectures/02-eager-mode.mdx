@@ -892,28 +892,103 @@ Operator 실행과 관련된 핵심 개념들은 다음과 같습니다:
 
 #### Kernel
 
-<img src="/images/02/slide36_1.png" class="h-96 mx-auto" />
-
-<div class="text-sm text-center mt-2">
+<div class="text-sm text-center mb-2">
 
 Generated Autograd Kernel for `add`
 
 </div>
 
+```cpp
+// In VariableTypeEverything.cpp
+
+Tensor add_Tensor(const Tensor & self, const Tensor & other, Scalar alpha) {
+  auto& self_ = unpack(self, "self", 0);
+  auto& other_ = unpack(other, "other", 1);
+  std::shared_ptr<AddBackward0> grad_fn;
+  if (compute_requires_grad( self, other )) {
+    grad_fn = std::shared_ptr<AddBackward0>(new AddBackward0(), deleteNode);
+    grad_fn->set_next_edges(collect_next_edges( self, other ));
+    grad_fn->alpha = alpha;
+  }
+  #ifndef NDEBUG
+  c10::optional<Storage> self__storage_saved =
+    self_.has_storage() ? c10::optional<Storage>(self_.storage()) : c10::nullopt;
+  c10::intrusive_ptr<TensorImpl> self__impl_saved;
+  if (self_.defined()) self__impl_saved = self_.getIntrusivePtr();
+  c10::optional<Storage> other__storage_saved =
+    other_.has_storage() ? c10::optional<Storage>(other_.storage()) : c10::nullopt;
+  c10::intrusive_ptr<TensorImpl> other__impl_saved;
+  if (other_.defined()) other__impl_saved = other_.getIntrusivePtr();
+  #endif
+  auto tmp = ([&]() {
+    at::AutoNonVariableTypeMode non_var_type_mode(true);
+    return at::add(self_, other_, alpha);
+  })();
+  auto result = std::move(tmp);
+  #ifndef NDEBUG
+  if (self__storage_saved.has_value())
+    AT_ASSERT(self__storage_saved.value().is_alias_of(self_.storage()));
+  if (self__impl_saved) AT_ASSERT(self__impl_saved == self_.getIntrusivePtr());
+  if (other__storage_saved.has_value())
+    AT_ASSERT(other__storage_saved.value().is_alias_of(other_.storage()));
+  if (other__impl_saved) AT_ASSERT(other__impl_saved == other_.getIntrusivePtr());
+  #endif
+  if (grad_fn) {
+    set_history(flatten_tensor_args( result ), grad_fn);
+  }
+  return result;
+}
+```
+
 #### Registration API
 
 <img src="/images/02/slide37_1.png" class="h-80 mx-auto" />
 
+Dispatch table의 함수 포인터가 어떻게 등록되는지를 담당하는 것이 **operator registration API**입니다. 이 API와 상호작용하는 세 가지 주요 방법이 있습니다:
+
+1. **`def`** — operator의 schema를 정의
+2. **`impl`** — 특정 dispatch key에 대한 구현(kernel)을 등록
+3. **`fallback`** — 특정 dispatch key의 **모든 operator**에 대한 기본 handler를 등록
+
 - Kernel을 Dispatcher에 등록하는 API
 - `Register{Backend}.cpp`는 `gen.py`가 `native_functions.yaml`로부터 생성
+
+참고: http://blog.ezyang.com/2020/09/lets-talk-about-the-pytorch-dispatcher/
 
 #### Dispatcher
 
 <img src="/images/02/slide38_1.png" class="h-96 mx-auto" />
 
+Dispatcher는 **모든 operator마다 함수 포인터 테이블(dispatch table)**을 유지합니다. 각 dispatch key는 PyTorch의 cross-cutting concern(백엔드, autograd, tracing 등)에 대응하며, 위 다이어그램에서 CPU, CUDA, XLA 같은 백엔드뿐 아니라 autograd, tracing 같은 상위 개념에 대한 dispatch entry도 볼 수 있습니다. Dispatcher는 입력 tensor와 기타 정보를 기반으로 **dispatch key를 계산**한 뒤, 해당 테이블의 함수 포인터로 **indirect jump**합니다.
+
+**C++ vtable과의 비교:**
+
+Dispatch table은 C++의 virtual table과 유사하지만 중요한 차이점이 있습니다:
+
+| | C++ vtable | PyTorch Dispatch Table |
+|---|---|---|
+| **할당 단위** | 클래스(class)별 | **operator별** — 새 operator 추가 시 새 dispatch table만 할당하면 됨 |
+| **dispatch 기준** | 첫 번째 인자(`this`)만 고려 | **모든 인자**(multiple dispatch) + **thread-local state(TLS)** 고려 |
+| **boxing/unboxing** | 없음 | calling convention의 일부로 **boxing/unboxing 지원** |
+
+PyTorch에서 확장성의 핵심은 새로운 subclass를 만드는 것이 아니라 **새로운 operator를 정의**하는 것이므로, vtable 대신 이 방식이 더 적합합니다. 반면 dispatch key는 자유롭게 확장할 수 없으며, 새 dispatch key를 추가하려면 PyTorch core에 패치를 제출해야 합니다.
+
+> 역사적으로 PyTorch는 원래 virtual method를 사용하여 dynamic dispatch를 구현했으나, vtable이 제공하는 것 이상의 유연성이 필요해지면서 현재의 dispatcher로 재구현했습니다.
+
 #### Dispatch Key와 Dispatch Key Set
 
 <img src="/images/02/slide39_1.png" class="h-96 mx-auto" />
+
+Dispatch table에서 어떤 dispatch key로 index할지를 결정하는 핵심 추상화가 **dispatch key set**입니다. Dispatch key set은 dispatch key들의 **bitset**으로, 여러 소스에서 가져온 dispatch key set을 **union**하고(일부는 mask out), 최종 dispatch key set에서 **우선순위가 가장 높은 key**를 선택하여 dispatch합니다.
+
+**Dispatch key set의 소스:**
+
+| 소스 | 설명 |
+|---|---|
+| **Tensor input** | 각 입력 tensor가 자신의 dispatch key set을 기여 (예: CPU tensor → CPU key) |
+| **Local include set** | tensor와 무관한 **modal 기능** (예: tracing) — thread-local로 특정 scope 내에서 on/off |
+| **Global set** | 항상 고려되는 dispatch key (참고: Autograd는 이후 global set에서 tensor로 이동됨) |
+| **Local exclude set** | dispatch에서 **제외**할 key를 지정. handler가 자신의 key를 처리한 후 mask off하여 재처리를 방지하는 패턴에 사용 |
 
 #### Dispatch Key Set이 정해지는 과정
 
@@ -921,7 +996,6 @@ Generated Autograd Kernel for `add`
   <img src="/images/02/slide40_1.png" class="h-80" />
   <img src="/images/02/slide40_2.png" class="h-80" />
 </div>
-
 
 ### Runtime
 
