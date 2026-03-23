@@ -1,61 +1,49 @@
 ---
+import BaseLayout from './BaseLayout.astro';
+
 interface Props {
   title: string;
   lecture: number;
   date?: string;
+  prevLecture?: { title: string; url: string } | null;
+  nextLecture?: { title: string; url: string } | null;
 }
 
-const { title, lecture, date } = Astro.props;
+const { title, lecture, date, prevLecture, nextLecture } = Astro.props;
 ---
 
-<!doctype html>
-<html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{title} | PyTorch + NPU랩</title>
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css"
-    />
-    <script is:inline>
-      (function() {
-        var t = localStorage.getItem('theme');
-        if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-theme', t);
-      })();
-    </script>
-  </head>
-  <body>
-    <header class="site-header">
-      <nav>
-        <a href="/" class="nav-home">PyTorch + NPU랩</a>
-        <button class="theme-toggle" type="button" aria-label="Toggle dark mode">
-          <span class="icon-sun">&#9788;</span>
-          <span class="icon-moon">&#9790;</span>
-        </button>
-      </nav>
-    </header>
-
-    <main class="article-container">
-      <article class="prose">
-        <div class="article-header">
-          <span class="article-meta">Week {lecture}{date ? ` · ${date}` : ''}</span>
-          <h1 class="article-title">{title}</h1>
-        </div>
-
-        <div class="article-body">
-          <slot />
-        </div>
-      </article>
-    </main>
-
-    <footer class="site-footer">
-      <div class="footer-inner">
-        <a href="/">← 목록으로 돌아가기</a>
+<BaseLayout title={title} currentPath="/">
+  <div class="content-container">
+    <article>
+      <div class="article-header">
+        <span class="article-meta">Week {lecture}{date ? ` · ${date}` : ''}</span>
+        <h1 class="article-title">{title}</h1>
       </div>
-    </footer>
 
-    <script src="../scripts/theme-toggle.js"></script>
-  </body>
-</html>
+      <div class="article-body">
+        <slot />
+      </div>
+
+      {(prevLecture || nextLecture) && (
+        <nav class="prev-next-nav" aria-label="Lecture navigation">
+          {prevLecture ? (
+            <a href={prevLecture.url} class="prev-next-link prev">
+              <span class="prev-next-label">&larr; Previous</span>
+              <span class="prev-next-title">{prevLecture.title}</span>
+            </a>
+          ) : (
+            <div />
+          )}
+          {nextLecture ? (
+            <a href={nextLecture.url} class="prev-next-link next">
+              <span class="prev-next-label">Next &rarr;</span>
+              <span class="prev-next-title">{nextLecture.title}</span>
+            </a>
+          ) : (
+            <div />
+          )}
+        </nav>
+      )}
+    </article>
+  </div>
+</BaseLayout>

@@ -3,6 +3,7 @@ node_modules
 dist
 *.local
 .astro
+.claude
 
 lecture_files
 scripts/*.json
