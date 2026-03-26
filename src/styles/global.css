@@ -162,7 +162,7 @@ a:hover {
 }
 
 .navbar-brand {
-  font-family: 'Roboto Slab', 'Georgia', serif;
+  font-family: 'Pretendard Std', 'Pretendard', sans-serif;
   font-weight: 700;
   font-size: 1.1rem;
   color: var(--text-heading);
@@ -369,7 +369,7 @@ a:hover {
 }
 
 .index-title {
-  font-family: 'Roboto Slab', 'Georgia', serif;
+  font-family: 'Pretendard Std', 'Pretendard', sans-serif;
   font-size: 2.25rem;
   font-weight: 700;
   color: var(--text-heading);
@@ -447,7 +447,7 @@ a:hover {
 }
 
 .article-title {
-  font-family: 'Roboto Slab', 'Georgia', serif;
+  font-family: 'Pretendard Std', 'Pretendard', sans-serif;
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.3;
@@ -457,7 +457,7 @@ a:hover {
 
 /* ===== Article Body — Prose Typography ===== */
 .article-body h1 {
-  font-family: 'Roboto Slab', 'Georgia', serif;
+  font-family: 'Pretendard Std', 'Pretendard', sans-serif;
   font-size: 1.6rem;
   font-weight: 700;
   margin-top: 2.5rem;
@@ -469,7 +469,7 @@ a:hover {
 }
 
 .article-body h2 {
-  font-family: 'Roboto Slab', 'Georgia', serif;
+  font-family: 'Pretendard Std', 'Pretendard', sans-serif;
   font-size: 1.3rem;
   font-weight: 600;
   margin-top: 2rem;
