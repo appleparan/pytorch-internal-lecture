@@ -1,78 +1,92 @@
 @import 'tailwindcss';
+@import 'pretendard-std/dist/web/static/pretendard-std.css';
 
 /* ===== al-folio Theme Variables ===== */
 :root {
   /* Background */
   --bg: #ffffff;
   --bg-surface: #f8f9fa;
-  --bg-code: #f5f5f5;
+  --bg-code: rgba(181, 9, 172, 0.05);
   --bg-table-head: #f8f9fa;
   --bg-navbar: rgba(255, 255, 255, 0.95);
   --bg-search: #ffffff;
   --bg-search-item-hover: #f8f9fa;
 
   /* Text */
-  --text: #212529;
-  --text-heading: #212529;
-  --text-muted: #6c757d;
-  --text-blockquote: #6c757d;
+  --text: #000000;
+  --text-heading: #000000;
+  --text-muted: #828282;
+  --text-blockquote: #828282;
 
-  /* Accent — al-folio purple */
-  --accent: #6c3483;
-  --accent-light: #8e44ad;
-  --accent-shadow: rgba(108, 52, 131, 0.1);
+  /* Accent — al-folio purple (#b509ac) */
+  --accent: #b509ac;
+  --accent-light: #b509ac;
+  --accent-shadow: rgba(181, 9, 172, 0.1);
 
   /* Links */
-  --link: #6c3483;
-  --link-hover: #8e44ad;
+  --link: #b509ac;
+  --link-hover: #b509ac;
 
   /* Borders */
-  --border: #dee2e6;
-  --border-blockquote: #6c3483;
+  --border: rgba(0, 0, 0, 0.1);
+  --border-blockquote: #b509ac;
+
+  /* Code text color */
+  --code-color: #b509ac;
 
   /* Scrollbar */
   --scrollbar-thumb: rgba(0, 0, 0, 0.15);
 
   /* Progress bar */
-  --progress: #6c3483;
+  --progress: #b509ac;
+
+  /* Back to top */
+  --back-to-top-bg: rgba(0, 0, 0, 0.4);
 
   color-scheme: light;
 }
 
 [data-theme='dark'] {
   /* Background */
-  --bg: #1b1b1b;
-  --bg-surface: #242424;
-  --bg-code: #2d2d2d;
+  --bg: #1c1c1d;
+  --bg-surface: #212529;
+  --bg-code: #2c3237;
   --bg-table-head: #2d2d2d;
-  --bg-navbar: rgba(27, 27, 27, 0.95);
-  --bg-search: #242424;
+  --bg-navbar: rgba(28, 28, 29, 0.95);
+  --bg-search: #212529;
   --bg-search-item-hover: #2d2d2d;
 
-  /* Text */
-  --text: #e0e0e0;
-  --text-heading: #f0f0f0;
-  --text-muted: #9e9e9e;
-  --text-blockquote: #9e9e9e;
+  /* Text — al-folio uses grey-color-light (#828282 + 40% lighter ≈ #d2d2d2) */
+  --text: #d2d2d2;
+  --text-heading: #d2d2d2;
+  --text-muted: #828282;
+  --text-blockquote: #828282;
 
-  /* Accent — al-folio cyan for dark mode */
-  --accent: #00bcd4;
-  --accent-light: #26c6da;
-  --accent-shadow: rgba(0, 188, 212, 0.15);
+  /* Accent — al-folio cyan (#2698ba) for dark mode */
+  --accent: #2698ba;
+  --accent-light: #2698ba;
+  --accent-shadow: rgba(38, 152, 186, 0.15);
 
   /* Links */
-  --link: #00bcd4;
-  --link-hover: #26c6da;
+  --link: #2698ba;
+  --link-hover: #2698ba;
 
   /* Borders */
-  --border: #424242;
-  --border-blockquote: #00bcd4;
+  --border: #424246;
+  --border-blockquote: #2698ba;
+
+  /* Code text color */
+  --code-color: #2698ba;
 
   /* Scrollbar */
   --scrollbar-thumb: rgba(255, 255, 255, 0.2);
 
   /* Progress bar */
-  --progress: #00bcd4;
+  --progress: #2698ba;
+
+  /* Back to top */
+  --back-to-top-bg: rgba(255, 255, 255, 0.5);
+  --back-to-top-color: #000000;
 
   color-scheme: dark;
 }
@@ -89,8 +103,9 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
-    sans-serif;
+  font-family: 'Pretendard Std', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Helvetica, Arial, sans-serif;
+  font-weight: 300;
   font-size: 1rem;
   line-height: 1.75;
   -webkit-font-smoothing: antialiased;
@@ -108,6 +123,7 @@ a {
 
 a:hover {
   color: var(--link-hover);
+  text-decoration: underline;
 }
 
 /* ===== Scroll Progress Bar ===== */
@@ -153,9 +169,12 @@ a:hover {
   letter-spacing: -0.02em;
 }
 
+.navbar a:hover {
+  text-decoration: none;
+}
+
 .navbar-brand:hover {
   color: var(--accent);
-  text-decoration: none;
 }
 
 .navbar-links {
@@ -481,7 +500,7 @@ a:hover {
 }
 
 .article-body strong {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-heading);
 }
 
@@ -494,22 +513,28 @@ a:hover {
 /* Code blocks */
 .article-body pre {
   margin: 1.25rem 0;
-  border-radius: 0.5rem;
+  border-radius: 6px;
   overflow-x: auto;
   font-size: 0.85rem;
-  border: 1px solid var(--border);
+  background-color: var(--bg-code);
+  padding: 6px 12px;
 }
 
 .article-body code {
   font-family: 'Roboto Mono', 'Fira Code', monospace;
   font-size: 0.85rem;
+  color: var(--code-color);
 }
 
 .article-body :not(pre) > code {
   background: var(--bg-code);
   padding: 0.15rem 0.4rem;
-  border-radius: 0.25rem;
+  border-radius: 3px;
   font-size: 0.85em;
+}
+
+.article-body pre code {
+  color: inherit;
 }
 
 /* Tables */
@@ -541,11 +566,11 @@ a:hover {
 
 /* Blockquotes */
 .article-body blockquote {
-  border-left: 3px solid var(--border-blockquote);
-  padding-left: 1rem;
-  margin: 1.25rem 0;
+  border-left: 5px solid var(--border-blockquote);
+  padding: 1em;
+  margin: 1.5em 0;
+  font-size: 1.2rem;
   color: var(--text-blockquote);
-  font-style: italic;
 }
 
 /* KaTeX */
@@ -602,6 +627,12 @@ a:hover {
 .prev-next-link:hover {
   border-color: var(--accent);
   background: var(--bg-surface);
+}
+
+.prev-next-link:hover,
+.lecture-item:hover,
+.footer-social a:hover,
+.search-result-item:hover {
   text-decoration: none;
 }
 
@@ -626,13 +657,13 @@ a:hover {
 /* ===== Back to Top ===== */
 .back-to-top {
   position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  width: 2.5rem;
-  height: 2.5rem;
+  bottom: 30px;
+  right: 30px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
+  background: var(--back-to-top-bg);
+  color: var(--back-to-top-color, #ffffff);
   border: none;
   cursor: pointer;
   display: flex;
@@ -645,8 +676,7 @@ a:hover {
     opacity 0.3s ease,
     visibility 0.3s ease,
     background 0.2s ease;
-  z-index: 50;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
 }
 
 .back-to-top.visible {
