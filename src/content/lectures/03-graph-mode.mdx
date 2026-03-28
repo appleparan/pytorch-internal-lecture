@@ -219,15 +219,51 @@ Trace Cache의 동작 방식은 다음과 같습니다:
 
 결과적으로 Trace Cache는 기존 Instruction Cache의 점프 문제를 해결하여 fetch 효율을 극대화하고, 불필요한 cache miss를 줄여 보다 연속적인 코드 실행을 가능하게 합니다.
 
+> Rotenberg, Eric, Steve Bennett, and James E. Smith. "A trace cache microarchitecture and evaluation." IEEE Transactions on Computers 48.2 (2002): 111-120. https://ieeexplore.ieee.org/abstract/document/752652
+
 #### Partial Evaluation
+
+Partial evaluation은 프로그램을 최적화하는 기법으로, 입력을 두 종류로 구분합니다:
+
+- **Static Input**: 변하지 않는 상수처럼 취급될 입력 (자주 사용되는 고정 값)
+- **Dynamic Input**: 실행 시마다 변할 수 있는 입력
+
+프로그램 `p`에 고정된 입력 `in1`(static input)을 주어 **부분 평가(partial-evaluate)** 한 뒤, 동적 입력 `in2`(dynamic input)에 의해 영향을 받는 나머지 계산만 수행하는 **특화된 프로그램(specialized program)** 을 생성합니다. 이렇게 생성된 특화 프로그램은 원래 프로그램 `p`보다 **더 빠르게** 실행됩니다.
 
 <img src="/images/03/slide11_1.png" class="h-56" />
 
-Partial evaluation은 프로그램 `p`에 고정된 입력 `in1`을 주어 **부분 평가(partial-evaluate)**한 뒤, 동적 입력 `in2`에 의해 영향을 받는 나머지 계산만 수행하는 **특화된 프로그램(specialized program)**을 생성하는 기법입니다. 이렇게 생성된 특화 프로그램은 원래 프로그램 `p`보다 **더 빠르게** 실행됩니다.
+예를 들어 `x`가 항상 고정된 static input이라면:
 
-> 참고: https://dl.acm.org/doi/10.1145/243439.243447
+```python
+def compute(x, y):
+    return (x + 10) * y
 
-예를 들어 원래 Trace가 `[A, A, B, C, D, D, E, E, E]`이고 static input과 dynamic input이 모두 필요한 상태에서, static input에만 영향받는 부분을 한 번 계산해두면, 최적화된 Trace에서는 dynamic input만 필요하게 됩니다. Static input은 더 이상 필요 없고(영향이 이미 반영됨), static input에만 영향을 받는 코드는 다시 계산할 필요가 없습니다. 다만, **static input이 바뀌면 최적화된 Trace도 달라져야** 합니다.
+# x = 5가 항상 고정이라면, 미리 계산하여 최적화된 함수 생성
+def optimized_compute(y):
+    return 15 * y
+```
+
+이처럼 반복적으로 수행되는 복잡한 연산을 미리 계산하여 실행 성능을 높일 수 있습니다.
+
+> Jones, Neil D. "An introduction to partial evaluation." ACM Computing Surveys (CSUR) 28.3 (1996): 480-503. https://dl.acm.org/doi/10.1145/243439.243447
+
+<ThemeImage
+  darkSrc="/images/03/partial-eval-dark.svg"
+  lightSrc="/images/03/partial-eval-light.svg"
+  alt="Partial Evaluation diagram"
+  class="h-80 mx-auto mt-4"
+/>
+
+위 다이어그램은 Partial Evaluation의 핵심을 시각적으로 보여줍니다. Static input에만 영향을 받는 연산을 미리 계산하고, dynamic input에 영향을 받는 부분만 실행합니다. 이를 극단적으로 생각하면, static input이 포함된 연산을 모두 제거하고 dynamic input만 남긴 형태로 최적화할 수 있습니다.
+
+예를 들어 원래 Trace가 `[A, A, B, C, D, D, E, E, E]`이고 static input과 dynamic input이 모두 필요한 상태에서, static input에만 영향받는 부분을 한 번 계산해두면, 최적화된 Trace에서는 dynamic input만 필요하게 됩니다:
+
+- **Static input은 더 이상 필요 없음** — 영향이 이미 반영되었기 때문
+- **Static input에만 영향을 받는 코드는 다시 계산할 필요가 없음** — 결과가 이미 특화 프로그램에 포함됨
+
+모든 입력 집합이 `{i1, i2, ..., in}`이라면, 이를 static input과 dynamic input으로 나누는 과정이 필요합니다. 단, 임의로 나누는 것이 아니라 **실제 실행 중 바뀌지 않는 값만 static input으로 설정**해야 효과적입니다. **Static input이 바뀌면 최적화된 Trace도 달라져야** 하므로 새로운 partial evaluation이 필요하고, 잘못된 static input을 적용하면 예상과 다른 결과가 나올 수 있습니다.
+
+**PyTorch 2.0과의 연관성**: Dynamo는 Partial Evaluation과 유사한 방식으로 동작합니다. 변하지 않는 연산(Python 코드, tensor shape 등)을 미리 계산하여 최적화된 Graph를 생성하고, 변하는 부분(실제 tensor 데이터)만 실행 시 처리합니다.
 
 ### ML 모델에서의 Tracing
 
