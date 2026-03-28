@@ -1,13 +1,14 @@
 ---
 interface Props {
   scale?: number;
+  wide?: boolean;
 }
 
-const { scale = 1.0 } = Astro.props;
+const { scale = 1.0, wide = false } = Astro.props;
 ---
 
 <div
-  class="mermaid-wrapper"
+  class:list={["mermaid-wrapper", { "mermaid-wide": wide }]}
   style={scale !== 1.0 ? `transform: scale(${scale}); transform-origin: top center;` : undefined}
 >
   <pre class="mermaid"><slot /></pre>
@@ -16,26 +17,28 @@ const { scale = 1.0 } = Astro.props;
 <script>
   import mermaid from 'mermaid';
 
-  // Only initialize once
-  if (!document.documentElement.dataset.mermaidInit) {
-    document.documentElement.dataset.mermaidInit = 'true';
+  // Store original mermaid source for re-rendering on theme change
+  const mermaidSources = new Map<Element, string>();
+  document.querySelectorAll('pre.mermaid').forEach((pre) => {
+    mermaidSources.set(pre, pre.textContent || '');
+  });
+
+  function currentTheme(): 'dark' | 'default' {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+  }
+
+  function initMermaid() {
     mermaid.initialize({
       startOnLoad: false,
-      theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
+      theme: currentTheme(),
       securityLevel: 'loose',
     });
   }
 
-  // Run mermaid on all .mermaid elements
-  async function renderMermaid() {
-    await mermaid.run({
-      querySelector: '.mermaid',
-    });
-
-    // Remove Mermaid's inline max-width constraint and stretch SVGs to container width
+  // Post-process SVGs: remove inline constraints and stretch to container
+  function postProcessSvgs() {
     document.querySelectorAll('.mermaid-wrapper svg').forEach((svg) => {
       const svgEl = svg as SVGSVGElement;
-      // Ensure viewBox exists for proper scaling
       if (!svgEl.getAttribute('viewBox')) {
         const w = svgEl.getAttribute('width');
         const h = svgEl.getAttribute('height');
@@ -50,10 +53,39 @@ const { scale = 1.0 } = Astro.props;
     });
   }
 
+  async function renderMermaid() {
+    initMermaid();
+    await mermaid.run({ querySelector: '.mermaid' });
+    postProcessSvgs();
+  }
+
+  async function reRenderMermaid() {
+    // Restore original source text so mermaid can re-render
+    mermaidSources.forEach((source, pre) => {
+      // Mermaid replaces <pre> content with SVG; restore original text
+      pre.removeAttribute('data-processed');
+      pre.innerHTML = source;
+    });
+    initMermaid();
+    await mermaid.run({ querySelector: '.mermaid' });
+    postProcessSvgs();
+  }
+
   // Render when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', renderMermaid);
   } else {
-    renderMermaid();
+    await renderMermaid();
   }
+
+  // Watch for theme changes and re-render
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.attributeName === 'data-theme') {
+        reRenderMermaid();
+        break;
+      }
+    }
+  });
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 </script>

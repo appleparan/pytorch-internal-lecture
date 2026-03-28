@@ -1454,26 +1454,35 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
 
 ### 직접 작성된 코드 vs. 생성된 코드
 
-<div style="width: 100%; min-width: 100%;">
-<Mermaid scale={1.3}>
-{`mindmap
-  root((소스 코드))
-    직접 작성된 코드
-      aten/src/ATen
-        core
-        native
-        cuda, xpu, ...
-      c10
-        core
-        cuda, xpu, ...
-    생성된 코드
-      build/aten/src/aten
-      torch
-        include/torch/csrc/autograd/generated
-        csrc/autograd/generated
+<Mermaid wide>
+{`flowchart TD
+  root((Source Code))
+  hw["✍️ 직접 작성된 코드"]
+  gen["⚙️ 생성된 코드"]
+
+  root --> hw
+  root --> gen
+
+  hw --> aten["aten/src/ATen"]
+  hw --> c10["c10"]
+
+  aten --> aten_core["core"]
+  aten --> aten_native["native"]
+  aten --> aten_device["cuda, xpu, ..."]
+
+  c10 --> c10_core["core"]
+  c10 --> c10_device["cuda, xpu, ..."]
+
+  gen --> build["build/aten/src/aten"]
+  gen --> torch["torch"]
+
+  torch --> torch_include["include/torch/csrc/\nautograd/generated"]
+  torch --> torch_csrc["csrc/autograd/generated"]
+
+  style hw fill:#3a7bd5,stroke:#2c5ea0,color:#fff
+  style gen fill:#d97b1e,stroke:#a85d15,color:#fff
 `}
 </Mermaid>
-</div>
 
 ### Directory Structure: aten (중요한 것들 위주)
 

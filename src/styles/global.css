@@ -603,6 +603,114 @@ a:hover {
   margin: 0 auto;
 }
 
+.mermaid-wide svg {
+  max-width: 100%;
+}
+
+/* Light mode: lines and arrows */
+.mermaid-wrapper svg .flowchart-link {
+  stroke: #333 !important;
+  stroke-width: 2px !important;
+}
+
+.mermaid-wrapper svg .marker {
+  fill: #333 !important;
+}
+
+/* Light mode: all text elements */
+.mermaid-wrapper svg text,
+.mermaid-wrapper svg .nodeLabel,
+.mermaid-wrapper svg .edgeLabel span,
+.mermaid-wrapper svg .messageText,
+.mermaid-wrapper svg .noteText,
+.mermaid-wrapper svg .actor-man text,
+.mermaid-wrapper svg text.actor,
+.mermaid-wrapper svg .cluster text {
+  fill: #222 !important;
+  color: #222 !important;
+}
+
+/* Light mode: node backgrounds */
+.mermaid-wrapper svg .node rect,
+.mermaid-wrapper svg .node polygon,
+.mermaid-wrapper svg .node circle,
+.mermaid-wrapper svg .label-container path,
+.mermaid-wrapper svg .actor {
+  fill: #f0f0f0 !important;
+  stroke: #999 !important;
+}
+
+/* Light mode: edge labels */
+.mermaid-wrapper svg .edgeLabel span {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Light mode: notes */
+.mermaid-wrapper svg .note rect {
+  fill: #fff8dc !important;
+  stroke: #c0a030 !important;
+}
+
+/* Light mode: sequence diagram lines */
+.mermaid-wrapper svg line {
+  stroke: #666 !important;
+}
+
+/* Dark mode: lines and arrows */
+[data-theme="dark"] .mermaid-wrapper svg .flowchart-link {
+  stroke: #ccc !important;
+  stroke-width: 2px !important;
+}
+
+[data-theme="dark"] .mermaid-wrapper svg .marker {
+  fill: #ccc !important;
+}
+
+/* Dark mode: all text elements */
+[data-theme="dark"] .mermaid-wrapper svg text,
+[data-theme="dark"] .mermaid-wrapper svg .nodeLabel,
+[data-theme="dark"] .mermaid-wrapper svg .edgeLabel span,
+[data-theme="dark"] .mermaid-wrapper svg .messageText,
+[data-theme="dark"] .mermaid-wrapper svg .noteText,
+[data-theme="dark"] .mermaid-wrapper svg .actor-man text,
+[data-theme="dark"] .mermaid-wrapper svg text.actor,
+[data-theme="dark"] .mermaid-wrapper svg .cluster text {
+  fill: #e0e0e0 !important;
+  color: #e0e0e0 !important;
+}
+
+/* Dark mode: node backgrounds */
+[data-theme="dark"] .mermaid-wrapper svg .node rect,
+[data-theme="dark"] .mermaid-wrapper svg .node polygon,
+[data-theme="dark"] .mermaid-wrapper svg .node circle,
+[data-theme="dark"] .mermaid-wrapper svg .label-container path,
+[data-theme="dark"] .mermaid-wrapper svg .actor {
+  fill: #2d2d3d !important;
+  stroke: #666 !important;
+}
+
+/* Dark mode: edge labels */
+[data-theme="dark"] .mermaid-wrapper svg .edgeLabel span {
+  background-color: rgba(30, 30, 46, 0.85) !important;
+}
+
+/* Dark mode: notes */
+[data-theme="dark"] .mermaid-wrapper svg .note rect {
+  fill: #3a3520 !important;
+  stroke: #665 !important;
+}
+
+/* Dark mode: sequence diagram lines */
+[data-theme="dark"] .mermaid-wrapper svg line {
+  stroke: #888 !important;
+}
+
+/* Dark mode: clusters/subgraphs */
+[data-theme="dark"] .mermaid-wrapper svg .cluster rect {
+  fill: #252535 !important;
+  stroke: #555 !important;
+}
+
 /* Grid */
 .article-body .grid {
   margin: 1rem 0;
