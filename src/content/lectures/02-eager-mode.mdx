@@ -5,6 +5,7 @@ lecture: 2
 ---
 
 import Mermaid from '../../components/Mermaid.astro';
+import ThemeImage from '../../components/ThemeImage.astro';
 
 
 # Week 2: Pytorch Eager Mode
@@ -1180,7 +1181,12 @@ Device specific한 부분은 `T backend_`(`VirtualGuardImpl`)를 통해 결국 *
 - Nesting된 형태로 사용 가능
 
 
-<img src="/images/02/deviceguard_nested_diagram.svg" class="h-80 mx-auto mt-4" />
+<ThemeImage
+  darkSrc="/images/02/deviceguard_dark.svg"
+  lightSrc="/images/02/deviceguard_light.svg"
+  alt="DeviceGuard nested diagram"
+  class="h-80 mx-auto mt-4"
+/>
 
 ##### DeviceGuard 사용 예제 — CUDA stream의 `query()` 구현
 
