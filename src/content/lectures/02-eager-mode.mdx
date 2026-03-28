@@ -21,32 +21,6 @@ Pytorch + NPU 온라인 모임 #2 | 2024-12-11
 3. **Eager mode에 대한 detail** — `torch.matmul` 예제에서 등장한 개념들을 **Tensor**, **Operator**, **Runtime** 세 축으로 나눠 상세히 살펴봅니다
 4. **PyTorch build** — 빌드 과정과 빌드 산출물에 대한 개요
 
-### Intro
-
-이 섹션은 1회로 구성되고 다음과 같은 주제를 다룹니다.
-
-* Pytorch + NPU 랩 운영 방안
-* ML stack에 대한 개요
-* Heterogeneous computing에 대한 개요
-
-### Pytorch internal: 기초
-
-이 섹션은 총 3회에 걸쳐 다음과 같은 주제를 다룹니다.
-
-* Pytorch에 대한 개요
-* Pytorch eager mode
-* Pytorch graph mode
-* Putting things together: training, finetuning, inference
-
-### Pytorch internal: 심화
-
-이 섹션은 총 8회에 걸쳐 다음과 같은 topic을 다룹니다.
-
-* Pytorch + Nvidia GPU
-* Pytorch + parallelism
-* Pytorch + LLM + inference
-* Pytorch + 리벨리온 NPU
-
 ## `torch.matmul`을 수행하면 어떤 일이 일어나는가?
 
 PyTorch에서 `x = torch.matmul(y, z)`를 실행하면 내부적으로 어떤 일이 벌어질까요? 파이썬에서 `import torch`를 한 뒤 텐서를 만들어 연산을 수행하면 결과가 나오고, 이를 프린트해 볼 수 있습니다. 그런데 그 과정에서 실제로 어떤 일이 일어나는지를 파악하는 가장 효과적인 방법 중 하나는 **call stack을 확인**해 보는 것입니다.
