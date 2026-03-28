@@ -558,9 +558,9 @@ a:hover {
 
 .article-body h1 {
   font-family: 'Pretendard Std', 'Pretendard', sans-serif;
-  font-size: 1.6rem;
+  font-size: 2rem;
   font-weight: 700;
-  margin-top: 2.5rem;
+  margin-top: 3rem;
   margin-bottom: 1rem;
   padding-bottom: 0.3rem;
   border-bottom: 1px solid var(--border);
@@ -570,18 +570,26 @@ a:hover {
 
 .article-body h2 {
   font-family: 'Pretendard Std', 'Pretendard', sans-serif;
-  font-size: 1.3rem;
-  font-weight: 600;
-  margin-top: 2rem;
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-top: 2.5rem;
   margin-bottom: 0.75rem;
   color: var(--text-heading);
 }
 
 .article-body h3 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-heading);
+}
+
+.article-body h4 {
   font-size: 1.1rem;
   font-weight: 600;
   margin-top: 1.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   color: var(--text-heading);
 }
 
