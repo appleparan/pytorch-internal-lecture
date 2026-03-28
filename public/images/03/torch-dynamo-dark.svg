@@ -1,0 +1,111 @@
+<svg width="100%" viewBox="0 0 680 335" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Compilation header -->
+  <text x="40" y="24" font-size="14" font-weight="500" fill="#F1EFE8">Compilation</text>
+  <text x="154" y="24" font-size="12" fill="#888780">— bytecode에서 graph break를 찾아 각 구간을 FX 그래프로 컴파일</text>
+
+  <!-- Break arrows -->
+  <text x="193" y="48" font-size="12" text-anchor="middle" fill="#888780">Break</text>
+  <line x1="193" y1="51" x2="193" y2="74" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+  <text x="361" y="48" font-size="12" text-anchor="middle" fill="#888780">Break</text>
+  <line x1="361" y1="51" x2="361" y2="74" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+  <text x="529" y="48" font-size="12" text-anchor="middle" fill="#888780">Break</text>
+  <line x1="529" y1="51" x2="529" y2="74" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- Top cell row -->
+  <rect x="40"  y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="68"  y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="96"  y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="124" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="152" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="180" y="78" width="26" height="26" rx="2" fill="#D3D1C7" stroke="#D3D1C7"/>
+  <rect x="208" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="236" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="264" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="292" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="320" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="348" y="78" width="26" height="26" rx="2" fill="#D3D1C7" stroke="#D3D1C7"/>
+  <rect x="376" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="404" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="432" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="460" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="488" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="516" y="78" width="26" height="26" rx="2" fill="#D3D1C7" stroke="#D3D1C7"/>
+  <rect x="544" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="572" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="600" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="628" y="78" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+
+  <!-- Top brackets + trace labels -->
+  <path d="M40,108 L40,114 L178,114 L178,108" fill="none" stroke="#B4B2A9" stroke-width="2" stroke-linecap="round"/>
+  <text x="109" y="130" font-size="12" text-anchor="middle" fill="#888780">Trace #1</text>
+  <path d="M208,108 L208,114 L346,114 L346,108" fill="none" stroke="#B4B2A9" stroke-width="2" stroke-linecap="round"/>
+  <text x="277" y="130" font-size="12" text-anchor="middle" fill="#888780">Trace #2</text>
+  <path d="M376,108 L376,114 L514,114 L514,108" fill="none" stroke="#B4B2A9" stroke-width="2" stroke-linecap="round"/>
+  <text x="445" y="130" font-size="12" text-anchor="middle" fill="#888780">Trace #3</text>
+  <path d="M544,108 L544,114 L654,114 L654,108" fill="none" stroke="#B4B2A9" stroke-width="2" stroke-linecap="round"/>
+  <text x="599" y="130" font-size="12" text-anchor="middle" fill="#888780">Trace #4</text>
+
+  <!-- Divider -->
+  <line x1="40" y1="152" x2="654" y2="152" stroke="#444441" stroke-width="0.5" stroke-dasharray="5 4"/>
+
+  <!-- Execution header -->
+  <text x="40" y="176" font-size="14" font-weight="500" fill="#F1EFE8">Execution</text>
+  <text x="131" y="176" font-size="12" fill="#888780">— 실행 시점에 guard를 검사하고 통과하면 컴파일된 trace를 실행</text>
+
+  <!-- Check arrows -->
+  <text x="53"  y="200" font-size="12" text-anchor="middle" fill="#85B7EB">Check</text>
+  <line x1="53"  y1="203" x2="53"  y2="228" stroke="#85B7EB" stroke-width="1.2" marker-end="url(#arr)"/>
+  <text x="221" y="200" font-size="12" text-anchor="middle" fill="#85B7EB">Check</text>
+  <line x1="221" y1="203" x2="221" y2="228" stroke="#85B7EB" stroke-width="1.2" marker-end="url(#arr)"/>
+  <text x="389" y="200" font-size="12" text-anchor="middle" fill="#85B7EB">Check</text>
+  <line x1="389" y1="203" x2="389" y2="228" stroke="#85B7EB" stroke-width="1.2" marker-end="url(#arr)"/>
+  <text x="557" y="200" font-size="12" text-anchor="middle" fill="#85B7EB">Check</text>
+  <line x1="557" y1="203" x2="557" y2="228" stroke="#85B7EB" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- Bottom cell row -->
+  <rect x="40"  y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="68"  y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="96"  y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="124" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="152" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="180" y="232" width="26" height="26" rx="2" fill="#D3D1C7" stroke="#D3D1C7"/>
+  <rect x="208" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="236" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="264" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="292" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="320" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="348" y="232" width="26" height="26" rx="2" fill="#D3D1C7" stroke="#D3D1C7"/>
+  <rect x="376" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="404" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="432" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="460" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="488" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="516" y="232" width="26" height="26" rx="2" fill="#D3D1C7" stroke="#D3D1C7"/>
+  <rect x="544" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="572" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="600" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <rect x="628" y="232" width="26" height="26" rx="2" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+
+  <!-- Bottom brackets + trace labels -->
+  <path d="M40,262 L40,268 L178,268 L178,262" fill="none" stroke="#B4B2A9" stroke-width="2" stroke-linecap="round"/>
+  <text x="109" y="284" font-size="12" text-anchor="middle" fill="#888780">Trace #1</text>
+  <path d="M208,262 L208,268 L346,268 L346,262" fill="none" stroke="#B4B2A9" stroke-width="2" stroke-linecap="round"/>
+  <text x="277" y="284" font-size="12" text-anchor="middle" fill="#888780">Trace #2</text>
+  <path d="M376,262 L376,268 L514,268 L514,262" fill="none" stroke="#B4B2A9" stroke-width="2" stroke-linecap="round"/>
+  <text x="445" y="284" font-size="12" text-anchor="middle" fill="#888780">Trace #3</text>
+  <path d="M544,262 L544,268 L654,268 L654,262" fill="none" stroke="#B4B2A9" stroke-width="2" stroke-linecap="round"/>
+  <text x="599" y="284" font-size="12" text-anchor="middle" fill="#888780">Trace #4</text>
+
+  <!-- Legend -->
+  <rect x="40"  y="308" width="10" height="10" rx="1" fill="#D3D1C7"/>
+  <text x="56"  y="317" font-size="12" fill="#888780">Graph break (동적 제어 흐름)</text>
+  <rect x="240" y="308" width="10" height="10" rx="1" fill="#3d3d3a" stroke="#888780" stroke-width="1"/>
+  <text x="256" y="317" font-size="12" fill="#888780">Bytecode 명령어</text>
+  <text x="440" y="317" font-size="12" fill="#85B7EB">↓ Check = Guard 검사</text>
+</svg>
