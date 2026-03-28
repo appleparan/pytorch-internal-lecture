@@ -13,20 +13,54 @@ import ThemeImage from '../../components/ThemeImage.astro';
 Pytorch + NPU 온라인 모임 #3 | 2024-12-18
 
 
-## 소개
+## PyTorch의 역사와 2.0의 변화
 
-이번 강의에서는 PyTorch 2.0의 Graph Mode에 대해 다룹니다. 크게 네 부분으로 구성됩니다:
+PyTorch 2.0에서 가장 크게 변한 부분은 그래프 모드(graph mode)의 도입입니다. 이를 이해하기 위해 PyTorch의 역사를 간략히 살펴봅니다.
 
-1. **Graph Mode 개요** — PyTorch 2.0에서 graph mode가 왜 중요한지 소개
-2. **Graph Capturing** — Tracing의 개념, PyTorch 1.0 vs 2.0의 tracing 방식, Dynamo의 동작 원리
-3. **IR Lowering** — Dynamo에서 생성된 그래프가 어떻게 하위 IR로 변환되는지
-4. **Device Backend 통합** — `torch.compile`을 통해 custom backend를 어떻게 연결하는지
+### Lua Torch 시대
 
-이번 강의에서는 **Legacy FX tracer**, **AOTAutograd** (Week #4에서 다룰 예정), **Codegen backends** ("Pytorch + Nvidia GPU" 섹션에서 다룰 예정)는 깊게 다루지 않습니다.
+PyTorch의 기원은 **Torch**에서 시작됩니다. Torch는 원래 C++ 라이브러리였으며, 이를 더 편하게 사용하기 위해 스크립트 언어를 올렸는데, 처음 선택된 것이 **Lua**였습니다. 이것이 Lua Torch입니다.
+
+### PyTorch의 탄생
+
+Lua보다 Python이 훨씬 더 인기 있는 언어였기 때문에, Meta(당시 Facebook)에서 Python 기반의 PyTorch 프로젝트를 시작했습니다. 당시에는 **TensorFlow가 대세**였고, PyTorch는 지금처럼 큰 프로젝트가 될 것이라 기대하지 않았습니다. 연구자들이 TensorFlow의 복잡한 사용성에 어려움을 겪고 있었기 때문에, 그 문제를 해결하고자 **eager mode** 철학을 중심으로 개발을 시작했습니다.
+
+이 접근 방식은 특히 **리서치 커뮤니티**에서 큰 호응을 얻으며 PyTorch가 빠르게 성장하는 계기가 되었습니다. 다만 이 시기의 PyTorch는 주로 연구자들이 사용하는 도구였으며, production 환경에서 사용할 수준은 아니었습니다.
+
+### PyTorch 1.0: Production 지원
+
+PyTorch의 인기가 높아지면서, production 환경에서도 사용할 수 있는 형태로 발전할 필요가 생겼습니다. PyTorch 1.0에서는 **TorchScript** (`jit.trace`, `jit.script`) 기능이 추가되어 그래프 캡처 기능이 도입되었습니다.
+
+### PyTorch 2.0: 그래프 모드의 본격 도입
+
+PyTorch 2.0에서는 1.0 대비 가장 크게 변한 부분이 **그래프 모드**입니다. 전체적인 구조는 **프론트엔드 → 백엔드 → 코드 생성 백엔드**의 형태로, 일반적인 컴파일러 아키텍처와 유사합니다. 다만 몇 가지 차이점이 있습니다:
+
+- **Dynamo**: 그래프를 캡처하는 새로운 모듈이 프론트엔드에 추가
+- **Autograd 통합**: 머신러닝을 위한 컴파일러이므로 자동 미분 기능이 백엔드 과정에 포함
+- **Inductor 및 다양한 백엔드 지원**: 여러 백엔드 중 대표적으로 Inductor가 있으며, 그 하위에 **Triton** 등의 코드 생성 백엔드가 연결
+
+이 시기에 PyTorch가 **Linux Foundation**에 기부되며 **PyTorch Foundation**이 설립되었습니다.
+
+PyTorch 2.0 이후로 eager mode의 유연성과 graph mode의 컴파일러 최적화를 결합한 형태로 발전하면서, 연구뿐만 아니라 production에서도 강력한 도구로 자리잡게 되었습니다.
 
 <img src="/images/03/slide03_1.png" class="h-72" />
 
 https://pytorch.org/get-started/pytorch-2.0/
+
+### 이번 강의의 범위
+
+위 그림에서 보이는 PyTorch 2.0의 전체 아키텍처 중, 다음 내용은 이번 강의에서 다루지 않습니다:
+
+- **Legacy FX Tracer** — 레거시 기능이므로 생략
+- **AOTAutograd** — 다음 주(Week #4)에서 다루는 것이 더 적절
+- **Codegen backends** — NVIDIA GPU 관련 이야기를 할 때 함께 다루는 것이 더 적절
+
+따라서 이번 강의에서는 나머지 부분을 중심으로 다음 내용을 다룹니다:
+
+1. **Tracing 개념** — Graph mode의 근간이 되는 tracing의 기본 개념을 먼저 정리
+2. **Dynamo** — 오늘의 핵심 주제. 대부분의 시간을 Dynamo의 동작 원리를 설명하는 데 할애
+3. **IR과 Lowering** — PyTorch 2.0에서 컴파일러 구조에 가까워지면서 Intermediate Representation(IR) 개념이 정립되고, 여러 단계로 IR이 분할되는 lowering 과정이 추가됨
+4. **Device Backend 통합** — `torch.compile`을 통해 다양한 디바이스 백엔드를 어떻게 연결하는지 간략히 소개
 
 
 ## Graph Capturing
