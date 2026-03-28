@@ -548,6 +548,13 @@ a:hover {
 }
 
 /* ===== Article Body — Prose Typography ===== */
+.article-body h1,
+.article-body h2,
+.article-body h3,
+.article-body h4 {
+  scroll-margin-top: 90px;
+}
+
 .article-body h1 {
   font-family: 'Pretendard Std', 'Pretendard', sans-serif;
   font-size: 1.6rem;

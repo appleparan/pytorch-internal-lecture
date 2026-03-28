@@ -23,44 +23,8 @@ const hasToc = tocHeadings.length > 0;
 ---
 
 <BaseLayout title={title} currentPath="/">
-  {hasToc ? (
-    <div class="lecture-grid">
-      <TableOfContents headings={headings} />
-      <div class="content-container">
-        <article>
-          <div class="article-header">
-            <span class="article-meta">Week {lecture}{date ? ` · ${date}` : ''}</span>
-            <h1 class="article-title">{title}</h1>
-          </div>
-
-          <div class="article-body">
-            <slot />
-          </div>
-
-          {(prevLecture || nextLecture) && (
-            <nav class="prev-next-nav" aria-label="Lecture navigation">
-              {prevLecture ? (
-                <a href={prevLecture.url} class="prev-next-link prev">
-                  <span class="prev-next-label">&larr; Previous</span>
-                  <span class="prev-next-title">{prevLecture.title}</span>
-                </a>
-              ) : (
-                <div />
-              )}
-              {nextLecture ? (
-                <a href={nextLecture.url} class="prev-next-link next">
-                  <span class="prev-next-label">Next &rarr;</span>
-                  <span class="prev-next-title">{nextLecture.title}</span>
-                </a>
-              ) : (
-                <div />
-              )}
-            </nav>
-          )}
-        </article>
-      </div>
-    </div>
-  ) : (
+  <div class:list={[hasToc && 'lecture-grid']}>
+    {hasToc && <TableOfContents headings={headings} />}
     <div class="content-container">
       <article>
         <div class="article-header">
@@ -94,5 +58,5 @@ const hasToc = tocHeadings.length > 0;
         )}
       </article>
     </div>
-  )}
+  </div>
 </BaseLayout>
