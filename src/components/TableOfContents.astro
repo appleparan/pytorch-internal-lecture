@@ -1,0 +1,106 @@
+---
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+}
+
+const { headings } = Astro.props;
+
+// Filter to h2 and h3 only (h1 is the article title)
+const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+{tocHeadings.length > 0 && (
+  <nav class="toc-sidebar" aria-label="Table of Contents">
+    <div class="toc-title">Contents</div>
+    <ul class="toc-list">
+      {tocHeadings.map((heading) => (
+        <li class={`toc-item toc-h${heading.depth}`}>
+          <a href={`#${heading.slug}`}>{heading.text}</a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+)}
+
+<script>
+  function initToc() {
+    const tocLinks = document.querySelectorAll<HTMLAnchorElement>('.toc-item a');
+    if (tocLinks.length === 0) return;
+
+    const headingElements: HTMLElement[] = [];
+    tocLinks.forEach((link) => {
+      const id = link.getAttribute('href')?.slice(1);
+      if (id) {
+        const el = document.getElementById(id);
+        if (el) headingElements.push(el);
+      }
+    });
+
+    if (headingElements.length === 0) return;
+
+    // Track which headings are currently visible
+    let activeId = '';
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Find the topmost visible heading
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+
+        if (visible.length > 0) {
+          activeId = visible[0].target.id;
+        } else {
+          // If no heading is visible, find the last heading above the viewport
+          const scrollTop = window.scrollY + 100;
+          let lastAbove = '';
+          for (const el of headingElements) {
+            if (el.offsetTop <= scrollTop) {
+              lastAbove = el.id;
+            }
+          }
+          if (lastAbove) activeId = lastAbove;
+        }
+
+        // Update active class
+        tocLinks.forEach((link) => {
+          const id = link.getAttribute('href')?.slice(1);
+          const li = link.parentElement;
+          if (li) {
+            li.classList.toggle('toc-active', id === activeId);
+          }
+        });
+      },
+      {
+        rootMargin: '-80px 0px -70% 0px',
+        threshold: 0,
+      },
+    );
+
+    headingElements.forEach((el) => observer.observe(el));
+
+    // Smooth scroll on click
+    tocLinks.forEach((link) => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = link.getAttribute('href')?.slice(1);
+        if (!id) return;
+        const target = document.getElementById(id);
+        if (!target) return;
+
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        history.replaceState(null, '', `#${id}`);
+      });
+    });
+  }
+
+  // Run on initial load and after Astro page transitions
+  document.addEventListener('DOMContentLoaded', initToc);
+  document.addEventListener('astro:page-load', initToc);
+</script>
