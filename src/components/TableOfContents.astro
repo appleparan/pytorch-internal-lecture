@@ -117,6 +117,11 @@ const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
     });
   }
 
-  // astro:page-load fires on initial load and after page transitions
+  // DOMContentLoaded for initial load, astro:page-load for page transitions
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initToc);
+  } else {
+    initToc();
+  }
   document.addEventListener('astro:page-load', initToc);
 </script>
