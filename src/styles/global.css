@@ -674,11 +674,15 @@ a:hover {
 
 /* Blockquotes */
 .article-body blockquote {
-  border-left: 5px solid var(--border-blockquote);
-  padding: 1em;
-  margin: 1.5em 0;
-  font-size: 1.2rem;
+  border-left: 3px solid var(--border-blockquote);
+  padding: 0.3em 1em;
+  margin: 1em 0;
+  font-size: 0.9rem;
   color: var(--text-blockquote);
+}
+
+.article-body blockquote p:last-child {
+  margin-bottom: 0;
 }
 
 /* KaTeX */
