@@ -588,10 +588,16 @@ a:hover {
   display: flex;
   justify-content: center;
   margin: 1.5rem 0;
+  width: 100%;
+}
+
+.mermaid-wrapper pre.mermaid {
+  width: 100%;
+  background: transparent;
 }
 
 .mermaid-wrapper svg {
-  max-width: 100%;
+  max-width: 60%;
   height: auto;
 }
 

@@ -31,6 +31,23 @@ const { scale = 1.0 } = Astro.props;
     await mermaid.run({
       querySelector: '.mermaid',
     });
+
+    // Remove Mermaid's inline max-width constraint and stretch SVGs to container width
+    document.querySelectorAll('.mermaid-wrapper svg').forEach((svg) => {
+      const svgEl = svg as SVGSVGElement;
+      // Ensure viewBox exists for proper scaling
+      if (!svgEl.getAttribute('viewBox')) {
+        const w = svgEl.getAttribute('width');
+        const h = svgEl.getAttribute('height');
+        if (w && h) {
+          svgEl.setAttribute('viewBox', `0 0 ${parseFloat(w)} ${parseFloat(h)}`);
+        }
+      }
+      svgEl.removeAttribute('width');
+      svgEl.removeAttribute('height');
+      svgEl.style.removeProperty('max-width');
+      svgEl.style.width = '100%';
+    });
   }
 
   // Render when DOM is ready
