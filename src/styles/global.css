@@ -706,11 +706,6 @@ a:hover {
   max-width: 100%;
 }
 
-/* Theme toggle: show light by default, dark when data-theme="dark" */
-.mermaid-dark { display: none; }
-[data-theme="dark"] .mermaid-light { display: none; }
-[data-theme="dark"] .mermaid-dark { display: block; }
-
 /* Fallback for diagrams not yet pre-rendered */
 .mermaid-fallback {
   background: var(--surface-2, #f0f0f0);

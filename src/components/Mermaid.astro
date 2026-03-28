@@ -4,7 +4,10 @@
  *
  * At build time, reads the slot content (mermaid source), hashes it,
  * and inlines the matching pre-rendered light/dark SVGs.
- * No client-side JavaScript required.
+ *
+ * Only the active theme's SVG is rendered in the DOM. The other is held
+ * in a <template> tag (zero DOM cost) and swapped in on theme change
+ * via a lightweight script.
  *
  * Run `bun run mermaid:build` to regenerate SVGs after editing diagrams.
  */
@@ -23,7 +26,7 @@ const { scale = 1.0, wide = false } = Astro.props;
 // Get the raw mermaid source from the slot
 const slotHtml = await Astro.slots.render('default');
 // Strip HTML tags and decode HTML entities that Astro double-escapes.
-// Order matters: decode &amp; last so &amp;gt; → &gt; → >
+// Order matters: decode &amp; first so &amp;gt; → &gt; → >
 const rawText = slotHtml
   .replace(/<[^>]*>/g, '')
   .replace(/&amp;/g, '&')
@@ -64,12 +67,60 @@ if (entry) {
   <div
     class:list={['mermaid-wrapper', { 'mermaid-wide': wide }]}
     style={scale !== 1.0 ? `transform: scale(${scale}); transform-origin: top center;` : undefined}
+    data-mermaid-themed
   >
-    <div class="mermaid-svg mermaid-light" set:html={lightSvg} />
-    <div class="mermaid-svg mermaid-dark" set:html={darkSvg} />
+    <div class="mermaid-svg mermaid-active" data-theme-mode="light" set:html={lightSvg} />
+    <template data-theme-mode="dark">
+      <div class="mermaid-svg" set:html={darkSvg} />
+    </template>
   </div>
 ) : (
   <div class="mermaid-wrapper">
     <pre class="mermaid-fallback">{rawText}</pre>
   </div>
 )}
+
+<script>
+  function swapMermaidTheme(theme: 'light' | 'dark') {
+    const opposite = theme === 'dark' ? 'light' : 'dark';
+    document.querySelectorAll<HTMLElement>('[data-mermaid-themed]').forEach((wrapper) => {
+      const active = wrapper.querySelector<HTMLElement>('.mermaid-active');
+      const tpl = wrapper.querySelector<HTMLTemplateElement>(`template[data-theme-mode="${theme}"]`);
+      if (!active || !tpl) return;
+
+      // Move current active into a new template
+      const newTpl = document.createElement('template');
+      newTpl.dataset.themeMode = opposite;
+      const div = document.createElement('div');
+      div.className = 'mermaid-svg';
+      div.innerHTML = active.innerHTML;
+      newTpl.content.appendChild(div);
+
+      // Activate the template content
+      const clone = tpl.content.firstElementChild as HTMLElement;
+      clone.classList.add('mermaid-active');
+      clone.dataset.themeMode = theme;
+
+      // Swap
+      wrapper.replaceChild(clone, active);
+      wrapper.replaceChild(newTpl, tpl);
+    });
+  }
+
+  // Watch for theme changes
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.attributeName === 'data-theme') {
+        const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        swapMermaidTheme(theme);
+        break;
+      }
+    }
+  });
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // Handle initial state if page loaded in dark mode
+  if (document.documentElement.getAttribute('data-theme') === 'dark') {
+    swapMermaidTheme('dark');
+  }
+</script>
