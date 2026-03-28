@@ -8,3 +8,6 @@ dist
 lecture_files
 scripts/*.json
 conversion-report.md
+
+# Generated at build time
+src/generated/
