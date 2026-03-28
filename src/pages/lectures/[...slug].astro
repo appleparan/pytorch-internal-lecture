@@ -26,7 +26,7 @@ export async function getStaticPaths() {
 }
 
 const { entry, prevLecture, nextLecture } = Astro.props;
-const { Content } = await render(entry);
+const { Content, headings } = await render(entry);
 ---
 
 <LectureLayout
@@ -35,6 +35,7 @@ const { Content } = await render(entry);
   date={entry.data.date}
   prevLecture={prevLecture}
   nextLecture={nextLecture}
+  headings={headings}
 >
   <Content />
 </LectureLayout>
