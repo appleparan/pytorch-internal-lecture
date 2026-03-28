@@ -1,15 +1,22 @@
 ---
 import BaseLayout from './BaseLayout.astro';
 
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
 interface Props {
   title: string;
   lecture: number;
   date?: string;
   prevLecture?: { title: string; url: string } | null;
   nextLecture?: { title: string; url: string } | null;
+  headings?: Heading[];
 }
 
-const { title, lecture, date, prevLecture, nextLecture } = Astro.props;
+const { title, lecture, date, prevLecture, nextLecture, headings = [] } = Astro.props;
 ---
 
 <BaseLayout title={title} currentPath="/">
