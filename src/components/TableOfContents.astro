@@ -17,8 +17,8 @@ const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
 {tocHeadings.length > 0 && (
   <nav class="toc-sidebar" aria-label="Table of Contents">
-    <div class="toc-title">Contents</div>
-    <ul class="toc-list">
+    <h2 class="toc-title" id="toc-heading">Contents</h2>
+    <ul class="toc-list" aria-labelledby="toc-heading">
       {tocHeadings.map((heading) => (
         <li class={`toc-item toc-h${heading.depth}`}>
           <a href={`#${heading.slug}`}>{heading.text}</a>
@@ -29,7 +29,15 @@ const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
 )}
 
 <script>
+  let currentObserver: IntersectionObserver | null = null;
+
   function initToc() {
+    // Clean up previous observer and listeners
+    if (currentObserver) {
+      currentObserver.disconnect();
+      currentObserver = null;
+    }
+
     const tocLinks = document.querySelectorAll<HTMLAnchorElement>('.toc-item a');
     if (tocLinks.length === 0) return;
 
@@ -44,24 +52,33 @@ const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
     if (headingElements.length === 0) return;
 
-    // Track which headings are currently visible
+    // Track all currently visible headings
     let activeId = '';
+    const visibleHeadings = new Set<string>();
 
-    const observer = new IntersectionObserver(
+    currentObserver = new IntersectionObserver(
       (entries) => {
-        // Find the topmost visible heading
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            visibleHeadings.add(entry.target.id);
+          } else {
+            visibleHeadings.delete(entry.target.id);
+          }
+        });
 
-        if (visible.length > 0) {
-          activeId = visible[0].target.id;
+        if (visibleHeadings.size > 0) {
+          // Find the first visible heading in document order
+          const firstVisible = headingElements.find((el) =>
+            visibleHeadings.has(el.id),
+          );
+          if (firstVisible) activeId = firstVisible.id;
         } else {
-          // If no heading is visible, find the last heading above the viewport
+          // Fallback: find the last heading above the viewport
           const scrollTop = window.scrollY + 100;
           let lastAbove = '';
           for (const el of headingElements) {
-            if (el.offsetTop <= scrollTop) {
+            const top = el.getBoundingClientRect().top + window.scrollY;
+            if (top <= scrollTop) {
               lastAbove = el.id;
             }
           }
@@ -78,12 +95,12 @@ const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
         });
       },
       {
-        rootMargin: '-80px 0px -70% 0px',
+        rootMargin: '-90px 0px -70% 0px',
         threshold: 0,
       },
     );
 
-    headingElements.forEach((el) => observer.observe(el));
+    headingElements.forEach((el) => currentObserver!.observe(el));
 
     // Smooth scroll on click
     tocLinks.forEach((link) => {
@@ -95,12 +112,11 @@ const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
         if (!target) return;
 
         target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        history.replaceState(null, '', `#${id}`);
+        history.pushState(null, '', `#${id}`);
       });
     });
   }
 
-  // Run on initial load and after Astro page transitions
-  document.addEventListener('DOMContentLoaded', initToc);
+  // astro:page-load fires on initial load and after page transitions
   document.addEventListener('astro:page-load', initToc);
 </script>

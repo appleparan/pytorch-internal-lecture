@@ -388,8 +388,9 @@ a:hover {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  margin-bottom: 0.75rem;
+  margin: 0 0 0.75rem;
   padding-left: 0.75rem;
+  border: none;
 }
 
 .toc-list {
