@@ -92,29 +92,31 @@ function extractDiagrams(): Diagram[] {
 
 // ── render ───────────────────────────────────────────────────────────
 
-function renderSvg(source: string, theme: 'default' | 'dark', outPath: string): void {
+function renderSvg(
+  source: string,
+  theme: 'default' | 'dark',
+  outPath: string,
+  uniqueId: string,
+): void {
   const tmpIn = join(OUT_DIR, '_tmp_input.mmd');
   writeFileSync(tmpIn, source);
 
-  const configObj = {
-    theme,
-    securityLevel: 'loose',
-  };
-  const tmpConfig = join(OUT_DIR, '_tmp_config.json');
-  writeFileSync(tmpConfig, JSON.stringify(configObj));
-
   execSync(
-    `npx mmdc -i "${tmpIn}" -o "${outPath}" -c "${tmpConfig}" --outputFormat svg -b transparent`,
+    `bunx mmdc -i "${tmpIn}" -o "${outPath}" -t ${theme} --outputFormat svg -b transparent`,
     { stdio: 'pipe', timeout: 30_000 },
   );
 
-  // Post-process: remove fixed width/height, ensure viewBox
+  // Post-process SVG
   if (existsSync(outPath)) {
     let svg = readFileSync(outPath, 'utf-8');
     // Remove width="..." and height="..." but keep viewBox
     svg = svg.replace(/\s+width="[^"]*"/, '');
     svg = svg.replace(/\s+height="[^"]*"/, '');
     svg = svg.replace(/style="[^"]*max-width:[^"]*"/, '');
+    // Replace default id="my-svg" with a unique id to prevent CSS collisions
+    // when both light and dark SVGs coexist on the same page.
+    svg = svg.replace(/id="my-svg"/g, `id="${uniqueId}"`);
+    svg = svg.replace(/#my-svg/g, `#${uniqueId}`);
     writeFileSync(outPath, svg);
   }
 }
@@ -139,8 +141,8 @@ function main(): void {
     // Skip if already rendered (cache by hash)
     if (!existsSync(lightPath) || !existsSync(darkPath)) {
       console.log(`  Rendering ${d.id} (${d.hash})...`);
-      renderSvg(d.source, 'default', lightPath);
-      renderSvg(d.source, 'dark', darkPath);
+      renderSvg(d.source, 'default', lightPath, `mermaid-${d.hash}-light`);
+      renderSvg(d.source, 'dark', darkPath, `mermaid-${d.hash}-dark`);
     } else {
       console.log(`  Cached    ${d.id} (${d.hash})`);
     }
@@ -148,11 +150,9 @@ function main(): void {
     manifest[d.hash] = { id: d.id, light: lightFile, dark: darkFile };
   }
 
-  // Clean up temp files
+  // Clean up temp file
   const tmpIn = join(OUT_DIR, '_tmp_input.mmd');
-  const tmpConfig = join(OUT_DIR, '_tmp_config.json');
   if (existsSync(tmpIn)) execSync(`rm "${tmpIn}"`);
-  if (existsSync(tmpConfig)) execSync(`rm "${tmpConfig}"`);
 
   writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
   console.log(`Manifest written to ${MANIFEST_PATH}`);
