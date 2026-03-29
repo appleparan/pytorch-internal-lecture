@@ -267,17 +267,25 @@ def optimized_compute(y):
 
 ### ML 모델에서의 Tracing
 
-Python으로 작성된 ML 모델에 tracing을 적용하면 여러 이점이 있습니다:
+Python으로 작성된 ML 모델에 tracing을 적용하면 여러 이점이 있습니다.
 
-- **Device 실행 분리**: Python으로 작성된 모델에서 device에서 수행할 부분과 그렇지 않은 부분을 분리할 수 있는 매우 효과적인 방법입니다. 정적 분석 등을 생각해 볼 수 있으나 너무 복잡하고 실용적이지 않습니다.
-- **Tensor shape 판별**: 수행 과정에 필요한 tensor의 shape들도 tracing 과정에서 판별 가능하여, memory allocation과 operator 최적화에 결정적인 도움을 줍니다.
-- **Graph 최적화**: Op Fusion, Constant propagation, Common subexpression elimination 등의 최적화를 적용할 수 있습니다.
+**Device 실행 분리**: Python으로 작성된 복잡한 일반 코드는 GPU/NPU에서 직접 가속이 거의 불가능합니다. 따라서 device에서 효과적으로 실행 가능한 부분을 분리하는 것이 중요한데, tracing은 이를 위한 매우 효과적인 방법입니다. 정적 분석 등을 생각해 볼 수 있으나 너무 복잡하고 실용적이지 않습니다. 이는 앞서 다룬 partial evaluation과 깊은 연관성을 가지며, 불필요한 부분(Python 코드)을 제거하여 실행 효율성을 향상시킵니다.
 
-> Tracing은 Graph Mode의 근간이 되는 기술이라 볼 수 있습니다.
+**Tensor shape 판별**: 단순히 trace를 추출하는 것을 넘어, tracing 과정에서 수행에 필요한 tensor의 shape들을 판별할 수 있습니다. 이는 다음과 같은 이유로 중요합니다:
+
+- NPU/GPU의 **메모리 레이아웃 최적화**에 필수적
+- 계산 크기에 따른 **스케줄링 결정**에 중요
+- 컴파일 시 **메모리 사용량과 실제 계산 수행 방식을 예측** 가능
+
+**Graph 최적화**: 전체 계산 흐름을 파악할 수 있으므로, Python 레벨에서는 어려운 종합적인 최적화를 trace 레벨에서 구현할 수 있습니다. 대표적인 최적화 기법으로는 Op Fusion, Constant propagation, Common subexpression elimination 등이 있습니다.
+
+**Tracing은 Graph Mode 컴파일러의 근간이 되는 기술이며, 효율적인 device 실행과 체계적인 최적화 구현의 토대입니다.**
 
 ### Python 기초: CPython 동작 방식
 
-Tracing이 Python 수준에서 어떻게 이루어지는지를 이해하려면, CPython의 동작 방식을 먼저 알아야 합니다.
+Python 코드가 실행되면 CPython이 소스 코드를 bytecode로 변환하고, 이 bytecode를 VM의 evaluation loop에서 실행합니다. 이때 interpreter가 실행하는 bytecode instruction 하나하나를 기록하면 그것이 곧 trace입니다. 즉, Python 프로그램의 trace를 뽑아내는 것 자체는 개념적으로 그렇게 어려운 일이 아닙니다. 하지만 모든 bytecode 실행을 기록하면 과도하게 긴 trace가 생성되고 오버헤드가 크기 때문에, 최적화 없이 이 방식을 그대로 사용하는 것은 비효율적입니다.
+
+이를 이해하기 위해 CPython의 동작 방식을 먼저 살펴봅니다.
 
 <img src="/images/03/slide14_1.png" class="h-52" />
 
@@ -287,23 +295,22 @@ CPython의 기본 동작은 다음과 같습니다:
 2. 소스 코드를 **code object**로 컴파일 (compiler)
 3. Code object 내의 **bytecode**를 실행 (virtual machine)
 
+즉, Python 소스 코드가 입력되면 이를 bytecode로 변환하고, VM의 evaluation loop에서 bytecode instruction을 하나씩 실행합니다. 이때 실행되는 instruction을 순서대로 기록하면 그것이 곧 trace가 됩니다.
+
 #### Python VM 구조
+
+Dynamo 자체가 CPython에 직접 integration 되어 있기 때문에, Python VM의 구조를 이해하는 것이 중요합니다. Python VM은 다음과 같은 계층 구조로 이루어져 있습니다 (아래에서 위로):
+
+- **Evaluation loop** — code object에 들어 있는 bytecode를 스트리밍 방식으로 하나씩 읽어 실행하는 루프
+- **Frame** — 함수 단위로 관리되는 데이터 구조(per-function data structure). 각 함수 호출 시 새로운 frame이 생성되며, frame 내부에 code object와 evaluation loop이 존재
+- **Call Stack** — 여러 개의 frame이 쌓여 함수 호출 관계를 관리. 함수 호출 시 새로운 frame이 추가되고, 종료 시 제거됨
+- **Thread** — 각 thread는 독립적인 call stack을 가짐. Python은 멀티스레딩을 지원하므로 여러 thread가 존재 가능
+- **Interpreter** — 여러 thread가 모여 하나의 Python interpreter를 구성. 공유 데이터(예: imported modules)를 관리
+- **Runtime** — VM의 global state
 
 <img src="/images/03/slide15_1.png" class="h-40" />
 
-Python VM은 다음과 같은 계층 구조로 이루어져 있습니다:
-
-- **Runtime** — VM의 global state
-- **Interpreter** — 스레드 그룹 + 공유 데이터 (예: imported modules)
-- **Thread** — OS 스레드에 대응; call stack을 포함
-- **Frame** — call stack의 한 원소; code object와 실행 상태를 가짐
-- **Evaluation loop** — bytecode가 실제로 실행되는 곳
-
-위 그림은 call stack이 frame object의 linked list로 표현되는 구조를 보여줍니다.
-
-이론적으로는 CPython을 활용하여 bytecode 수준에서 end-to-end trace를 만들어 낼 수 있습니다. 실행되는 bytecode를 모두 기록하면 end-to-end trace를 생성할 수 있기 때문입니다.
-
-<img src="/images/03/slide16_1.png" class="h-56" />
+위 그림은 call stack이 frame object의 linked list로 표현되는 구조를 보여줍니다. 이론적으로는 evaluation loop에서 실행되는 bytecode를 모두 기록하면 end-to-end trace를 생성할 수 있습니다.
 
 ### PyTorch의 Tracing 방식 발전
 
