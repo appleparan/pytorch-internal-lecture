@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 590" width="680" height="590">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#706860" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-d" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#7A88A8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <clipPath id="clip-fwd">
+      <rect x="44" y="66" width="618" height="104" rx="10"/>
+    </clipPath>
+    <clipPath id="clip-bwd">
+      <rect x="44" y="354" width="568" height="104" rx="10"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="680" height="590" fill="#141210"/>
+
+  <!-- ══ FORWARD LANE ══ -->
+  <rect x="44" y="66" width="618" height="104" rx="10"
+        fill="#162238" stroke="#1E3D6E" stroke-width="1"/>
+  <rect x="44" y="66" width="6" height="104"
+        fill="#5A8FC8" clip-path="url(#clip-fwd)"/>
+
+  <!-- ══ BACKWARD LANE ══ -->
+  <rect x="44" y="354" width="568" height="104" rx="10"
+        fill="#1C1714" stroke="#3A2E28" stroke-width="1"/>
+  <rect x="44" y="354" width="6" height="104"
+        fill="#A08070" clip-path="url(#clip-bwd)"/>
+
+  <!-- Lane labels -->
+  <text x="56" y="51" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500"
+        letter-spacing="1.5" fill="#6A9FD8">FORWARD PASS</text>
+  <text x="56" y="339" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500"
+        letter-spacing="1.5" fill="#B89A86">BACKWARD PASS</text>
+
+  <!-- ══ BOX: Forward ══ -->
+  <rect x="178" y="84" width="120" height="52" rx="8"
+        fill="#1A2E4A" stroke="#5A8FC8" stroke-width="1.5"/>
+  <text x="238" y="110" text-anchor="middle" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="14" font-weight="500"
+        fill="#A0C4E8">Forward</text>
+
+  <!-- ══ BOX: Loss Function ══ -->
+  <rect x="416" y="74" width="150" height="72" rx="8"
+        fill="#1A2E4A" stroke="#5A8FC8" stroke-width="1.5"/>
+  <text x="491" y="101" text-anchor="middle" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="14" font-weight="500"
+        fill="#A0C4E8">Loss</text>
+  <text x="491" y="119" text-anchor="middle" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="14" font-weight="500"
+        fill="#A0C4E8">Function</text>
+
+  <!-- ══ BOX: Loss pill ══ -->
+  <rect x="582" y="87" width="62" height="46" rx="8"
+        fill="#1A2E4A" stroke="#5A8FC8" stroke-width="1.5"/>
+  <text x="613" y="110" text-anchor="middle" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="13" font-weight="500"
+        fill="#A0C4E8">Loss</text>
+
+  <!-- ══ BOX: Backward ══ -->
+  <rect x="155" y="372" width="124" height="52" rx="8"
+        fill="#0E0C0A" stroke="#5A4E46" stroke-width="1.5"/>
+  <text x="217" y="398" text-anchor="middle" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="14" font-weight="500"
+        fill="#E8E0D8">Backward</text>
+
+  <!-- ══ BOX: Gradient Function of Loss Function ══ -->
+  <rect x="420" y="364" width="155" height="60" rx="7"
+        fill="#4A3E38"/>
+  <text x="497" y="385" text-anchor="middle" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="10.5" font-weight="400"
+        fill="#E8E0D4">Gradient Function</text>
+  <text x="497" y="401" text-anchor="middle" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="10.5" font-weight="400"
+        fill="#E8E0D4">of Loss Function</text>
+
+  <!-- ══ BOX: Optimizer ══ -->
+  <rect x="48" y="484" width="88" height="36" rx="7"
+        fill="#1C1714" stroke="#7A6A60" stroke-width="1.5"/>
+  <text x="92" y="502" text-anchor="middle" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="12" font-weight="500"
+        fill="#C8B8A8">Optimizer</text>
+
+  <!-- ══ TAGS ══ -->
+  <!-- Training Data -->
+  <rect x="52" y="93" width="98" height="18" rx="4" fill="#1A2E4A"/>
+  <text x="59" y="102" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="10.5"
+        fill="#90B8D8">Training Data</text>
+
+  <!-- Weight -->
+  <rect x="52" y="115" width="58" height="18" rx="4" fill="#1A2E4A"/>
+  <text x="59" y="124" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="10.5"
+        fill="#90B8D8">Weight</text>
+
+  <!-- Reference -->
+  <rect x="314" y="112" width="76" height="18" rx="4" fill="#1A2E4A"/>
+  <text x="321" y="121" dominant-baseline="middle"
+        font-family="'DM Mono', monospace" font-size="10.5"
+        fill="#90B8D8">Reference</text>
+
+  <!-- ══ FLOAT LABELS ══ -->
+  <!-- Output -->
+  <text x="330" y="89" font-family="'DM Mono', monospace" font-size="11"
+        fill="#8A8278">Output</text>
+
+  <!-- Update (same height as autodiff labels) -->
+  <text x="20" y="256" font-family="'DM Mono', monospace" font-size="10"
+        font-style="italic" fill="#787068">Update</text>
+
+  <!-- autodiff x2 -->
+  <text x="250" y="256" font-family="'DM Mono', monospace" font-size="11"
+        font-style="italic" fill="#7A88A8">autodiff</text>
+  <text x="502" y="256" font-family="'DM Mono', monospace" font-size="11"
+        font-style="italic" fill="#7A88A8">autodiff</text>
+
+  <!-- Gradient Input -->
+  <text x="303" y="382" font-family="'DM Mono', monospace" font-size="11"
+        fill="#8A8278">Gradient Input</text>
+
+  <!-- Gradient Output (two lines, em) -->
+  <text x="60" y="366" font-family="'DM Mono', monospace" font-size="11"
+        font-weight="500" fill="#D0C4BC">Gradient</text>
+  <text x="60" y="380" font-family="'DM Mono', monospace" font-size="11"
+        font-weight="500" fill="#D0C4BC">Output</text>
+
+  <!-- gradient of "Forward" (sub, centered under Backward cx=217) -->
+  <text x="217" y="432" text-anchor="middle" font-family="'DM Mono', monospace"
+        font-size="10" fill="#6A6058">gradient of</text>
+  <text x="217" y="445" text-anchor="middle" font-family="'DM Mono', monospace"
+        font-size="10" fill="#6A6058">"Forward"</text>
+
+  <!-- ══ SOLID ARROWS ══ -->
+
+  <!-- [1] Training Data / Weight bracket → Forward (enter at x=178, y=110) -->
+  <line x1="170" y1="100" x2="170" y2="120" stroke="#706860" stroke-width="2"/>
+  <line x1="130" y1="100" x2="170" y2="100" stroke="#706860" stroke-width="2"/>
+  <line x1="110" y1="120" x2="170" y2="120" stroke="#706860" stroke-width="2"/>
+  <line x1="170" y1="110" x2="178" y2="110" stroke="#706860" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- [2] Output / Reference bracket → LossFn (enter at x=416, y=109) -->
+  <!-- Output arm: Forward right x=298 → bracket at x=416, y=99 -->
+  <line x1="298" y1="99" x2="416" y2="99" stroke="#706860" stroke-width="2"/>
+  <!-- Reference arm: ref tag right x=390 → bracket at x=416, y=120 -->
+  <line x1="390" y1="120" x2="416" y2="120" stroke="#706860" stroke-width="2"/>
+  <!-- Bracket v-join x=416 from y=99 to y=120 -->
+  <line x1="416" y1="99" x2="416" y2="120" stroke="#706860" stroke-width="2"/>
+  <!-- Arrow into LossFn (short, centred on join) -->
+  <line x1="413" y1="109" x2="416" y2="109" stroke="#706860" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- [3] LossFn → Loss pill -->
+  <line x1="566" y1="110" x2="582" y2="110" stroke="#706860" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- [4] Loss pill → far-right sweep → GradFn
+       Right from pill (x=644) to x=675, down to y=394, left into GradFn right x=575 -->
+  <line x1="644" y1="110" x2="675" y2="110" stroke="#706860" stroke-width="2"/>
+  <line x1="675" y1="110" x2="675" y2="394" stroke="#706860" stroke-width="2"/>
+  <line x1="675" y1="394" x2="575" y2="394" stroke="#706860" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- [5] autodiff dashed: Forward bottom y=136 → Backward top y=372, x=217 -->
+  <line x1="217" y1="136" x2="217" y2="372" stroke="#7A88A8" stroke-width="1.5"
+        stroke-dasharray="5,4" marker-end="url(#arr-d)"/>
+
+  <!-- [6] autodiff dashed: LossFn bottom y=146 → GradFn top y=364, x=491 -->
+  <line x1="491" y1="146" x2="491" y2="364" stroke="#7A88A8" stroke-width="1.5"
+        stroke-dasharray="5,4" marker-end="url(#arr-d)"/>
+
+  <!-- [7] GradFn left x=420 → Backward right x=279, y=398 -->
+  <line x1="420" y1="398" x2="279" y2="398" stroke="#706860" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- [8] Backward → Optimizer L-path
+       H: Backward left x=155 → corner x=92, y=412
+       V down: x=92, y=412 → Optimizer top y=484 -->
+  <line x1="155" y1="412" x2="92" y2="412" stroke="#706860" stroke-width="2"/>
+  <line x1="92" y1="412" x2="92" y2="484" stroke="#706860" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- [9] Optimizer → Weight feedback loop
+       H left: Optimizer left x=48 → x=16, y=502
+       V up: x=16, y=502 → y=124 (Weight tag cy)
+       H right arrow: x=16 → Weight tag left x=52, y=124 -->
+  <line x1="48" y1="502" x2="16" y2="502" stroke="#706860" stroke-width="2"/>
+  <line x1="16" y1="124" x2="16" y2="502" stroke="#706860" stroke-width="2"/>
+  <line x1="16" y1="124" x2="52" y2="124" stroke="#706860" stroke-width="2" marker-end="url(#arr)"/>
+
+</svg>
