@@ -1,0 +1,47 @@
+<svg width="100%" viewBox="0 0 680 285" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- ROW 1 -->
+  <text x="40" y="76" font-size="14" fill="#444441" dominant-baseline="central">Program</text>
+  <text x="40" y="100" font-size="14" fill="#444441" dominant-baseline="central">A</text>
+  <polygon points="97,73 138,73 138,71 148,76 138,81 138,79 97,79" fill="#C2C0B6"/>
+  <polygon points="55,97 138,97 138,95 148,100 138,105 138,103 55,103" fill="#C2C0B6"/>
+  <rect x="148" y="62" width="158" height="52" rx="10" fill="#EEECEA" stroke="#C2C0B6" stroke-width="0.5"/>
+  <text x="227" y="79" font-size="14" fill="#444441" text-anchor="middle" dominant-baseline="central">Execute until</text>
+  <text x="227" y="97" font-size="14" fill="#444441" text-anchor="middle" dominant-baseline="central">termination</text>
+  <polygon points="306,85 342,85 342,83 352,88 342,93 342,91 306,91" fill="#C2C0B6"/>
+
+  <text x="482" y="47" font-size="13" fill="#2C2C2A" text-anchor="middle" dominant-baseline="central">Trace for Input A</text>
+  <rect x="352" y="75" width="260" height="26" fill="none" stroke="#888780" stroke-width="1.5"/>
+  <line x1="378" y1="75" x2="378" y2="101" stroke="#888780" stroke-width="1"/>
+  <line x1="404" y1="75" x2="404" y2="101" stroke="#888780" stroke-width="1"/>
+  <line x1="430" y1="75" x2="430" y2="101" stroke="#888780" stroke-width="1"/>
+  <line x1="456" y1="75" x2="456" y2="101" stroke="#888780" stroke-width="1"/>
+  <line x1="482" y1="75" x2="482" y2="101" stroke="#888780" stroke-width="1"/>
+  <line x1="508" y1="75" x2="508" y2="101" stroke="#888780" stroke-width="1"/>
+  <line x1="534" y1="75" x2="534" y2="101" stroke="#888780" stroke-width="1"/>
+  <line x1="560" y1="75" x2="560" y2="101" stroke="#888780" stroke-width="1"/>
+  <line x1="586" y1="75" x2="586" y2="101" stroke="#888780" stroke-width="1"/>
+
+  <!-- ROW 2 -->
+  <text x="40" y="206" font-size="14" fill="#444441" dominant-baseline="central">Program</text>
+  <text x="40" y="230" font-size="14" fill="#444441" dominant-baseline="central">B</text>
+  <polygon points="97,203 138,203 138,201 148,206 138,211 138,209 97,209" fill="#C2C0B6"/>
+  <polygon points="55,227 138,227 138,225 148,230 138,235 138,233 55,233" fill="#C2C0B6"/>
+  <rect x="148" y="192" width="158" height="52" rx="10" fill="#EEECEA" stroke="#C2C0B6" stroke-width="0.5"/>
+  <text x="227" y="209" font-size="14" fill="#444441" text-anchor="middle" dominant-baseline="central">Execute until</text>
+  <text x="227" y="227" font-size="14" fill="#444441" text-anchor="middle" dominant-baseline="central">termination</text>
+  <polygon points="306,215 342,215 342,213 352,218 342,223 342,221 306,221" fill="#C2C0B6"/>
+
+  <text x="482" y="177" font-size="13" fill="#2C2C2A" text-anchor="middle" dominant-baseline="central">Trace for Input B</text>
+  <rect x="352" y="205" width="260" height="26" fill="none" stroke="#888780" stroke-width="1.5"/>
+  <line x1="378" y1="205" x2="378" y2="231" stroke="#888780" stroke-width="1"/>
+  <line x1="404" y1="205" x2="404" y2="231" stroke="#888780" stroke-width="1"/>
+  <line x1="430" y1="205" x2="430" y2="231" stroke="#888780" stroke-width="1"/>
+  <line x1="456" y1="205" x2="456" y2="231" stroke="#888780" stroke-width="1"/>
+  <line x1="482" y1="205" x2="482" y2="231" stroke="#888780" stroke-width="1"/>
+  <line x1="508" y1="205" x2="508" y2="231" stroke="#888780" stroke-width="1"/>
+  <line x1="534" y1="205" x2="534" y2="231" stroke="#888780" stroke-width="1"/>
+  <line x1="560" y1="205" x2="560" y2="231" stroke="#888780" stroke-width="1"/>
+  <line x1="586" y1="205" x2="586" y2="231" stroke="#888780" stroke-width="1"/>
+
+</svg>

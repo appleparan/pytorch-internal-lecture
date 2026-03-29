@@ -1,0 +1,54 @@
+<svg width="100%" viewBox="0 0 680 180" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Highlighted fills — amber accent -->
+  <rect x="112" y="120" width="130" height="26" fill="#FEF0D6"/>
+  <rect x="294" y="120" width="130" height="26" fill="#FEF0D6"/>
+  <rect x="476" y="120" width="130" height="26" fill="#FEF0D6"/>
+
+  <!-- Outer border -->
+  <rect x="60" y="120" width="546" height="26" fill="none" stroke="#AAAAAA" stroke-width="1.5"/>
+
+  <!-- Cell dividers -->
+  <line x1="86"  y1="120" x2="86"  y2="146" stroke="#AAAAAA" stroke-width="1"/>
+  <line x1="112" y1="120" x2="112" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="138" y1="120" x2="138" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="164" y1="120" x2="164" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="190" y1="120" x2="190" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="216" y1="120" x2="216" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="242" y1="120" x2="242" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="268" y1="120" x2="268" y2="146" stroke="#AAAAAA" stroke-width="1"/>
+  <line x1="294" y1="120" x2="294" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="320" y1="120" x2="320" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="346" y1="120" x2="346" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="372" y1="120" x2="372" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="398" y1="120" x2="398" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="424" y1="120" x2="424" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="450" y1="120" x2="450" y2="146" stroke="#AAAAAA" stroke-width="1"/>
+  <line x1="476" y1="120" x2="476" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="502" y1="120" x2="502" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="528" y1="120" x2="528" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="554" y1="120" x2="554" y2="146" stroke="#C8821A" stroke-width="1"/>
+  <line x1="580" y1="120" x2="580" y2="146" stroke="#C8821A" stroke-width="1"/>
+
+  <!-- Highlighted outer borders for repeated sections -->
+  <rect x="112" y="120" width="130" height="26" fill="none" stroke="#C8821A" stroke-width="1.5"/>
+  <rect x="294" y="120" width="130" height="26" fill="none" stroke="#C8821A" stroke-width="1.5"/>
+  <rect x="476" y="120" width="130" height="26" fill="none" stroke="#C8821A" stroke-width="1.5"/>
+
+  <!-- Curly brace 1 — notch pointing UP -->
+  <path d="M112,117 L112,100 Q112,92 118,92 L171,92 Q177,92 177,84 Q177,92 183,92 L236,92 Q242,92 242,100 L242,117"
+        fill="none" stroke="#C8821A" stroke-width="1.5"/>
+
+  <!-- Curly brace 2 -->
+  <path d="M294,117 L294,100 Q294,92 300,92 L353,92 Q359,92 359,84 Q359,92 365,92 L418,92 Q424,92 424,100 L424,117"
+        fill="none" stroke="#C8821A" stroke-width="1.5"/>
+
+  <!-- Curly brace 3 -->
+  <path d="M476,117 L476,100 Q476,92 482,92 L535,92 Q541,92 541,84 Q541,92 547,92 L600,92 Q606,92 606,100 L606,117"
+        fill="none" stroke="#C8821A" stroke-width="1.5"/>
+
+  <!-- Label -->
+  <text x="177" y="66" font-size="12" fill="#9A5C10" text-anchor="middle" dominant-baseline="central">반복되는 구간</text>
+  <line x1="177" y1="73" x2="177" y2="84" stroke="#C8821A" stroke-width="0.5" stroke-dasharray="2,2"/>
+
+</svg>
