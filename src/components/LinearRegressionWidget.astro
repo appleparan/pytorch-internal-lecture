@@ -1,0 +1,343 @@
+---
+/**
+ * Interactive linear regression gradient descent visualization.
+ * Supports dark/light mode via data-theme attribute.
+ */
+---
+
+<div class="lr-widget">
+  <p class="lr-equation" id="lr-equation">
+    f(x) = 0.100x + 0.950
+  </p>
+
+  <canvas id="lr-canvas"></canvas>
+
+  <div class="lr-stats" id="lr-stats">
+    <div class="lr-stat">
+      <span class="lr-stat-label">iteration</span>
+      <span class="lr-stat-value" id="lr-iter">0</span>
+    </div>
+    <div class="lr-stat">
+      <span class="lr-stat-label">loss (MSE)</span>
+      <span class="lr-stat-value" id="lr-loss">0.00000</span>
+    </div>
+    <div class="lr-stat">
+      <span class="lr-stat-label">slope a</span>
+      <span class="lr-stat-value" id="lr-a">0.100</span>
+    </div>
+    <div class="lr-stat">
+      <span class="lr-stat-label">intercept b</span>
+      <span class="lr-stat-value" id="lr-b">0.950</span>
+    </div>
+  </div>
+
+  <div class="lr-controls">
+    <button id="lr-step">Step</button>
+    <button id="lr-play">Play</button>
+    <button id="lr-reset">Reset</button>
+    <button id="lr-toggle-err">Hide errors</button>
+    <div class="lr-speed">
+      <span class="lr-speed-label">speed</span>
+      <input type="range" id="lr-speed" min="1" max="8" value="1" step="1" />
+      <span class="lr-speed-value" id="lr-speed-val">1</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .lr-widget {
+    padding: 0.75rem 0 0;
+    max-width: 540px;
+    margin: 0 auto;
+  }
+  .lr-equation {
+    text-align: center;
+    font-size: 17px;
+    font-weight: 500;
+    font-family: monospace;
+    color: var(--accent);
+    margin: 0 0 0.75rem;
+    transition: color 0.4s;
+  }
+  .lr-equation.converged {
+    color: #0f6e56;
+  }
+  [data-theme='dark'] .lr-equation.converged {
+    color: #5dcaa5;
+  }
+  #lr-canvas {
+    width: 100%;
+    display: block;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+  .lr-stats {
+    display: flex;
+    gap: 10px;
+    max-width: 520px;
+    margin: 12px auto 0;
+  }
+  .lr-stat {
+    background: var(--bg-surface);
+    border-radius: 8px;
+    padding: 10px 16px;
+    flex: 1;
+    min-width: 0;
+  }
+  .lr-stat-label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 3px;
+  }
+  .lr-stat-value {
+    display: block;
+    font-size: 20px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .lr-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 520px;
+    margin: 10px auto 0;
+    flex-wrap: wrap;
+  }
+  .lr-controls button {
+    padding: 4px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .lr-controls button:hover {
+    background: var(--accent-shadow);
+  }
+  .lr-controls button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .lr-speed {
+    flex: 1;
+    min-width: 80px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 4px;
+  }
+  .lr-speed-label,
+  .lr-speed-value {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .lr-speed-value {
+    min-width: 16px;
+  }
+  .lr-speed input[type='range'] {
+    flex: 1;
+  }
+</style>
+
+<script>
+  const DATA: [number, number][] = [
+    [0.08, 0.31], [0.15, 0.20], [0.22, 0.42], [0.30, 0.44],
+    [0.38, 0.50], [0.46, 0.55], [0.54, 0.61], [0.62, 0.67],
+    [0.70, 0.66], [0.77, 0.74], [0.85, 0.81], [0.93, 0.88],
+  ];
+
+  const LR = 0.38;
+  const A0 = 0.10;
+  const B0 = 0.95;
+  const PAD = { l: 44, r: 16, t: 16, b: 34 };
+  const CANVAS_H = 300;
+
+  const canvas = document.getElementById('lr-canvas') as HTMLCanvasElement;
+  const eqEl = document.getElementById('lr-equation')!;
+  const iterEl = document.getElementById('lr-iter')!;
+  const lossEl = document.getElementById('lr-loss')!;
+  const aEl = document.getElementById('lr-a')!;
+  const bEl = document.getElementById('lr-b')!;
+  const stepBtn = document.getElementById('lr-step') as HTMLButtonElement;
+  const playBtn = document.getElementById('lr-play') as HTMLButtonElement;
+  const resetBtn = document.getElementById('lr-reset') as HTMLButtonElement;
+  const toggleErrBtn = document.getElementById('lr-toggle-err') as HTMLButtonElement;
+  const speedSlider = document.getElementById('lr-speed') as HTMLInputElement;
+  const speedVal = document.getElementById('lr-speed-val')!;
+
+  let a = A0, b = B0, iter = 0;
+  let playing = false;
+  let showErr = true;
+  let spf = 1;
+  let raf: number | null = null;
+
+  function isDark(): boolean {
+    return document.documentElement.getAttribute('data-theme') === 'dark';
+  }
+
+  function computeLoss(a: number, b: number): number {
+    return DATA.reduce((s, [x, y]) => s + (a * x + b - y) ** 2, 0) / DATA.length;
+  }
+
+  function colors() {
+    const dark = isDark();
+    return {
+      dot:      dark ? 'rgba(179,177,168,0.95)' : 'rgba(55,50,60,0.82)',
+      dotRing:  dark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.85)',
+      dotHi:    dark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.30)',
+      line:     dark ? '#AFA9EC' : '#534AB7',
+      lineDone: dark ? '#5DCAA5' : '#0F6E56',
+      err:      dark ? 'rgba(240,153,123,0.42)' : 'rgba(216,90,48,0.38)',
+      grid:     dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+      axis:     dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.20)',
+      tick:     dark ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.40)',
+    };
+  }
+
+  function draw() {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const W = canvas.offsetWidth;
+    const H = CANVAS_H;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.height = `${H}px`;
+    ctx.scale(dpr, dpr);
+
+    const C = colors();
+    const px = (x: number) => PAD.l + x * (W - PAD.l - PAD.r);
+    const py = (y: number) => PAD.t + (H - PAD.t - PAD.b) * (1 - y / 1.05);
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Grid
+    ctx.strokeStyle = C.grid; ctx.lineWidth = 0.5;
+    for (let i = 1; i <= 5; i++) {
+      ctx.beginPath(); ctx.moveTo(PAD.l, py(i * 0.2)); ctx.lineTo(W - PAD.r, py(i * 0.2)); ctx.stroke();
+    }
+    for (let i = 1; i <= 4; i++) {
+      ctx.beginPath(); ctx.moveTo(px(i * 0.25), PAD.t); ctx.lineTo(px(i * 0.25), H - PAD.b); ctx.stroke();
+    }
+
+    // Axes
+    ctx.strokeStyle = C.axis; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD.l, PAD.t); ctx.lineTo(PAD.l, H - PAD.b); ctx.lineTo(W - PAD.r, H - PAD.b); ctx.stroke();
+
+    // Tick labels
+    ctx.fillStyle = C.tick; ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 5; i++) ctx.fillText((i * 0.2).toFixed(1), PAD.l - 5, py(i * 0.2) + 4);
+    ctx.textAlign = 'center';
+    for (let i = 1; i <= 4; i++) ctx.fillText((i * 0.25).toFixed(2), px(i * 0.25), H - PAD.b + 14);
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(PAD.l, PAD.t, W - PAD.l - PAD.r, H - PAD.t - PAD.b); ctx.clip();
+
+    const loss = computeLoss(a, b);
+    const done = loss < 0.003;
+
+    // Error lines
+    if (showErr) {
+      ctx.setLineDash([3, 4]); ctx.strokeStyle = C.err; ctx.lineWidth = 1;
+      DATA.forEach(([x, y]) => {
+        ctx.beginPath(); ctx.moveTo(px(x), py(y)); ctx.lineTo(px(x), py(a * x + b)); ctx.stroke();
+      });
+      ctx.setLineDash([]);
+    }
+
+    // Regression line
+    ctx.strokeStyle = done ? C.lineDone : C.line; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(px(0), py(b)); ctx.lineTo(px(1), py(a + b)); ctx.stroke();
+
+    // Data points
+    DATA.forEach(([x, y]) => {
+      const cx = px(x), cy = py(y);
+      ctx.beginPath(); ctx.arc(cx, cy, 6.5, 0, Math.PI * 2);
+      ctx.fillStyle = C.dot; ctx.fill();
+      ctx.strokeStyle = C.dotRing; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx - 2.5, cy - 2.5, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = C.dotHi; ctx.fill();
+    });
+
+    ctx.restore();
+
+    // Update stats
+    eqEl.textContent = `f(x) = ${a.toFixed(3)}x + ${b.toFixed(3)}`;
+    eqEl.classList.toggle('converged', done);
+    iterEl.textContent = String(iter);
+    lossEl.textContent = loss.toFixed(5);
+    aEl.textContent = a.toFixed(3);
+    bEl.textContent = b.toFixed(3);
+  }
+
+  function stepOnce() {
+    const n = DATA.length;
+    let da = 0, db = 0;
+    DATA.forEach(([x, y]) => { const e = a * x + b - y; da += e * x; db += e; });
+    a -= LR * 2 / n * da;
+    b -= LR * 2 / n * db;
+    iter += 1;
+  }
+
+  function loop() {
+    if (!playing) return;
+    for (let i = 0; i < spf; i++) stepOnce();
+    draw();
+    if (iter >= 100) {
+      playing = false;
+      playBtn.textContent = 'Play';
+      stepBtn.disabled = false;
+      return;
+    }
+    raf = window.setTimeout(() => requestAnimationFrame(loop), 60) as unknown as number;
+  }
+
+  stepBtn.addEventListener('click', () => {
+    if (!playing) { stepOnce(); draw(); }
+  });
+
+  playBtn.addEventListener('click', () => {
+    playing = !playing;
+    playBtn.textContent = playing ? 'Pause' : 'Play';
+    stepBtn.disabled = playing;
+    if (playing) loop();
+    else if (raf !== null) clearTimeout(raf);
+  });
+
+  resetBtn.addEventListener('click', () => {
+    playing = false;
+    playBtn.textContent = 'Play';
+    stepBtn.disabled = false;
+    if (raf !== null) clearTimeout(raf);
+    a = A0; b = B0; iter = 0;
+    draw();
+  });
+
+  toggleErrBtn.addEventListener('click', () => {
+    showErr = !showErr;
+    toggleErrBtn.textContent = showErr ? 'Hide errors' : 'Show errors';
+    draw();
+  });
+
+  speedSlider.addEventListener('input', () => {
+    spf = Number(speedSlider.value);
+    speedVal.textContent = String(spf);
+  });
+
+  // Initial draw
+  draw();
+
+  // Redraw on resize
+  const ro = new ResizeObserver(() => draw());
+  ro.observe(canvas);
+
+  // Redraw on theme change
+  const observer = new MutationObserver(() => draw());
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+</script>

@@ -5,6 +5,7 @@ lecture: 4
 ---
 
 import Mermaid from '../../components/Mermaid.astro';
+import LinearRegressionWidget from '../../components/LinearRegressionWidget.astro';
 
 
 # Week 4: Automatic Differentiation in Pytorch
@@ -12,14 +13,20 @@ import Mermaid from '../../components/Mermaid.astro';
 Pytorch + NPU 온라인 모임 #4 | 2025-01-08
 
 
+## Agenda
+
+1. **Background** — Supervised Learning, Backprop
+2. **Automatic Differentiation** — Pytorch에서의 구현: Autograd (1.0), AOTAutograd (2.0)
+
+
 ## Background: Supervised Learning
 
 머신러닝에서 지도학습(Supervised Learning)은 주어진 데이터로부터 최적의 함수를 찾아가는 과정입니다. 가장 간단한 예로 $f(x) = ax + b$라는 모델이 있을 때, 훈련 데이터 $(x_i, y_i)$ 쌍이 주어지면, 기울기($a$)를 조금 조정하고 bias($b$)를 조금 이동시키면서 데이터를 가장 잘 표현하는 weight 값을 찾아갑니다. 이처럼 training data가 주어졌을 때 loss를 최소화하는 weight 값으로 조금씩 변해가는 과정이 바로 학습(training)입니다.
 
+<LinearRegressionWidget />
+
 
 ### Forward & Backward
-
-<img src="/images/04/slide04_1.png" class="h-80 mx-auto" />
 
 학습의 핵심은 다음 네 단계의 반복입니다:
 
