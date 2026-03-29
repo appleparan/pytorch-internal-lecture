@@ -495,7 +495,7 @@ Graph break 이후, resumed function의 bytecode를 가지고 위의 과정을 *
 
 PyTorch 2.0에서 크게 개선된 부분 중 하나가 IR들이 lowering되는 과정을 **체계적으로 설계**한 것입니다. Dynamo에서 생성된 FxGraph는 여러 단계의 IR lowering을 거쳐 최종적으로 백엔드에서 실행됩니다:
 
-<Mermaid>
+<Mermaid wide>
 {`graph LR
     D["Dynamo"] -->|FxGraph - Torch IR| A["AOT Autograd"]
     A -->|FxGraph - Aten/Prims IR| I["Inductor"]
