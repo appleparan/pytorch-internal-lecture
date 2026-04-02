@@ -5,6 +5,7 @@ lecture: 4
 ---
 
 import LinearRegressionWidget from '../../components/LinearRegressionWidget.astro';
+import BackpropWidget from '../../components/BackpropWidget.astro';
 import Mermaid from '../../components/Mermaid.astro';
 import ThemeImage from '../../components/ThemeImage.astro';
 
@@ -83,16 +84,7 @@ $$f(x_1, x_2) = \ln(x_1) + x_1 x_2 - \sin(x_2)$$
 
 ### 예제: Forward & Backward 계산
 
-<div class="grid grid-cols-2 gap-4 mt-4">
-  <img src="/images/04/slide07_1.png" class="h-72" />
-  <img src="/images/04/slide07_2.png" class="h-72" />
-</div>
-
-구체적인 수치로 살펴보면, $a=2, b=1$일 때:
-
-**Forward**: $c = a + b = 3$, $d = b + 1 = 2$, $e = c \cdot d = 6$
-
-**Backward**: $\frac{de}{da} = \frac{de}{dc} \cdot \frac{dc}{da} = 2 \cdot 1 = 2$, $\frac{de}{db} = \frac{de}{dc} \cdot \frac{dc}{db} + \frac{de}{dd} \cdot \frac{dd}{db} = 2 \cdot 1 + 3 \cdot 1 = 5$
+<BackpropWidget />
 
 
 ## Pytorch 1.0: Autograd

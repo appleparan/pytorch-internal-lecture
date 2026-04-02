@@ -1,0 +1,669 @@
+---
+/**
+ * Interactive backpropagation gate-pattern visualization.
+ * Walks through forward/backward passes of f(x,y,z) = (x+y) * z
+ * with step-by-step explanations.
+ * Supports dark/light mode via data-theme attribute.
+ */
+---
+
+<div class="bp-widget">
+  <div class="bp-header">
+    <span class="bp-title">Backprop <span class="bp-accent">Intuition</span></span>
+    <span class="bp-step-lbl" id="bp-step-lbl">STEP 1 / 7</span>
+  </div>
+
+  <div class="bp-prog" id="bp-prog"></div>
+
+  <div class="bp-circuit-wrap">
+    <svg id="bp-ckt" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="bp-ah-off" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+          <path d="M0,0 L7,2.5 L0,5 z" fill="#ccc9c0"/>
+        </marker>
+        <marker id="bp-ah-fwd" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+          <path d="M0,0 L7,2.5 L0,5 z" fill="#1a6fba"/>
+        </marker>
+        <marker id="bp-ah-bwd" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+          <path d="M0,0 L7,2.5 L0,5 z" fill="#c0392b"/>
+        </marker>
+      </defs>
+
+      <!-- equation -->
+      <text x="360" y="20" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" font-size="11" class="bp-eq-text" letter-spacing="0.3">
+        f(x, y, z) = (x + y) · z
+      </text>
+
+      <!-- EDGES -->
+      <path id="bp-pe1" class="bp-edge-path" d="M 140 78 H 210 L 268 128"
+        fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
+      <path id="bp-pe2" class="bp-edge-path" d="M 140 192 H 210 L 268 136"
+        fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
+      <path id="bp-pe1b" class="bp-edge-path" d="M 261 122 L 210 72 H 140"
+        fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
+        marker-end="url(#bp-ah-bwd)" opacity="0"/>
+      <path id="bp-pe2b" class="bp-edge-path" d="M 261 140 L 210 198 H 140"
+        fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
+        marker-end="url(#bp-ah-bwd)" opacity="0"/>
+
+      <path id="bp-pe3" class="bp-edge-path" d="M 338 132 H 395 L 458 213"
+        fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
+      <path id="bp-pe4" class="bp-edge-path" d="M 140 300 H 395 L 458 219"
+        fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
+      <path id="bp-pe3b" class="bp-edge-path" d="M 451 207 L 395 126 H 338"
+        fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
+        marker-end="url(#bp-ah-bwd)" opacity="0"/>
+      <path id="bp-pe4b" class="bp-edge-path" d="M 451 225 L 395 306 H 140"
+        fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
+        marker-end="url(#bp-ah-bwd)" opacity="0"/>
+
+      <path id="bp-pe5" class="bp-edge-path" d="M 528 216 H 582"
+        fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
+      <path id="bp-pe5b" class="bp-edge-path" d="M 582 210 H 528"
+        fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
+        marker-end="url(#bp-ah-bwd)" opacity="0"/>
+
+      <!-- FORWARD LABELS -->
+      <g id="bp-fl-e1" class="bp-lbl" opacity="0">
+        <rect x="158" y="48" width="44" height="21" rx="4" class="bp-pill-fwd"/>
+        <text x="180" y="63" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">-2</text>
+      </g>
+      <g id="bp-fl-e2" class="bp-lbl" opacity="0">
+        <rect x="162" y="196" width="36" height="21" rx="4" class="bp-pill-fwd"/>
+        <text x="180" y="211" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">5</text>
+      </g>
+      <g id="bp-fl-e3" class="bp-lbl" opacity="0">
+        <rect x="356" y="136" width="56" height="21" rx="4" class="bp-pill-fwd"/>
+        <text x="384" y="151" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">q = 3</text>
+      </g>
+      <g id="bp-fl-e4" class="bp-lbl" opacity="0">
+        <rect x="260" y="260" width="44" height="21" rx="4" class="bp-pill-fwd"/>
+        <text x="282" y="275" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">-4</text>
+      </g>
+      <g id="bp-fl-e5" class="bp-lbl" opacity="0">
+        <rect x="523" y="194" width="46" height="21" rx="4" class="bp-pill-fwd"/>
+        <text x="546" y="209" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">-12</text>
+      </g>
+
+      <!-- BACKWARD LABELS -->
+      <g id="bp-bl-e1" class="bp-lbl" opacity="0">
+        <rect x="149" y="78" width="68" height="24" rx="4" class="bp-pill-bwd"/>
+        <text x="180" y="93" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = -4</text>
+      </g>
+      <g id="bp-bl-e2" class="bp-lbl" opacity="0">
+        <rect x="149" y="166" width="68" height="24" rx="4" class="bp-pill-bwd"/>
+        <text x="180" y="181" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = -4</text>
+      </g>
+      <g id="bp-bl-e3" class="bp-lbl" opacity="0">
+        <rect x="356" y="160" width="68" height="24" rx="4" class="bp-pill-bwd"/>
+        <text x="387" y="175" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = -4</text>
+      </g>
+      <g id="bp-bl-e4" class="bp-lbl" opacity="0">
+        <rect x="258" y="284" width="62" height="24" rx="4" class="bp-pill-bwd"/>
+        <text x="286" y="299" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = 3</text>
+      </g>
+      <g id="bp-bl-e5" class="bp-lbl" opacity="0">
+        <rect x="523" y="220" width="52" height="24" rx="4" class="bp-pill-bwd"/>
+        <text x="546" y="235" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = 1</text>
+      </g>
+
+      <!-- INPUT NODES -->
+      <rect class="bp-node-rect" x="30" y="53" width="110" height="50" rx="7"/>
+      <text x="85" y="68" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="11" font-weight="500" letter-spacing="1">INPUT</text>
+      <text x="85" y="91" text-anchor="middle"
+        class="bp-node-val" font-family="'Courier New',monospace" font-size="16" font-weight="700">x = -2</text>
+      <g id="bp-badge-x" class="bp-badge" opacity="0">
+        <rect x="30" y="108" width="110" height="24" rx="4" class="bp-pill-bwd"/>
+        <text x="85" y="124" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;x = -4</text>
+      </g>
+
+      <rect class="bp-node-rect" x="30" y="167" width="110" height="50" rx="7"/>
+      <text x="85" y="182" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="11" font-weight="500" letter-spacing="1">INPUT</text>
+      <text x="85" y="205" text-anchor="middle"
+        class="bp-node-val" font-family="'Courier New',monospace" font-size="16" font-weight="700">y = 5</text>
+      <g id="bp-badge-y" class="bp-badge" opacity="0">
+        <rect x="30" y="222" width="110" height="24" rx="4" class="bp-pill-bwd"/>
+        <text x="85" y="238" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;y = -4</text>
+      </g>
+
+      <rect class="bp-node-rect" x="30" y="275" width="110" height="50" rx="7"/>
+      <text x="85" y="290" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="11" font-weight="500" letter-spacing="1">INPUT</text>
+      <text x="85" y="313" text-anchor="middle"
+        class="bp-node-val" font-family="'Courier New',monospace" font-size="16" font-weight="700">z = -4</text>
+      <g id="bp-badge-z" class="bp-badge" opacity="0">
+        <rect x="30" y="330" width="110" height="24" rx="4" class="bp-pill-bwd"/>
+        <text x="85" y="346" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;z = 3</text>
+      </g>
+
+      <!-- GATES -->
+      <rect id="bp-r-add" class="bp-gate-rect" x="265" y="109" width="76" height="46" rx="23"
+        stroke-width="1.5"/>
+      <text x="303" y="142" text-anchor="middle"
+        font-family="'Courier New',monospace" font-size="32" font-weight="700" fill="#1a6fba">+</text>
+
+      <rect id="bp-r-mul" class="bp-gate-rect" x="455" y="193" width="76" height="46" rx="23"
+        stroke-width="1.5"/>
+      <text x="493" y="226" text-anchor="middle"
+        font-family="'Courier New',monospace" font-size="32" font-weight="700" fill="#6b3fa0">&times;</text>
+
+      <!-- OUTPUT -->
+      <rect class="bp-node-rect" x="578" y="193" width="116" height="46" rx="7"/>
+      <text x="636" y="208" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="11" font-weight="500" letter-spacing="1">OUTPUT</text>
+      <text id="bp-val-f" class="bp-node-val" x="636" y="231" text-anchor="middle"
+        font-family="'Courier New',monospace" font-size="16" font-weight="700">f = ?</text>
+      <g id="bp-badge-f" class="bp-badge" opacity="0">
+        <rect x="578" y="244" width="116" height="24" rx="4" class="bp-pill-bwd"/>
+        <text x="636" y="260" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;f = 1</text>
+      </g>
+
+      <!-- LEGEND -->
+      <rect class="bp-legend-bg" x="572" y="8" width="140" height="54" rx="5"/>
+      <rect x="582" y="21" width="8" height="8" rx="2" fill="#1a6fba"/>
+      <text class="bp-legend-txt" x="596" y="29" font-family="'Pretendard',-apple-system,sans-serif" font-size="10">forward</text>
+      <rect x="582" y="39" width="8" height="8" rx="2" fill="#c0392b"/>
+      <text class="bp-legend-txt" x="596" y="47" font-family="'Pretendard',-apple-system,sans-serif" font-size="10">gradient &part;f / &part;&middot;</text>
+    </svg>
+  </div>
+
+  <!-- Description -->
+  <div class="bp-desc">
+    <div id="bp-phase-tag" class="bp-phase-tag bp-pt-init">INIT</div>
+    <div class="bp-desc-title" id="bp-desc-title">회로 초기화</div>
+    <div class="bp-desc-body" id="bp-desc-body"></div>
+  </div>
+
+  <!-- Gate cards -->
+  <div class="bp-gate-cards">
+    <div class="bp-gc bp-gc-add" id="bp-gc-add">
+      <div class="bp-gc-name bp-gc-name-add">+ ADD Gate</div>
+      <div class="bp-gc-rule" id="bp-gr-add"></div>
+      <div class="bp-gc-formula" id="bp-gf-add"></div>
+    </div>
+    <div class="bp-gc bp-gc-mul" id="bp-gc-mul">
+      <div class="bp-gc-name bp-gc-name-mul">&times; MUL Gate</div>
+      <div class="bp-gc-rule" id="bp-gr-mul"></div>
+      <div class="bp-gc-formula" id="bp-gf-mul"></div>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <div class="bp-nav">
+    <button id="bp-btn-prev" disabled>&larr; PREV</button>
+    <button id="bp-btn-next" class="bp-btn-primary">NEXT &rarr;</button>
+    <button id="bp-btn-reset" class="bp-btn-reset">&circlearrowleft; 처음으로</button>
+  </div>
+</div>
+
+<style>
+  .bp-widget {
+    padding: 0.75rem 0 0;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .bp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1.5px solid var(--border);
+  }
+  .bp-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.2px;
+  }
+  .bp-accent { color: #1a6fba; }
+  [data-theme='dark'] .bp-accent { color: #4a96c4; }
+  .bp-step-lbl {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+  }
+
+  /* Progress */
+  .bp-prog { display: flex; gap: 3px; margin-bottom: 16px; }
+  .bp-seg { height: 2px; flex: 1; border-radius: 2px; background: var(--border); transition: background 0.3s; }
+  .bp-seg-done { background: var(--text-muted); }
+  .bp-seg-active { background: #1a6fba; }
+  [data-theme='dark'] .bp-seg-active { background: #4a96c4; }
+
+  /* Circuit */
+  .bp-circuit-wrap {
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 4px 4px;
+    margin-bottom: 12px;
+  }
+  #bp-ckt { width: 100%; height: auto; display: block; }
+  .bp-edge-path { transition: stroke 0.3s, stroke-width 0.3s; }
+  .bp-lbl { transition: opacity 0.3s; }
+  .bp-gate-rect { transition: stroke 0.3s, fill 0.3s; }
+  .bp-badge { transition: opacity 0.3s; }
+
+  /* SVG node styles */
+  .bp-node-rect { fill: var(--bg-surface); stroke: var(--text-muted); stroke-width: 1.5; }
+  .bp-node-label { fill: var(--text-muted); }
+  .bp-node-val { fill: var(--text); }
+  .bp-gate-rect { fill: var(--bg-surface); stroke: var(--text-muted); }
+  .bp-eq-text { fill: var(--text-muted); }
+  .bp-legend-bg { fill: var(--bg-surface); stroke: var(--border); stroke-width: 1; }
+  .bp-legend-txt { fill: var(--text-muted); }
+
+  /* Pills */
+  .bp-pill-fwd { fill: #e8f1fa; stroke: #1a6fba; stroke-width: 1; }
+  .bp-pill-fwd-txt { fill: #1a6fba; }
+  .bp-pill-bwd { fill: #fdf0ee; stroke: #c0392b; stroke-width: 1; }
+  .bp-pill-bwd-txt { fill: #c0392b; }
+  [data-theme='dark'] .bp-pill-fwd { fill: #111e2a; stroke: #4a96c4; }
+  [data-theme='dark'] .bp-pill-fwd-txt { fill: #4a96c4; }
+  [data-theme='dark'] .bp-pill-bwd { fill: #260f0c; stroke: #c84c3c; }
+  [data-theme='dark'] .bp-pill-bwd-txt { fill: #c84c3c; }
+
+  /* Description */
+  .bp-desc {
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    min-height: 104px;
+  }
+  .bp-phase-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+  .bp-pt-init { background: rgba(128,128,128,0.15); color: var(--text-muted); }
+  .bp-pt-fwd { background: #e8f1fa; color: #1a6fba; }
+  .bp-pt-bwd { background: #fdf0ee; color: #c0392b; }
+  .bp-pt-done { background: #eef6f1; color: #1a8a60; }
+  [data-theme='dark'] .bp-pt-fwd { background: #111e2a; color: #4a96c4; }
+  [data-theme='dark'] .bp-pt-bwd { background: #260f0c; color: #c84c3c; }
+  [data-theme='dark'] .bp-pt-done { background: #0c2018; color: #389068; }
+
+  .bp-desc-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 10px;
+    letter-spacing: -0.2px;
+  }
+  .bp-desc-body {
+    font-size: 13px;
+    line-height: 1.85;
+    color: var(--text-muted);
+  }
+  .bp-desc-body p { margin: 0 0 4px; }
+  .bp-desc-body table { border-collapse: collapse; width: 100%; }
+  .bp-desc-body td { padding: 2px 0; vertical-align: middle; }
+  .bp-desc-body .katex { font-size: 1em !important; }
+  .bp-desc-body .katex-display { margin: 4px 0 !important; }
+
+  /* Gate cards */
+  .bp-gate-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .bp-gc {
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 14px 12px;
+    opacity: 0.4;
+    transition: opacity 0.3s, border-color 0.3s, box-shadow 0.3s;
+  }
+  .bp-gc-lit { opacity: 1; }
+  .bp-gc-lit.bp-gc-add { border-color: #1a6fba; box-shadow: 0 2px 12px rgba(26,111,186,0.10); }
+  .bp-gc-lit.bp-gc-mul { border-color: #6b3fa0; box-shadow: 0 2px 12px rgba(107,63,160,0.10); }
+  [data-theme='dark'] .bp-gc-lit.bp-gc-add { border-color: #4a96c4; box-shadow: 0 2px 12px rgba(74,150,196,0.15); }
+  [data-theme='dark'] .bp-gc-lit.bp-gc-mul { border-color: #8c62bc; box-shadow: 0 2px 12px rgba(140,98,188,0.15); }
+
+  .bp-gc-name { font-size: 12px; font-weight: 700; letter-spacing: 0.2px; margin-bottom: 6px; }
+  .bp-gc-name-add { color: #1a6fba; }
+  .bp-gc-name-mul { color: #6b3fa0; }
+  [data-theme='dark'] .bp-gc-name-add { color: #4a96c4; }
+  [data-theme='dark'] .bp-gc-name-mul { color: #8c62bc; }
+  .bp-gc-rule { font-size: 11.5px; color: var(--text-muted); line-height: 1.6; margin-bottom: 8px; }
+  .bp-gc-formula { font-size: 11.5px; line-height: 2; }
+  .bp-gc-formula .katex, .bp-gc-formula .katex * { color: #c0392b !important; }
+  [data-theme='dark'] .bp-gc-formula .katex,
+  [data-theme='dark'] .bp-gc-formula .katex * { color: #c84c3c !important; }
+
+  /* Nav */
+  .bp-nav { display: flex; gap: 8px; align-items: center; justify-content: center; }
+  .bp-nav button {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .bp-nav button:hover:not(:disabled) { border-color: var(--text-muted); color: var(--text); }
+  .bp-nav button:disabled { opacity: 0.3; cursor: default; }
+  .bp-btn-primary {
+    background: #1a6fba !important;
+    color: #fff !important;
+    border-color: #1a6fba !important;
+    padding: 8px 28px !important;
+  }
+  [data-theme='dark'] .bp-btn-primary {
+    background: #4a96c4 !important;
+    border-color: #4a96c4 !important;
+  }
+  .bp-btn-primary:hover:not(:disabled) { filter: brightness(1.12); }
+  .bp-btn-reset {
+    color: var(--text-muted) !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    font-size: 11px !important;
+  }
+  .bp-btn-reset:hover:not(:disabled) { color: var(--text) !important; }
+</style>
+
+<script>
+  import katex from 'katex';
+
+  function tex(src: string): string {
+    return katex.renderToString(src, { throwOnError: false, displayMode: false });
+  }
+
+  // Gate card formula data
+  const gateFwd = {
+    add: tex('f(a,\\,b) = a + b'),
+    mul: tex('f(a,\\,b) = a \\times b'),
+    ruleAdd: '두 입력을 <strong>더해서</strong> 출력합니다.',
+    ruleMul: '두 입력을 <strong>곱해서</strong> 출력합니다.',
+  };
+
+  const gateBwd = {
+    add:
+      tex('\\tfrac{\\partial}{\\partial a} = 1 \\cdot \\delta') + '<br>' +
+      tex('\\tfrac{\\partial}{\\partial b} = 1 \\cdot \\delta'),
+    mul:
+      tex('\\tfrac{\\partial}{\\partial a} = b \\cdot \\delta') + '<br>' +
+      tex('\\tfrac{\\partial}{\\partial b} = a \\cdot \\delta'),
+    ruleAdd: 'Gradient를 모든 입력에 <strong>동등하게 분배</strong>합니다.',
+    ruleMul: '입력값을 <strong>서로 교환</strong>하여 gradient를 계산합니다.',
+  };
+
+  interface Step {
+    title: string;
+    body: () => string;
+    phase: string;
+    phaseLabel: string;
+    activeGate: string | null;
+    fwdEdges: string[];
+    bwdEdges: string[];
+    flabels: string[];
+    blabels: string[];
+    badges: string[];
+    fVal: string;
+    fColor: string;
+  }
+
+  const STEPS: Step[] = [
+    {
+      title: '회로 초기화',
+      body: () => [
+        '<p>입력값: ', tex('x = -2,\\; y = 5,\\; z = -4'), '</p>',
+        '<p style="margin-top:6px">계산식: ', tex('f(x,y,z) = (x + y) \\cdot z'), '</p>',
+        '<p style="margin-top:10px;color:var(--text-muted);font-size:12px">NEXT 버튼으로 forward pass를 시작하세요.</p>',
+      ].join(''),
+      phase: 'init', phaseLabel: 'INIT', activeGate: null,
+      fwdEdges: [], bwdEdges: [], flabels: [], blabels: [], badges: [],
+      fVal: 'f = ?', fColor: 'off',
+    },
+    {
+      title: 'Forward Pass \u2014 ADD 게이트',
+      body: () => [
+        '<p>', tex('q = x + y = (-2) + 5 = 3'), '</p>',
+        '<p style="margin-top:10px;margin-bottom:4px">이 시점에서 저장(cache)하는 값:</p>',
+        '<p style="padding-left:10px">', tex('x = -2,\\quad y = 5'), '</p>',
+        '<p style="margin-top:8px;color:var(--text-muted);font-size:12px">',
+          'backward pass에서 각 입력의 gradient를 계산할 때 이 값들이 필요합니다.',
+        '</p>',
+      ].join(''),
+      phase: 'fwd', phaseLabel: 'FORWARD \u2192', activeGate: 'add',
+      fwdEdges: ['e1', 'e2'], bwdEdges: [], flabels: ['e1', 'e2'], blabels: [], badges: [],
+      fVal: 'f = ?', fColor: 'off',
+    },
+    {
+      title: 'Forward Pass \u2014 MUL 게이트',
+      body: () => [
+        '<p>', tex('f = q \\cdot z = 3 \\times (-4) = -12'), '</p>',
+        '<p style="margin-top:10px;margin-bottom:4px">이 시점에서 저장(cache)하는 값:</p>',
+        '<p style="padding-left:10px">', tex('q = 3,\\quad z = -4'), '</p>',
+        '<p style="margin-top:8px;color:var(--text-muted);font-size:12px">',
+          'MUL의 local gradient는 서로 교환된 입력값이므로,',
+          '<br>backward에서 ', tex('\\partial/\\partial q = z'), ', ', tex('\\partial/\\partial z = q'), ' 를 바로 꺼내 씁니다.',
+        '</p>',
+      ].join(''),
+      phase: 'fwd', phaseLabel: 'FORWARD \u2192', activeGate: 'mul',
+      fwdEdges: ['e1', 'e2', 'e3', 'e4', 'e5'], bwdEdges: [], flabels: ['e3', 'e4', 'e5'], blabels: [], badges: [],
+      fVal: 'f = \u221212', fColor: 'fwd',
+    },
+    {
+      title: 'Backward Pass 시작',
+      body: () => [
+        '<p>출력에서 역방향으로 흐르기 시작합니다.</p>',
+        '<p style="margin-top:10px">', tex('\\dfrac{\\partial f}{\\partial f} = 1'), '</p>',
+        '<p style="margin-top:6px;color:var(--text-muted);font-size:12px">출력 자신에 대한 gradient는 항상 1입니다.</p>',
+        '<p style="margin-top:8px;color:var(--text-muted);font-size:12px">점선 화살표 \u2192 gradient의 역방향 흐름</p>',
+      ].join(''),
+      phase: 'bwd', phaseLabel: '\u2190 BACKWARD', activeGate: null,
+      fwdEdges: ['e1', 'e2', 'e3', 'e4', 'e5'], bwdEdges: ['e5'], flabels: [], blabels: ['e5'], badges: ['f'],
+      fVal: 'f = \u221212', fColor: 'fwd',
+    },
+    {
+      title: 'Backward Pass \u2014 MUL 게이트',
+      body: () => [
+        '<p style="color:var(--text-muted);font-size:11.5px;margin-bottom:8px">chain rule: local gradient \u00d7 upstream gradient</p>',
+        '<p>', tex('\\dfrac{\\partial f}{\\partial q} = z \\times 1 = -4 \\times 1 = -4'), '</p>',
+        '<p style="margin-top:6px">', tex('\\dfrac{\\partial f}{\\partial z} = q \\times 1 = 3 \\times 1 = 3'), '</p>',
+        '<p style="margin-top:10px;color:var(--text-muted);font-size:12px">MUL은 입력값을 서로 교환해서 곱합니다.</p>',
+      ].join(''),
+      phase: 'bwd', phaseLabel: '\u2190 BACKWARD', activeGate: 'mul',
+      fwdEdges: ['e1', 'e2', 'e3', 'e4', 'e5'], bwdEdges: ['e5', 'e3', 'e4'], flabels: [], blabels: ['e3', 'e4'], badges: ['f', 'z'],
+      fVal: 'f = \u221212', fColor: 'fwd',
+    },
+    {
+      title: 'Backward Pass \u2014 ADD 게이트',
+      body: () => [
+        '<p style="color:var(--text-muted);font-size:11.5px;margin-bottom:8px">upstream grad ', tex('= -4'), ' 를 두 입력에 동등하게 분배</p>',
+        '<p>', tex('\\dfrac{\\partial f}{\\partial x} = (-4) \\times 1 = -4'), '</p>',
+        '<p style="margin-top:6px">', tex('\\dfrac{\\partial f}{\\partial y} = (-4) \\times 1 = -4'), '</p>',
+        '<p style="margin-top:10px;color:var(--text-muted);font-size:12px">ADD는 upstream gradient를 그대로 전달합니다.</p>',
+      ].join(''),
+      phase: 'bwd', phaseLabel: '\u2190 BACKWARD', activeGate: 'add',
+      fwdEdges: ['e1', 'e2', 'e3', 'e4', 'e5'], bwdEdges: ['e5', 'e3', 'e4', 'e1', 'e2'], flabels: [], blabels: ['e1', 'e2'], badges: ['f', 'z', 'x', 'y'],
+      fVal: 'f = \u221212', fColor: 'fwd',
+    },
+    {
+      title: 'Backpropagation 완료',
+      body: () => [
+        '<p style="margin-bottom:10px">최종 gradient 요약:</p>',
+        '<table>',
+          '<tr><td style="width:55%;padding:2px 0">', tex('\\dfrac{\\partial f}{\\partial x} = -4'), '</td>',
+               '<td style="font-size:11.5px;color:var(--text-muted)">x 증가 시 f가 4배 감소</td></tr>',
+          '<tr><td style="padding:2px 0">', tex('\\dfrac{\\partial f}{\\partial y} = -4'), '</td>',
+               '<td style="font-size:11.5px;color:var(--text-muted)">y 증가 시 f가 4배 감소</td></tr>',
+          '<tr><td style="padding:2px 0">', tex('\\dfrac{\\partial f}{\\partial z} = 3'), '</td>',
+               '<td style="font-size:11.5px;color:var(--text-muted)">z 증가 시 f가 3배 증가</td></tr>',
+        '</table>',
+      ].join(''),
+      phase: 'done', phaseLabel: 'COMPLETE', activeGate: null,
+      fwdEdges: ['e1', 'e2', 'e3', 'e4', 'e5'], bwdEdges: ['e5', 'e3', 'e4', 'e1', 'e2'],
+      flabels: ['e1', 'e2', 'e3', 'e4', 'e5'], blabels: ['e5', 'e3', 'e4', 'e1', 'e2'],
+      badges: ['f', 'z', 'x', 'y'],
+      fVal: 'f = \u221212', fColor: 'fwd',
+    },
+  ];
+
+  const N = STEPS.length;
+  const EIDS = ['e1', 'e2', 'e3', 'e4', 'e5'];
+  let cur = 0;
+
+  const phaseClass: Record<string, string> = {
+    init: 'bp-pt-init', fwd: 'bp-pt-fwd', bwd: 'bp-pt-bwd', done: 'bp-pt-done',
+  };
+
+  function isDark(): boolean {
+    return document.documentElement.getAttribute('data-theme') === 'dark';
+  }
+
+  function render(): void {
+    const s = STEPS[cur];
+    const dark = isDark();
+
+    document.getElementById('bp-step-lbl')!.textContent = `STEP ${cur + 1} / ${N}`;
+
+    const pg = document.getElementById('bp-prog')!;
+    pg.innerHTML = '';
+    for (let i = 0; i < N; i++) {
+      const d = document.createElement('div');
+      d.className = 'bp-seg' + (i < cur ? ' bp-seg-done' : i === cur ? ' bp-seg-active' : '');
+      pg.appendChild(d);
+    }
+
+    const pt = document.getElementById('bp-phase-tag')!;
+    pt.className = `bp-phase-tag ${phaseClass[s.phase]}`;
+    pt.textContent = s.phaseLabel;
+    document.getElementById('bp-desc-title')!.textContent = s.title;
+    document.getElementById('bp-desc-body')!.innerHTML = s.body();
+
+    const edgeOff = dark ? '#252220' : '#d8d4cc';
+    const gateOff = dark ? '#343028' : '#c8c4bc';
+    const gateFillColor = dark ? '#252220' : '#ffffff';
+    const fwdCol = dark ? '#4a96c4' : '#1a6fba';
+
+    EIDS.forEach(id => {
+      const p = document.getElementById(`bp-p${id}`);
+      if (!p) return;
+      if (s.fwdEdges.includes(id)) {
+        p.setAttribute('stroke', fwdCol);
+        p.setAttribute('marker-end', 'url(#bp-ah-fwd)');
+      } else {
+        p.setAttribute('stroke', edgeOff);
+        p.setAttribute('marker-end', 'url(#bp-ah-off)');
+      }
+      const pb = document.getElementById(`bp-p${id}b`);
+      if (pb) pb.style.opacity = s.bwdEdges.includes(id) ? '1' : '0';
+      const fl = document.getElementById(`bp-fl-${id}`);
+      const bl = document.getElementById(`bp-bl-${id}`);
+      if (fl) fl.style.opacity = s.flabels.includes(id) ? '1' : '0';
+      if (bl) bl.style.opacity = s.blabels.includes(id) ? '1' : '0';
+    });
+
+    ['x', 'y', 'z', 'f'].forEach(id => {
+      const el = document.getElementById(`bp-badge-${id}`);
+      if (el) el.style.opacity = s.badges.includes(id) ? '1' : '0';
+    });
+
+    const fv = document.getElementById('bp-val-f')!;
+    fv.textContent = s.fVal;
+    const fColorResolved = s.fColor === 'fwd' ? fwdCol
+                         : s.fColor === 'off' ? (dark ? '#524e48' : '#c8c4bc')
+                         : s.fColor;
+    fv.setAttribute('fill', fColorResolved);
+
+    const gateCfg: Record<string, { stroke: string; fill: string }> = {
+      add: { stroke: fwdCol, fill: dark ? '#101c28' : '#f0f6fb' },
+      mul: { stroke: dark ? '#8c62bc' : '#6b3fa0', fill: dark ? '#1c1428' : '#f5f0fb' },
+    };
+    ['add', 'mul'].forEach(g => {
+      const r = document.getElementById(`bp-r-${g}`);
+      if (!r) return;
+      const on = s.activeGate === g;
+      r.setAttribute('stroke', on ? gateCfg[g].stroke : gateOff);
+      r.setAttribute('stroke-width', on ? '2' : '1.5');
+      r.setAttribute('fill', on ? gateCfg[g].fill : gateFillColor);
+    });
+
+    // Update marker colors
+    const ahFwd = document.getElementById('bp-ah-fwd');
+    if (ahFwd) ahFwd.querySelector('path')?.setAttribute('fill', fwdCol);
+    const ahOff = document.getElementById('bp-ah-off');
+    if (ahOff) ahOff.querySelector('path')?.setAttribute('fill', dark ? '#343028' : '#ccc9c0');
+
+    // Gate cards
+    ['add', 'mul'].forEach(g => {
+      const el = document.getElementById(`bp-gc-${g}`)!;
+      el.classList.toggle('bp-gc-lit', s.activeGate === g);
+    });
+
+    const showBwd = s.phase === 'bwd' || s.phase === 'done';
+    document.getElementById('bp-gr-add')!.innerHTML = showBwd ? gateBwd.ruleAdd : gateFwd.ruleAdd;
+    document.getElementById('bp-gr-mul')!.innerHTML = showBwd ? gateBwd.ruleMul : gateFwd.ruleMul;
+    ['add', 'mul'].forEach(g => {
+      const key = g as 'add' | 'mul';
+      document.getElementById(`bp-gf-${g}`)!.innerHTML = showBwd ? gateBwd[key] : gateFwd[key];
+    });
+
+    const prevBtn = document.getElementById('bp-btn-prev') as HTMLButtonElement;
+    const nextBtn = document.getElementById('bp-btn-next') as HTMLButtonElement;
+    prevBtn.disabled = cur === 0;
+    nextBtn.disabled = cur === N - 1;
+    nextBtn.textContent = cur === N - 1 ? '\u2714 완료' : 'NEXT \u2192';
+  }
+
+  function go(d: number): void {
+    cur = Math.max(0, Math.min(N - 1, cur + d));
+    render();
+  }
+
+  function rst(): void {
+    cur = 0;
+    render();
+  }
+
+  // Button handlers
+  document.getElementById('bp-btn-prev')!.addEventListener('click', () => go(-1));
+  document.getElementById('bp-btn-next')!.addEventListener('click', () => go(1));
+  document.getElementById('bp-btn-reset')!.addEventListener('click', () => rst());
+
+  // Keyboard navigation (scoped to widget focus)
+  const widget = document.querySelector('.bp-widget') as HTMLElement;
+  widget.setAttribute('tabindex', '0');
+  widget.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+  });
+
+  // Initial render
+  render();
+
+  // Redraw on theme change
+  const observer = new MutationObserver(() => render());
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+</script>
