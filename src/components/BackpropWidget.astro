@@ -16,6 +16,7 @@
   <div class="bp-prog" id="bp-prog"></div>
 
   <div class="bp-circuit-wrap">
+    <div class="bp-eq-overlay" id="bp-eq-overlay"></div>
     <svg id="bp-ckt" viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <marker id="bp-ah-off" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
@@ -28,12 +29,6 @@
           <path d="M0,0 L7,2.5 L0,5 z" fill="#c0392b"/>
         </marker>
       </defs>
-
-      <!-- equation -->
-      <text x="360" y="18" text-anchor="middle"
-        font-family="'Pretendard',-apple-system,sans-serif" font-size="14" font-weight="500" class="bp-eq-text" letter-spacing="0.3">
-        f(x, y, z) = (x + y) · z
-      </text>
 
       <!-- EDGES -->
       <!-- x → ADD -->
@@ -283,7 +278,20 @@
     border-radius: 10px;
     padding: 4px 4px 2px;
     margin-bottom: 8px;
+    position: relative;
   }
+  .bp-eq-overlay {
+    position: absolute;
+    top: 6px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    z-index: 1;
+    pointer-events: none;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .bp-eq-overlay .katex { font-size: 1em !important; color: var(--text-muted) !important; }
   #bp-ckt { width: 100%; height: auto; display: block; }
   .bp-edge-path { transition: stroke 0.3s, stroke-width 0.3s; }
   .bp-lbl { transition: opacity 0.3s; }
@@ -700,6 +708,9 @@
     if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
     if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
   });
+
+  // Render equation as KaTeX
+  document.getElementById('bp-eq-overlay')!.innerHTML = tex('f(x,\\,y,\\,z) = (x + y) \\cdot z');
 
   // Initial render
   render();
