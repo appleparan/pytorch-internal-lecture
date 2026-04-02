@@ -59,11 +59,11 @@ Reverse-mode automatic differentiation은 역전파(backpropagation)를 구현�
 
 **(i)** $y = f(g(x))$일 때:
 
-$$\begin{equation*}\frac{dy}{dx} = \underbrace{f'(g(x))}_{\text{Outside's Function Derivative}} \cdot \underbrace{g'(x)}_{\text{Inside's Function Derivative}}\end{equation*}$$
+$$\frac{dy}{dx} = \underbrace{f'(g(x))}_{\text{Outside's Function Derivative}} \cdot \underbrace{g'(x)}_{\text{Inside's Function Derivative}}$$
 
 **(ii)** $y = f(t)$이고 $x = g(t)$일 때:
 
-$$\begin{equation*}\frac{dy}{dx} = \frac{dy}{dt} \cdot \frac{dt}{dx}\end{equation*}$$
+$$\frac{dy}{dx} = \frac{dy}{dt} \cdot \frac{dt}{dx}$$
 
 
 ### 예제: Autodiff 계산

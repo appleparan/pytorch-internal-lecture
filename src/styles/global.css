@@ -689,6 +689,14 @@ a:hover {
 .article-body .katex-display {
   margin: 1.25rem 0;
   overflow-x: auto;
+  text-align: center;
+}
+
+/* Display math rendered as <p> with only a .katex child (remark-math v6 + rehype-katex v7) */
+.article-body > p:has(> .katex:only-child) {
+  text-align: center;
+  margin: 1.25rem 0;
+  overflow-x: auto;
 }
 
 [data-theme='dark'] .article-body .katex {
