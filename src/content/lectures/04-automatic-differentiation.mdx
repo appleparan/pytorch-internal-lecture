@@ -90,11 +90,29 @@ $$f(x_1, x_2) = \ln(x_1) + x_1 x_2 - \sin(x_2)$$
 
 ## Pytorch 1.0: Autograd
 
-Autograd는 eager mode를 위한 PyTorch의 자동 미분(autodiff) 엔진입니다. 핵심 특징은 다음과 같습니다:
+PyTorch에서 reverse-mode automatic differentiation을 구현한 것이 바로 **Autograd**입니다. "Autograd"라는 이름은 하버드 대학에서 NumPy 기반의 automatic differentiation을 연구하던 팀이 먼저 사용했으며, 해당 팀의 핵심 멤버들은 이후 Google에 입사하여 JAX 팀에 합류했습니다. PyTorch도 같은 이름을 사용하면서 초기에 이름 충돌에 대한 논의가 있었습니다.
 
-- 매 operator가 수행될 때마다 computation graph를 **incremental**하게 빌드합니다. Dispatcher를 활용한 operator overloading(Autograd dispatch key) 방식입니다.
-- Tensor별로 gradient가 필요한지 선택할 수 있습니다. 불필요한 gradient 계산을 피하기 위해, backprop을 하기 전에 transitive하게 gradient가 필요한 tensor를 선별합니다.
-- **Custom differentiable function**을 제공합니다.
+PyTorch의 Autograd는 텐서 연산의 **미분 계산**을 자동화하여, 개발자가 복잡한 계산 그래프를 수동으로 정의하지 않고도 backpropagation을 수행할 수 있게 합니다. 핵심 특징은 다음 세 가지입니다:
+
+#### 1. Eager Mode를 위한 Autograd
+
+PyTorch는 **Eager Mode**를 기본으로 동작하며, 각 연산이 실행될 때마다 computation graph를 **incremental**하게 구축합니다 (반대 개념인 graph mode에서는 먼저 그래프를 모두 생성한 뒤 연산을 진행합니다).
+
+이를 위해 PyTorch는 **Dispatcher**와 **operator overloading**을 활용합니다:
+- **Dispatcher**는 연산 요청이 들어오면 해당 연산을 어떤 방식으로 처리할지 결정하고, 적합한 구현(Autograd dispatch key 등)을 호출합니다.
+- **Operator overloading**을 통해 Python의 기본 연산자(예: `+`, `*`, `@`)를 PyTorch 텐서 객체에서 사용할 때, Autograd와 함께 처리되도록 수정된 함수가 실행됩니다.
+
+이를 통해 직관적이고 명령형 프로그래밍 스타일로 모델을 만들 수 있습니다.
+
+#### 2. Tensor별 Gradient 선택
+
+각 텐서별로 **gradient 계산 여부**를 선택할 수 있습니다. 딥러닝 모델에서 모든 텐서에 대해 gradient가 필요한 것은 아닙니다. 예를 들어 입력 데이터(input)는 값이 변하지 않으므로 backprop이 필요 없지만, 학습 대상인 weight는 backprop이 필요합니다.
+
+텐서에는 `requires_grad`라는 flag가 있어서, 이 flag가 켜져 있는 텐서들만 computation graph에 연산 기록을 남기게 됩니다. Backpropagation을 실행하기 전에 gradient가 필요한 텐서를 transitive하게 선별하여 연산 비용을 줄이고 불필요한 리소스 낭비를 방지합니다. 이 기능은 학습 중 특정 텐서를 freeze하거나 모델의 일부만 미세 조정(fine-tuning)할 때 유용합니다.
+
+#### 3. Custom Differentiable Function
+
+PyTorch는 기본 제공되는 연산자(log, sin, polynomial 등) 외에도, 개발자가 직접 **custom differentiable function**을 정의할 수 있는 유연성을 제공합니다. 잘 알려진 수학 함수의 미분 형태는 PyTorch 내부에 이미 구현되어 있지만, 사용자가 custom op을 만든 경우 Autograd는 그 미분 방법을 알 수 없습니다. 이때 custom op을 추가한 개발자가 미분 규칙을 함께 기술하여 등록할 수 있도록 장치가 마련되어 있습니다.
 
 
 ### Autograd 동작 예제
@@ -134,11 +152,10 @@ y = x * 2
 
 $y = x \times 2 = 4$가 계산되면서 `MulBackward0` grad function이 등록됩니다. x가 `requires_grad=True`이므로 y도 자동으로 gradient를 추적합니다. Computation graph 상태는 다음과 같습니다:
 
-```
-y:4 → [MulBackward0: 2]
-           ↑
-x:2 ───────┘
-```
+<Mermaid>
+{`graph LR
+    x["x: 2"] --> mul["MulBackward0: ×2"] --> y["y: 4"]`}
+</Mermaid>
 
 
 ### [참고] Forward에서 수행되는 AutoGrad kernel 예제: add
@@ -166,13 +183,10 @@ z = y ** 2
 
 $z = y^2 = 16$이 계산되면서 `PowBackward` grad function이 등록됩니다. Forward가 완료되고 backward graph 준비가 완료된 상태입니다:
 
-```
-z:16 → [PowBackward: 2y]
-            ↑
-y:4  → [MulBackward0: 2]
-            ↑
-x:2  ───────┘
-```
+<Mermaid wide>
+{`graph LR
+    x["x: 2"] --> mul["MulBackward0: ×2"] --> y["y: 4"] --> pow["PowBackward: 2y"] --> z["z: 16"]`}
+</Mermaid>
 
 
 ### Step 4: Backward
@@ -192,15 +206,10 @@ z.backward()
 
 **Step 4.3 - 최종 결과**:
 
-```
-        1
-        ↓
-[PowBackward: 2y]  →  1 × 2×4 = 8
-        ↓
-[MulBackward0: 2]  →  8 × 2 = 16
-        ↓
-     x.grad = 16
-```
+<Mermaid wide>
+{`graph RL
+    start["dz/dz = 1"] --> pow["PowBackward: 2y → 8"] --> mul["MulBackward0: ×2 → 16"] --> result["x.grad = 16"]`}
+</Mermaid>
 
 검증: $z = (2x)^2 = 4x^2$이므로, $\frac{dz}{dx} = 8x = 8 \times 2 = 16$ ✓
 
