@@ -69,57 +69,73 @@
         fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
         marker-end="url(#bp-ah-bwd)" opacity="0"/>
 
-      <!-- FORWARD LABELS -->
+      <!--
+        Label placement rule: each label sits next to its own edge color.
+        e1,e3,e5: backward(red) edge is ABOVE forward(blue) → red label above, blue below
+        e2,e4: backward(red) edge is BELOW forward(blue) → blue label above, red below
+      -->
+
+      <!-- FORWARD LABELS (blue) — next to the blue forward edge -->
+      <!-- e1: fwd at y=55 (below bwd y=49) → blue label below -->
       <g id="bp-fl-e1" class="bp-lbl" opacity="0">
-        <rect x="157" y="27" width="44" height="20" rx="4" class="bp-pill-fwd"/>
-        <text x="179" y="41" text-anchor="middle"
+        <rect x="157" y="58" width="44" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="179" y="72" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">-2</text>
       </g>
+      <!-- e2: fwd at y=130 (above bwd y=136) → blue label above -->
       <g id="bp-fl-e2" class="bp-lbl" opacity="0">
-        <rect x="160" y="134" width="36" height="20" rx="4" class="bp-pill-fwd"/>
-        <text x="178" y="148" text-anchor="middle"
+        <rect x="160" y="108" width="36" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="178" y="122" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">5</text>
       </g>
+      <!-- e3: fwd at y≈92 (below bwd y≈86) → blue label below -->
       <g id="bp-fl-e3" class="bp-lbl" opacity="0">
-        <rect x="343" y="96" width="54" height="20" rx="4" class="bp-pill-fwd"/>
-        <text x="370" y="110" text-anchor="middle"
+        <rect x="343" y="98" width="54" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="370" y="112" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">q = 3</text>
       </g>
+      <!-- e4: fwd at y=205 (above bwd y=211) → blue label above -->
       <g id="bp-fl-e4" class="bp-lbl" opacity="0">
-        <rect x="252" y="175" width="44" height="20" rx="4" class="bp-pill-fwd"/>
-        <text x="274" y="189" text-anchor="middle"
+        <rect x="252" y="183" width="44" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="274" y="197" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">-4</text>
       </g>
+      <!-- e5: fwd at y=157 (below bwd y=151) → blue label below -->
       <g id="bp-fl-e5" class="bp-lbl" opacity="0">
-        <rect x="501" y="135" width="46" height="20" rx="4" class="bp-pill-fwd"/>
-        <text x="524" y="149" text-anchor="middle"
+        <rect x="501" y="161" width="46" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="524" y="175" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">-12</text>
       </g>
 
-      <!-- BACKWARD LABELS -->
+      <!-- BACKWARD LABELS (red) — next to the red backward edge -->
+      <!-- e1: bwd at y=49 (above fwd y=55) → red label above -->
       <g id="bp-bl-e1" class="bp-lbl" opacity="0">
-        <rect x="149" y="55" width="66" height="21" rx="4" class="bp-pill-bwd"/>
-        <text x="179" y="69" text-anchor="middle"
+        <rect x="157" y="27" width="66" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="187" y="41" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = -4</text>
       </g>
+      <!-- e2: bwd at y=136 (below fwd y=130) → red label below -->
       <g id="bp-bl-e2" class="bp-lbl" opacity="0">
-        <rect x="149" y="110" width="66" height="21" rx="4" class="bp-pill-bwd"/>
-        <text x="179" y="124" text-anchor="middle"
+        <rect x="160" y="140" width="66" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="190" y="154" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = -4</text>
       </g>
+      <!-- e3: bwd at y≈86 (above fwd y≈92) → red label above -->
       <g id="bp-bl-e3" class="bp-lbl" opacity="0">
-        <rect x="343" y="115" width="66" height="21" rx="4" class="bp-pill-bwd"/>
-        <text x="373" y="129" text-anchor="middle"
+        <rect x="343" y="64" width="66" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="373" y="78" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = -4</text>
       </g>
+      <!-- e4: bwd at y=211 (below fwd y=205) → red label below -->
       <g id="bp-bl-e4" class="bp-lbl" opacity="0">
-        <rect x="250" y="195" width="60" height="21" rx="4" class="bp-pill-bwd"/>
-        <text x="277" y="209" text-anchor="middle"
+        <rect x="252" y="215" width="60" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="279" y="229" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = 3</text>
       </g>
+      <!-- e5: bwd at y=151 (above fwd y=157) → red label above -->
       <g id="bp-bl-e5" class="bp-lbl" opacity="0">
-        <rect x="501" y="161" width="50" height="21" rx="4" class="bp-pill-bwd"/>
-        <text x="523" y="175" text-anchor="middle"
+        <rect x="501" y="129" width="50" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="523" y="143" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = 1</text>
       </g>
 
