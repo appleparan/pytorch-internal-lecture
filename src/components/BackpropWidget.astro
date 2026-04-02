@@ -16,7 +16,7 @@
   <div class="bp-prog" id="bp-prog"></div>
 
   <div class="bp-circuit-wrap">
-    <svg id="bp-ckt" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg">
+    <svg id="bp-ckt" viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <marker id="bp-ah-off" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
           <path d="M0,0 L7,2.5 L0,5 z" fill="#ccc9c0"/>
@@ -30,178 +30,187 @@
       </defs>
 
       <!-- equation -->
-      <text x="360" y="20" text-anchor="middle"
-        font-family="'Pretendard',-apple-system,sans-serif" font-size="11" class="bp-eq-text" letter-spacing="0.3">
+      <text x="360" y="18" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" font-size="14" font-weight="500" class="bp-eq-text" letter-spacing="0.3">
         f(x, y, z) = (x + y) · z
       </text>
 
       <!-- EDGES -->
-      <path id="bp-pe1" class="bp-edge-path" d="M 140 78 H 210 L 268 128"
+      <!-- x → ADD -->
+      <path id="bp-pe1" class="bp-edge-path" d="M 140 55 H 200 L 268 86"
         fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
-      <path id="bp-pe2" class="bp-edge-path" d="M 140 192 H 210 L 268 136"
+      <!-- y → ADD -->
+      <path id="bp-pe2" class="bp-edge-path" d="M 140 130 H 200 L 268 98"
         fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
-      <path id="bp-pe1b" class="bp-edge-path" d="M 261 122 L 210 72 H 140"
+      <path id="bp-pe1b" class="bp-edge-path" d="M 261 80 L 200 49 H 140"
         fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
         marker-end="url(#bp-ah-bwd)" opacity="0"/>
-      <path id="bp-pe2b" class="bp-edge-path" d="M 261 140 L 210 198 H 140"
-        fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
-        marker-end="url(#bp-ah-bwd)" opacity="0"/>
-
-      <path id="bp-pe3" class="bp-edge-path" d="M 338 132 H 395 L 458 213"
-        fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
-      <path id="bp-pe4" class="bp-edge-path" d="M 140 300 H 395 L 458 219"
-        fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
-      <path id="bp-pe3b" class="bp-edge-path" d="M 451 207 L 395 126 H 338"
-        fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
-        marker-end="url(#bp-ah-bwd)" opacity="0"/>
-      <path id="bp-pe4b" class="bp-edge-path" d="M 451 225 L 395 306 H 140"
+      <path id="bp-pe2b" class="bp-edge-path" d="M 261 104 L 200 136 H 140"
         fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
         marker-end="url(#bp-ah-bwd)" opacity="0"/>
 
-      <path id="bp-pe5" class="bp-edge-path" d="M 528 216 H 582"
+      <!-- ADD → MUL -->
+      <path id="bp-pe3" class="bp-edge-path" d="M 337 92 H 355 L 428 151"
         fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
-      <path id="bp-pe5b" class="bp-edge-path" d="M 582 210 H 528"
+      <!-- z → MUL -->
+      <path id="bp-pe4" class="bp-edge-path" d="M 140 205 H 355 L 428 163"
+        fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
+      <path id="bp-pe3b" class="bp-edge-path" d="M 421 145 L 355 86 H 337"
+        fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
+        marker-end="url(#bp-ah-bwd)" opacity="0"/>
+      <path id="bp-pe4b" class="bp-edge-path" d="M 421 169 L 355 211 H 140"
+        fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
+        marker-end="url(#bp-ah-bwd)" opacity="0"/>
+
+      <!-- MUL → Output -->
+      <path id="bp-pe5" class="bp-edge-path" d="M 497 157 H 560"
+        fill="none" stroke="#d8d4cc" stroke-width="2" marker-end="url(#bp-ah-off)"/>
+      <path id="bp-pe5b" class="bp-edge-path" d="M 560 151 H 497"
         fill="none" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="5,3"
         marker-end="url(#bp-ah-bwd)" opacity="0"/>
 
       <!-- FORWARD LABELS -->
       <g id="bp-fl-e1" class="bp-lbl" opacity="0">
-        <rect x="158" y="48" width="44" height="21" rx="4" class="bp-pill-fwd"/>
-        <text x="180" y="63" text-anchor="middle"
+        <rect x="157" y="27" width="44" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="179" y="41" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">-2</text>
       </g>
       <g id="bp-fl-e2" class="bp-lbl" opacity="0">
-        <rect x="162" y="196" width="36" height="21" rx="4" class="bp-pill-fwd"/>
-        <text x="180" y="211" text-anchor="middle"
+        <rect x="160" y="134" width="36" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="178" y="148" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">5</text>
       </g>
       <g id="bp-fl-e3" class="bp-lbl" opacity="0">
-        <rect x="356" y="136" width="56" height="21" rx="4" class="bp-pill-fwd"/>
-        <text x="384" y="151" text-anchor="middle"
+        <rect x="343" y="96" width="54" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="370" y="110" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">q = 3</text>
       </g>
       <g id="bp-fl-e4" class="bp-lbl" opacity="0">
-        <rect x="260" y="260" width="44" height="21" rx="4" class="bp-pill-fwd"/>
-        <text x="282" y="275" text-anchor="middle"
+        <rect x="252" y="175" width="44" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="274" y="189" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">-4</text>
       </g>
       <g id="bp-fl-e5" class="bp-lbl" opacity="0">
-        <rect x="523" y="194" width="46" height="21" rx="4" class="bp-pill-fwd"/>
-        <text x="546" y="209" text-anchor="middle"
+        <rect x="501" y="135" width="46" height="20" rx="4" class="bp-pill-fwd"/>
+        <text x="524" y="149" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-fwd-txt">-12</text>
       </g>
 
       <!-- BACKWARD LABELS -->
       <g id="bp-bl-e1" class="bp-lbl" opacity="0">
-        <rect x="149" y="78" width="68" height="24" rx="4" class="bp-pill-bwd"/>
-        <text x="180" y="93" text-anchor="middle"
+        <rect x="149" y="55" width="66" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="179" y="69" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = -4</text>
       </g>
       <g id="bp-bl-e2" class="bp-lbl" opacity="0">
-        <rect x="149" y="166" width="68" height="24" rx="4" class="bp-pill-bwd"/>
-        <text x="180" y="181" text-anchor="middle"
+        <rect x="149" y="110" width="66" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="179" y="124" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = -4</text>
       </g>
       <g id="bp-bl-e3" class="bp-lbl" opacity="0">
-        <rect x="356" y="160" width="68" height="24" rx="4" class="bp-pill-bwd"/>
-        <text x="387" y="175" text-anchor="middle"
+        <rect x="343" y="115" width="66" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="373" y="129" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = -4</text>
       </g>
       <g id="bp-bl-e4" class="bp-lbl" opacity="0">
-        <rect x="258" y="284" width="62" height="24" rx="4" class="bp-pill-bwd"/>
-        <text x="286" y="299" text-anchor="middle"
+        <rect x="250" y="195" width="60" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="277" y="209" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = 3</text>
       </g>
       <g id="bp-bl-e5" class="bp-lbl" opacity="0">
-        <rect x="523" y="220" width="52" height="24" rx="4" class="bp-pill-bwd"/>
-        <text x="546" y="235" text-anchor="middle"
+        <rect x="501" y="161" width="50" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="523" y="175" text-anchor="middle"
           font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part; = 1</text>
       </g>
 
       <!-- INPUT NODES -->
-      <rect class="bp-node-rect" x="30" y="53" width="110" height="50" rx="7"/>
-      <text x="85" y="68" text-anchor="middle"
-        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="11" font-weight="500" letter-spacing="1">INPUT</text>
-      <text x="85" y="91" text-anchor="middle"
-        class="bp-node-val" font-family="'Courier New',monospace" font-size="16" font-weight="700">x = -2</text>
+      <rect class="bp-node-rect" x="30" y="35" width="110" height="40" rx="7"/>
+      <text x="85" y="48" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="10" font-weight="500" letter-spacing="1">INPUT</text>
+      <text x="85" y="66" text-anchor="middle"
+        class="bp-node-val" font-family="'Courier New',monospace" font-size="15" font-weight="700">x = -2</text>
       <g id="bp-badge-x" class="bp-badge" opacity="0">
-        <rect x="30" y="108" width="110" height="24" rx="4" class="bp-pill-bwd"/>
-        <text x="85" y="124" text-anchor="middle"
-          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;x = -4</text>
+        <rect x="30" y="80" width="110" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="85" y="94" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="12" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;x = -4</text>
       </g>
 
-      <rect class="bp-node-rect" x="30" y="167" width="110" height="50" rx="7"/>
-      <text x="85" y="182" text-anchor="middle"
-        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="11" font-weight="500" letter-spacing="1">INPUT</text>
-      <text x="85" y="205" text-anchor="middle"
-        class="bp-node-val" font-family="'Courier New',monospace" font-size="16" font-weight="700">y = 5</text>
+      <rect class="bp-node-rect" x="30" y="110" width="110" height="40" rx="7"/>
+      <text x="85" y="123" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="10" font-weight="500" letter-spacing="1">INPUT</text>
+      <text x="85" y="141" text-anchor="middle"
+        class="bp-node-val" font-family="'Courier New',monospace" font-size="15" font-weight="700">y = 5</text>
       <g id="bp-badge-y" class="bp-badge" opacity="0">
-        <rect x="30" y="222" width="110" height="24" rx="4" class="bp-pill-bwd"/>
-        <text x="85" y="238" text-anchor="middle"
-          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;y = -4</text>
+        <rect x="30" y="155" width="110" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="85" y="169" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="12" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;y = -4</text>
       </g>
 
-      <rect class="bp-node-rect" x="30" y="275" width="110" height="50" rx="7"/>
-      <text x="85" y="290" text-anchor="middle"
-        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="11" font-weight="500" letter-spacing="1">INPUT</text>
-      <text x="85" y="313" text-anchor="middle"
-        class="bp-node-val" font-family="'Courier New',monospace" font-size="16" font-weight="700">z = -4</text>
+      <rect class="bp-node-rect" x="30" y="185" width="110" height="40" rx="7"/>
+      <text x="85" y="198" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="10" font-weight="500" letter-spacing="1">INPUT</text>
+      <text x="85" y="216" text-anchor="middle"
+        class="bp-node-val" font-family="'Courier New',monospace" font-size="15" font-weight="700">z = -4</text>
       <g id="bp-badge-z" class="bp-badge" opacity="0">
-        <rect x="30" y="330" width="110" height="24" rx="4" class="bp-pill-bwd"/>
-        <text x="85" y="346" text-anchor="middle"
-          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;z = 3</text>
+        <rect x="30" y="230" width="110" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="85" y="244" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="12" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;z = 3</text>
       </g>
 
       <!-- GATES -->
-      <rect id="bp-r-add" class="bp-gate-rect" x="265" y="109" width="76" height="46" rx="23"
+      <rect id="bp-r-add" class="bp-gate-rect" x="265" y="74" width="72" height="36" rx="18"
         stroke-width="1.5"/>
-      <text x="303" y="142" text-anchor="middle"
-        font-family="'Courier New',monospace" font-size="32" font-weight="700" fill="#1a6fba">+</text>
+      <text x="301" y="102" text-anchor="middle"
+        font-family="'Courier New',monospace" font-size="28" font-weight="700" fill="#1a6fba">+</text>
 
-      <rect id="bp-r-mul" class="bp-gate-rect" x="455" y="193" width="76" height="46" rx="23"
+      <rect id="bp-r-mul" class="bp-gate-rect" x="425" y="139" width="72" height="36" rx="18"
         stroke-width="1.5"/>
-      <text x="493" y="226" text-anchor="middle"
-        font-family="'Courier New',monospace" font-size="32" font-weight="700" fill="#6b3fa0">&times;</text>
+      <text x="461" y="167" text-anchor="middle"
+        font-family="'Courier New',monospace" font-size="28" font-weight="700" fill="#6b3fa0">&times;</text>
 
       <!-- OUTPUT -->
-      <rect class="bp-node-rect" x="578" y="193" width="116" height="46" rx="7"/>
-      <text x="636" y="208" text-anchor="middle"
-        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="11" font-weight="500" letter-spacing="1">OUTPUT</text>
-      <text id="bp-val-f" class="bp-node-val" x="636" y="231" text-anchor="middle"
-        font-family="'Courier New',monospace" font-size="16" font-weight="700">f = ?</text>
+      <rect class="bp-node-rect" x="560" y="139" width="112" height="36" rx="7"/>
+      <text x="616" y="152" text-anchor="middle"
+        font-family="'Pretendard',-apple-system,sans-serif" class="bp-node-label" font-size="10" font-weight="500" letter-spacing="1">OUTPUT</text>
+      <text id="bp-val-f" class="bp-node-val" x="616" y="168" text-anchor="middle"
+        font-family="'Courier New',monospace" font-size="15" font-weight="700">f = ?</text>
       <g id="bp-badge-f" class="bp-badge" opacity="0">
-        <rect x="578" y="244" width="116" height="24" rx="4" class="bp-pill-bwd"/>
-        <text x="636" y="260" text-anchor="middle"
-          font-family="'Courier New',monospace" font-size="13" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;f = 1</text>
+        <rect x="560" y="180" width="112" height="21" rx="4" class="bp-pill-bwd"/>
+        <text x="616" y="194" text-anchor="middle"
+          font-family="'Courier New',monospace" font-size="12" font-weight="700" class="bp-pill-bwd-txt">&part;f/&part;f = 1</text>
       </g>
 
       <!-- LEGEND -->
-      <rect class="bp-legend-bg" x="572" y="8" width="140" height="54" rx="5"/>
-      <rect x="582" y="21" width="8" height="8" rx="2" fill="#1a6fba"/>
-      <text class="bp-legend-txt" x="596" y="29" font-family="'Pretendard',-apple-system,sans-serif" font-size="10">forward</text>
-      <rect x="582" y="39" width="8" height="8" rx="2" fill="#c0392b"/>
-      <text class="bp-legend-txt" x="596" y="47" font-family="'Pretendard',-apple-system,sans-serif" font-size="10">gradient &part;f / &part;&middot;</text>
+      <rect class="bp-legend-bg" x="572" y="6" width="140" height="48" rx="5"/>
+      <rect x="582" y="17" width="8" height="8" rx="2" fill="#1a6fba"/>
+      <text class="bp-legend-txt" x="596" y="25" font-family="'Pretendard',-apple-system,sans-serif" font-size="10">forward</text>
+      <rect x="582" y="33" width="8" height="8" rx="2" fill="#c0392b"/>
+      <text class="bp-legend-txt" x="596" y="41" font-family="'Pretendard',-apple-system,sans-serif" font-size="10">gradient &part;f / &part;&middot;</text>
     </svg>
   </div>
 
-  <!-- Description -->
-  <div class="bp-desc">
-    <div id="bp-phase-tag" class="bp-phase-tag bp-pt-init">INIT</div>
-    <div class="bp-desc-title" id="bp-desc-title">회로 초기화</div>
-    <div class="bp-desc-body" id="bp-desc-body"></div>
-  </div>
-
-  <!-- Gate cards -->
-  <div class="bp-gate-cards">
-    <div class="bp-gc bp-gc-add" id="bp-gc-add">
-      <div class="bp-gc-name bp-gc-name-add">+ ADD Gate</div>
-      <div class="bp-gc-rule" id="bp-gr-add"></div>
-      <div class="bp-gc-formula" id="bp-gf-add"></div>
+  <div class="bp-body">
+    <!-- Left: description -->
+    <div class="bp-left">
+      <div class="bp-desc">
+        <div id="bp-phase-tag" class="bp-phase-tag bp-pt-init">INIT</div>
+        <div class="bp-desc-title" id="bp-desc-title">회로 초기화</div>
+        <div class="bp-desc-body" id="bp-desc-body"></div>
+      </div>
     </div>
-    <div class="bp-gc bp-gc-mul" id="bp-gc-mul">
-      <div class="bp-gc-name bp-gc-name-mul">&times; MUL Gate</div>
-      <div class="bp-gc-rule" id="bp-gr-mul"></div>
-      <div class="bp-gc-formula" id="bp-gf-mul"></div>
+
+    <!-- Right: gate cards stacked -->
+    <div class="bp-right">
+      <div class="bp-gc bp-gc-add" id="bp-gc-add">
+        <div class="bp-gc-name bp-gc-name-add">+ ADD Gate</div>
+        <div class="bp-gc-rule" id="bp-gr-add"></div>
+        <div class="bp-gc-formula" id="bp-gf-add"></div>
+      </div>
+      <div class="bp-gc bp-gc-mul" id="bp-gc-mul">
+        <div class="bp-gc-name bp-gc-name-mul">&times; MUL Gate</div>
+        <div class="bp-gc-rule" id="bp-gr-mul"></div>
+        <div class="bp-gc-formula" id="bp-gf-mul"></div>
+      </div>
     </div>
   </div>
 
@@ -225,8 +234,8 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin-bottom: 12px;
-    padding-bottom: 12px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
     border-bottom: 1.5px solid var(--border);
   }
   .bp-title {
@@ -245,7 +254,7 @@
   }
 
   /* Progress */
-  .bp-prog { display: flex; gap: 3px; margin-bottom: 16px; }
+  .bp-prog { display: flex; gap: 3px; margin-bottom: 8px; }
   .bp-seg { height: 2px; flex: 1; border-radius: 2px; background: var(--border); transition: background 0.3s; }
   .bp-seg-done { background: var(--text-muted); }
   .bp-seg-active { background: #1a6fba; }
@@ -256,8 +265,8 @@
     background: var(--bg-surface);
     border: 1.5px solid var(--border);
     border-radius: 10px;
-    padding: 8px 4px 4px;
-    margin-bottom: 12px;
+    padding: 4px 4px 2px;
+    margin-bottom: 8px;
   }
   #bp-ckt { width: 100%; height: auto; display: block; }
   .bp-edge-path { transition: stroke 0.3s, stroke-width 0.3s; }
@@ -284,14 +293,30 @@
   [data-theme='dark'] .bp-pill-bwd { fill: #260f0c; stroke: #c84c3c; }
   [data-theme='dark'] .bp-pill-bwd-txt { fill: #c84c3c; }
 
+  /* Two-column body */
+  .bp-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .bp-left {
+    display: flex;
+    flex-direction: column;
+  }
+  .bp-right {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
   /* Description */
   .bp-desc {
     background: var(--bg-surface);
     border: 1.5px solid var(--border);
     border-radius: 10px;
-    padding: 16px 20px;
-    margin-bottom: 12px;
-    min-height: 104px;
+    padding: 14px 16px;
+    flex: 1;
   }
   .bp-phase-tag {
     display: inline-block;
@@ -321,7 +346,7 @@
   .bp-desc-body {
     font-size: 13px;
     line-height: 1.85;
-    color: var(--text-muted);
+    color: var(--text);
   }
   .bp-desc-body p { margin: 0 0 4px; }
   .bp-desc-body table { border-collapse: collapse; width: 100%; }
@@ -330,14 +355,14 @@
   .bp-desc-body .katex-display { margin: 4px 0 !important; }
 
   /* Gate cards */
-  .bp-gate-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
   .bp-gc {
     background: var(--bg-surface);
     border: 1.5px solid var(--border);
     border-radius: 10px;
-    padding: 14px 14px 12px;
+    padding: 12px 14px 10px;
     opacity: 0.4;
     transition: opacity 0.3s, border-color 0.3s, box-shadow 0.3s;
+    flex: 1;
   }
   .bp-gc-lit { opacity: 1; }
   .bp-gc-lit.bp-gc-add { border-color: #1a6fba; box-shadow: 0 2px 12px rgba(26,111,186,0.10); }

@@ -59,11 +59,11 @@ Reverse-mode automatic differentiation은 역전파(backpropagation)를 구현�
 
 **(i)** $y = f(g(x))$일 때:
 
-$$\frac{dy}{dx} = \underbrace{f'(g(x))}_{\text{Outside's Function Derivative}} \cdot \underbrace{g'(x)}_{\text{Inside's Function Derivative}}$$
+$$\begin{equation*}\frac{dy}{dx} = \underbrace{f'(g(x))}_{\text{Outside's Function Derivative}} \cdot \underbrace{g'(x)}_{\text{Inside's Function Derivative}}\end{equation*}$$
 
 **(ii)** $y = f(t)$이고 $x = g(t)$일 때:
 
-$$\frac{dy}{dx} = \frac{dy}{dt} \cdot \frac{dt}{dx}$$
+$$\begin{equation*}\frac{dy}{dx} = \frac{dy}{dt} \cdot \frac{dt}{dx}\end{equation*}$$
 
 
 ### 예제: Autodiff 계산
@@ -86,6 +86,7 @@ $$f(x_1, x_2) = \ln(x_1) + x_1 x_2 - \sin(x_2)$$
 
 <BackpropWidget />
 
+> 참고: https://cs231n.github.io/optimization-2/
 
 ## Pytorch 1.0: Autograd
 
