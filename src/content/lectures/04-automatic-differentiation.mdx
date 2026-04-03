@@ -294,16 +294,22 @@ loss.backward()
 
 `torch.compile()`을 적용한 학습의 동작 과정은 세 단계로 나눌 수 있습니다:
 
-**Step 1 — Compiled model을 `torch.autograd.Function`으로 변환**: Dynamo의 FX Graph가 AOTAutograd에 의해 compiled forward와 backward를 모두 포함하는 `torch.autograd.Function` 객체로 변환됩니다. 이것이 바로 앞서 PyTorch 1.0 Autograd에서 언급했던 **custom differentiable function** 기능을 활용하는 것입니다. 이 객체는 마치 하나의 거대한 미분 가능한 custom function처럼 동작하며, forward 부분과 backward 부분을 모두 가지고 있습니다. `compiled_model`을 호출하면 `torch.autograd.Function`의 forward 부분이 실행되어 실제 forward 계산이 이루어지고, output의 `grad_fn`으로 compiled backward가 등록됩니다.
+**Step 1** — `outputs = compiled_model(images)`
 
-**Step 2 — Loss 계산 (eager mode)**: Output으로부터 cross entropy 등의 loss를 계산합니다. 이 과정은 `requires_grad`가 켜져 있는 eager mode로 실행되므로, output에 등록되어 있던 `grad_fn`(compiled backward)이 loss function의 `grad_fn`으로 연결됩니다.
+Dynamo의 FX Graph가 AOTAutograd에 의해 compiled forward와 backward를 모두 포함하는 `torch.autograd.Function` 객체로 변환됩니다. 이것이 바로 앞서 PyTorch 1.0 Autograd에서 언급했던 **custom differentiable function** 기능을 활용하는 것입니다. 이 객체는 마치 하나의 거대한 미분 가능한 custom function처럼 동작하며, forward 부분과 backward 부분을 모두 가지고 있습니다. `compiled_model`을 호출하면 forward 부분이 실행되어 실제 forward 계산이 이루어지고, output의 `grad_fn`으로 compiled backward가 등록됩니다.
 
-**Step 3 — Backward 수행**: `loss.backward()`를 호출하면, loss function의 backward 부분이 먼저 실행되고, 이어서 Step 1에서 등록된 compiled backward가 하나의 큰 Op으로서 호출됩니다. 이 두 backward가 순차적으로 역방향 실행되면서 model weight의 gradient가 계산됩니다.
+**Step 2** — `loss = F.cross_entropy(outputs, labels)`
+
+Output으로부터 cross entropy 등의 loss를 계산합니다. 이 과정은 `requires_grad`가 켜져 있는 eager mode로 실행되므로, output에 등록되어 있던 `grad_fn`(compiled backward)이 loss function의 `grad_fn`으로 연결됩니다.
+
+**Step 3** — `loss.backward()`
+
+Loss function의 backward 부분이 먼저 실행되고, 이어서 Step 1에서 등록된 compiled backward가 하나의 큰 Op으로서 호출됩니다. 이 두 backward가 순차적으로 역방향 실행되면서 model weight의 gradient가 계산됩니다.
 
 
 ### AOTAutograd의 역할
 
-<Mermaid>
+<Mermaid wide>
 {`graph LR
     M["nn.Module"] --> D["Dynamo"]
     D --> FX["FX Graph"]
