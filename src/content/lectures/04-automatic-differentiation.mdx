@@ -294,20 +294,24 @@ loss.backward()
 
 `torch.compile()`을 적용한 학습의 동작 과정은 세 단계로 나눌 수 있습니다:
 
-**Step 1** — `outputs = compiled_model(images)`
+**Step 1** — `compiled_model = torch.compile(model)` → `outputs = compiled_model(images)`
 
-Dynamo의 FX Graph가 AOTAutograd에 의해 compiled forward와 backward를 모두 포함하는 `torch.autograd.Function` 객체로 변환됩니다. 이것이 바로 앞서 PyTorch 1.0 Autograd에서 언급했던 **custom differentiable function** 기능을 활용하는 것입니다. 이 객체는 마치 하나의 거대한 미분 가능한 custom function처럼 동작하며, forward 부분과 backward 부분을 모두 가지고 있습니다. `compiled_model`을 호출하면 forward 부분이 실행되어 실제 forward 계산이 이루어지고, output의 `grad_fn`으로 compiled backward가 등록됩니다.
+`torch.compile(model)`을 호출하면 Dynamo가 모델을 tracing하여 **FX Graph**를 생성합니다. 이 FX Graph가 **AOTAutograd**에 의해 `torch.autograd.Function` 객체로 변환됩니다. 이것이 바로 앞서 PyTorch 1.0 Autograd에서 언급했던 **custom differentiable function** 기능을 활용하는 것입니다. 이 객체는 마치 하나의 거대한 미분 가능한 custom function처럼 동작하며, compiled forward와 compiled backward를 모두 가지고 있습니다 (슬라이드 오른쪽의 `def forward`와 `def backward` 참조).
+
+`compiled_model(images)`를 호출하면 이 객체의 **forward 부분만 실행**되어 실제 forward 계산이 이루어집니다. 동시에 output의 `grad_fn`으로 compiled backward가 등록됩니다. Backward 부분은 이 시점에서는 호출되지 않고, 나중에 `backward()`가 호출될 때 한 스텝으로 실행됩니다.
 
 **Step 2** — `loss = F.cross_entropy(outputs, labels)`
 
-Output으로부터 cross entropy 등의 loss를 계산합니다. 이 과정은 `requires_grad`가 켜져 있는 eager mode로 실행되므로, output에 등록되어 있던 `grad_fn`(compiled backward)이 loss function의 `grad_fn`으로 연결됩니다.
+Output에는 실제 계산된 값이 들어 있으므로, 이를 가지고 cross entropy 등의 loss를 계산할 수 있습니다. 이 과정은 `requires_grad`가 켜져 있는 **eager mode**로 실행됩니다. Output에 등록되어 있던 `grad_fn`(compiled backward)이 loss function의 `grad_fn`으로 자연스럽게 연결됩니다.
 
 **Step 3** — `loss.backward()`
 
-Loss function의 backward 부분이 먼저 실행되고, 이어서 Step 1에서 등록된 compiled backward가 하나의 큰 Op으로서 호출됩니다. 이 두 backward가 순차적으로 역방향 실행되면서 model weight의 gradient가 계산됩니다.
+`loss.backward()`를 호출하면, loss function의 backward 부분이 먼저 실행되고, 이어서 그 입력이었던 output의 `grad_fn`, 즉 Step 1에서 등록된 **compiled backward**가 하나의 큰 Op으로서 호출됩니다. 이 두 backward가 순차적으로 역방향(concatenation)으로 실행되면서 model weight의 gradient가 계산됩니다.
 
 
 ### AOTAutograd의 역할
+
+AOTAutograd는 PyTorch 2.0에서 새로 추가된 기능으로, training mode에서 Autograd의 forward 및 backward 과정을 처리하는 핵심 엔진입니다. 앞 페이지에서 설명한 과정을 좀 더 쪼개서 살펴보겠습니다.
 
 <Mermaid wide>
 {`graph LR
@@ -317,26 +321,65 @@ Loss function의 backward 부분이 먼저 실행되고, 이어서 Step 1에서 
     AOT --> F["torch.autograd.Function<br/>with compiled forward and<br/>backward functions"]`}
 </Mermaid>
 
-AOTAutograd는 다음과 같은 파이프라인으로 동작합니다:
+핵심은 training mode에서 FX Graph가 backend compiler로 바로 전달되지 않는다는 점입니다. AOTAutograd가 먼저 개입하여 다음 과정을 수행합니다:
 
-- **nn.Module** → Dynamo가 tracing하여 **FX Graph**를 생성합니다.
-- FX Graph → AOTAutograd가 **forward/backward를 분리**하고 최적화합니다.
-- Forward/backward 각각을 **backend compiler**로 컴파일합니다.
-- 최적화된 `torch.autograd.Function` 객체를 생성하여 가속된 training을 수행합니다.
+1. **nn.Module** → Dynamo가 tracing하여 **FX Graph**를 생성합니다. (이 부분은 graph mode에서 다뤘던 내용과 동일합니다.)
+2. FX Graph → AOTAutograd가 **forward와 backward를 분리**하고 최적화합니다.
+3. Forward와 backward를 **각각 따로** backend compiler로 컴파일합니다.
+4. 컴파일된 forward와 backward를 모두 가지고 있는 `torch.autograd.Function` 객체를 생성하여 반환합니다.
+
+이렇게 반환된 `torch.autograd.Function`을 호출하면, 이미 컴파일된 형태의 forward와 backward가 실행되므로 가속된 training이 가능해집니다.
 
 
 ### Graph Mode Backward의 도전 과제
 
-Graph mode에서 backward를 처리하는 데에는 두 가지 큰 도전 과제가 있습니다:
+Graph mode에서 backward를 처리하는 데에는 두 가지 큰 도전 과제가 있으며, AOTAutograd는 각각에 대한 해결책을 제시합니다:
 
-**첫 번째 문제**: Autograd engine은 **C++**로 구현되어 있어, Python 수준에서 tracing을 수행하는 Dynamo가 직접 handle할 수 없습니다.
+<table class="w-full mt-4">
+<thead>
+<tr>
+<th class="text-left w-1/2">*Graph mode backward의 challenges*</th>
+<th class="text-left w-1/2">*AOT Autograd의 해결책*</th>
+</tr>
+</thead>
+<tbody>
+<tr class="align-top">
+<td class="pr-4 pb-4">
 
-**두 번째 문제**: Dynamo가 생성한 FxGraph에 들어있는 op들이 꽤 복잡합니다. PyTorch에는 수천 개의 op이 있으며, eager mode의 복잡성(aliasing, mutation, subclass, view/storage decoupling 등)까지 고려해야 합니다.
+**문제 1.** Autograd engine은 **C++**로 구현되어 있음
+- Python 수준에서 tracing을 수행하는 Dynamo가 handle할 수 없음
+- Dynamo는 Python interpreter를 확장하여 동작하므로 C++ tracing 미지원
 
-**AOT Autograd의 해결책**:
+</td>
+<td class="pb-4">
 
-- Backward를 **C++ dispatcher 수준**에서 tracing합니다. 먼저 Dynamo로 forward FxGraph를 생성한 뒤, Autograd engine을 적용하여 backward 계산을 C++ dispatcher 수준에서 trace합니다.
-- FxGraph를 먼저 **normalization**(Functionalization, Decomposition)한 이후에 tracing합니다.
+**→ 해결 1.** Backward를 **C++ dispatcher 수준**에서 tracing
+- 먼저 Dynamo로 forward FX Graph를 생성
+- Autograd engine을 적용, backward 계산을 C++ dispatcher 수준에서 trace
+- Fake tensor를 활용하여 실제 계산 없이 trace 가능
+- Dispatch key에 따라 autograd kernel 호출
+
+</td>
+</tr>
+<tr class="align-top">
+<td class="pr-4 pb-4">
+
+**문제 2.** Dynamo가 생성한 FX Graph의 **op들이 꽤 복잡**
+- PyTorch에는 수천 개의 op이 있음
+- Eager mode의 복잡성 (aliasing, mutation, subclass, view/storage decoupling 등)
+- Eager mode에서는 dispatcher 안에 해결 메커니즘이 있지만, graph mode에서는 직접 해결 필요
+
+</td>
+<td class="pb-4">
+
+**→ 해결 2.** FX Graph를 먼저 **normalization**한 이후에 tracing
+- Functionalization
+- Decomposition
+
+</td>
+</tr>
+</tbody>
+</table>
 
 
 ### AOTAutograd Architecture
