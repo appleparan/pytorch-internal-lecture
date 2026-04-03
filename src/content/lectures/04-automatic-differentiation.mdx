@@ -386,7 +386,15 @@ Graph mode에서 backward를 처리하는 데에는 두 가지 큰 도전 과제
 
 <img src="/images/04/slide25_1.png" class="h-64 mx-auto" />
 
-AOTAutograd는 Python 수준에서 자연스럽게 사용할 수 있으면서도, compile된 forward/backward function들을 생성하여 속도를 향상시킵니다.
+위 그림은 AOTAutograd의 전체 흐름을 보여줍니다. `requires_grad`가 켜져 있는 input tensor들이 들어오면:
+
+1. **Dynamo**에 의해 **FX Graph**로 변환됩니다.
+2. FX Graph에 **Functionalization, Decomposition** 등의 normalization을 적용하여 더 간단한 그래프를 만듭니다.
+3. 정규화된 그래프를 **C++ 수준에서 tracing**하면, **forward 그래프와 backward 그래프가 동시에** 생성됩니다.
+4. Forward와 backward를 **각각 backend compiler로 컴파일**합니다.
+5. 컴파일된 forward/backward를 `torch.autograd.Function`으로 매핑하여 반환합니다.
+
+이 과정을 통해 AOTAutograd는 들어오는 FX Graph를 forward와 backward를 모두 가진 최적화된 `torch.autograd.Function` 객체로 변환합니다. 이 과정을 좀 더 자세히 breakdown해서 살펴보겠습니다.
 
 
 ### AOTAutograd 수행 순서
@@ -395,45 +403,65 @@ AOTAutograd의 전체 수행 순서는 다음과 같습니다:
 
 | 단계 | 과정 |
 |------|------|
-| **A** | Dynamo가 생성한 FxGraph를 input으로 받음 |
+| **A** | Dynamo가 생성한 FX Graph를 input으로 받음 |
 | **B** | Forward와 backward를 합친 **joint 함수**를 생성 |
-| **C** | Joint trace를 normalize (Functionalization 적용 등) |
+| **C** | Joint 함수를 normalize (Functionalization 적용 등) |
 | **D** | Joint 함수를 수행하며 실행된 op을 C++ dispatcher 수준에서 trace |
 | **E** | Decomposition 적용 |
-| **F** | Joint trace로부터 **joint FxGraph** 생성 |
-| **G** | Joint FxGraph를 forward/backward로 **분리** |
-| **H** | Forward/backward를 compile, compiled function 생성 |
+| **F** | Joint trace로부터 **joint FX Graph** 생성 |
+| **G** | Joint FX Graph를 forward/backward로 **분리** (Min-Cut 알고리즘) |
+| **H** | Forward/backward를 각각 **backend compiler**로 컴파일 |
 | **I** | Compiled function들을 묶어 최종 `torch.autograd.Function` 생성 |
+
+**왜 joint 함수를 만드는가?** Forward와 backward를 따로 최적화하면 중간 텐서의 관계를 파악하기 어렵습니다. 학습 시 backward는 forward에서 계산된 중간 텐서 값이 필요한데, 이 텐서들이 매우 클 수 있어 메모리를 많이 차지합니다. 모든 중간 텐서를 저장하는 대신, 필요할 때 다시 계산하는 **recomputation** 전략을 적용할 수 있는데, 이를 효율적으로 수행하려면 forward에서 만들어진 텐서가 backward의 어떤 입력으로 연결되는지를 알아야 합니다. Joint 함수를 만들면 이 input-output 관계가 모두 살아있는 하나의 계산 그래프가 만들어지므로, recomputation을 포함한 최적화를 훨씬 쉽게 적용할 수 있습니다.
+
+**Joint 함수 생성 과정의 구체적 동작**: Eager mode에서는 forward를 한 단계씩 실행하면서 incremental하게 `grad_fn`을 텐서에 등록합니다. AOTAutograd에서는 이 과정을 먼저 한 번 실행하여 모든 `grad_fn`을 등록해 두고, 이어서 Autograd engine이 등록된 `grad_fn`들을 수행하는 부분까지 합쳐서 하나의 함수로 만듭니다. 이 함수를 C++ dispatcher 수준에서 trace하면, forward에서 계산된 텐서들과 backward에서 이를 사용하는 부분이 모두 연결된 하나의 trace가 한 번에 만들어집니다.
+
+**Normalization이란?** Eager mode에서 암묵적(implicit)으로 처리되던 복잡한 연산들을 명시적(explicit)으로 드러내고, 이를 단순한 작은 Op들로 분해하는 과정입니다. Functionalization과 Decomposition이 여기에 해당합니다.
+
+**Backend compiler(H 단계)**: H 단계에서의 컴파일은 Dynamo의 tracing이 아니라, 실제 backend compiler(예: Inductor)가 최적화된 코드를 생성하는 과정입니다. Backend-aware 최적화는 forward/backward가 분리된 이 단계에서만 적용됩니다.
 
 
 ### AOTAutograd 코드 레벨 동작
 
-위의 단계들을 코드 레벨에서 살펴보면 다음과 같습니다:
+위의 단계들을 코드 레벨에서 살펴보면 다음과 같습니다. 가장 top-level 함수는 `aot_dispatch_autograd()`이며, 크게 세 부분으로 나뉩니다: (1) joint FX Graph 생성, (2) partitioning 및 컴파일, (3) `torch.autograd.Function`으로 wrap하여 반환.
 
 ```python
 # A: 최상위 함수
 aot_dispatch_autograd(flat_fn)
   # Joint FX Graph 생성
   fx_g = aot_dispatch_autograd_graph(flat_fn, ...)
-    # B: Joint 함수 생성
+    # B: Joint 함수 생성 — forward와 backward를 붙여서
+    #    forward만 실행해도 둘 다 계산되는 함수를 만듦
     joint_fn_to_trace = create_joint(flat_fn, ...)
       def inner_fn(...)
         outs = fn(*primals)                    # Forward 실행
         backward_out = torch.autograd.grad(...)  # Backward 실행
         return outs, backward_out
-    # C: Normalization 수행
+    # C: Normalization 수행 — eager mode의 복잡성을 제거
     joint_fn_to_trace = create_functionalize_fn(joint_fn_to_trace, ...)
     joint_fn_to_trace = aot_dispatch_subclass(joint_fn_trace, ...)
-    # D, E, F: Tracing + Decomposition + FxGraph 생성
+    # D, E, F: 실제 tracing 수행 + Decomposition + FxGraph 생성
+    #   D: joint_fn_to_trace에 대한 실제 tracing이 일어남
+    #   E: Decomposition (Torch IR → ATen IR → Core ATen IR → Prims IR)
+    #   F: 최종 Joint FX Graph 생성
     fx_g = _create_graph(joint_fn_to_trace, ...)
-  # G: Partitioning
+  # G: Partitioning — Joint FX Graph를 forward/backward로 분리
   fw_module, bw_module = partition_fn(fx_g, ...)
-  # H: Compile 수행
+  # H: Compile 수행 — 각각 backend compiler로 컴파일
   compiled_fw_func = fw_compiler(fw_module, ...)
   compiled_bw_func = bw_compiler(bw_module, ...)
-  # I: 최종 결과물 생성
+  # I: 최종 결과물 — torch.autograd.Function으로 wrap하여 반환
   compiled_fn = AOTDispatchAutograd.post_compile(compiled_fw_func, ...)
 ```
+
+이 중 가장 복잡한 부분은 joint FX Graph를 만들어내는 과정(B\~F)입니다:
+
+- **B 단계**: Forward 부분과 backward 부분을 하나의 함수로 결합합니다.
+- **C 단계**: Normalization을 적용하여 eager mode의 복잡성을 제거합니다.
+- **D\~F 단계**: `_create_graph()`를 통해 실제 tracing이 이루어지고, decomposition을 거쳐 최종 joint FX Graph가 생성됩니다.
+
+여기서 decomposition은 eager mode의 복잡성 제거(normalization)와는 별개로, 수많은 Torch Op을 정해진 소수의 낮은 수준 Op들로 분해하는 과정입니다 (Torch IR → ATen IR → Core ATen IR → Prims IR).
 
 
 ### AOTAutograd 실행 예제
