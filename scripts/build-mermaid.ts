@@ -17,6 +17,7 @@ import { execSync } from 'node:child_process';
 const LECTURES_DIR = resolve('src/content/lectures');
 const OUT_DIR = resolve('src/generated/mermaid');
 const MANIFEST_PATH = join(OUT_DIR, 'manifest.json');
+const PUPPETEER_CFG = resolve('puppeteer-config.json');
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -101,8 +102,9 @@ function renderSvg(
   const tmpIn = join(OUT_DIR, '_tmp_input.mmd');
   writeFileSync(tmpIn, source);
 
+  const puppeteerArg = existsSync(PUPPETEER_CFG) ? ` -p "${PUPPETEER_CFG}"` : '';
   execSync(
-    `bunx mmdc -i "${tmpIn}" -o "${outPath}" -t ${theme} --outputFormat svg -b transparent`,
+    `bunx mmdc -i "${tmpIn}" -o "${outPath}" -t ${theme} --outputFormat svg -b transparent${puppeteerArg}`,
     { stdio: 'pipe', timeout: 30_000 },
   );
 
