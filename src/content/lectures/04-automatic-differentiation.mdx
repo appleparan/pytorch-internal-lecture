@@ -466,7 +466,18 @@ aot_dispatch_autograd(flat_fn)
 
 ### AOTAutograd 실행 예제
 
-<img src="/images/04/slide28_1.png" class="h-80 mx-auto" />
+다음 코드를 통해 AOTAutograd가 실제로 어떻게 동작하는지 살펴보겠습니다:
+
+```python
+@torch.compile()
+def func(a, b):
+    return torch.clamp_min(a, b) * 3
+
+p = torch.tensor([0.4, -0.2], requires_grad=True, device='cuda')
+loss = func(p, 0).sum()
+loss.backward()
+print(p.grad)
+```
 
 
 ### Joint Graph 생성
