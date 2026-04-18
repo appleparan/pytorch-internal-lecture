@@ -157,9 +157,39 @@ y = x * 2
 </Mermaid>
 
 
-### [참고] Forward에서 수행되는 AutoGrad kernel 예제: add (old style)
+### [참고] Forward에서 수행되는 AutoGrad kernel 예제: add
 
-<img src="/images/04/slide13_1.png" class="h-72 mx-auto" />
+PyTorch v1.13.1 기준으로 `torch/csrc/autograd/generated/VariableType_2.cpp`에는 다음과 같은 `add_Tensor` forward 커널이 생성되어 있습니다. (디버그 전용 `#ifndef NDEBUG` 블록의 storage alias 검증 코드는 핵심 흐름 이해에 지장이 없어 생략했습니다.)
+
+```cpp
+// torch/csrc/autograd/generated/VariableType_2.cpp
+at::Tensor add_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & other, const at::Scalar & alpha) {
+  auto& self_ = unpack(self, "self", 0);
+  auto& other_ = unpack(other, "other", 1);
+  auto _any_requires_grad = compute_requires_grad( self, other );
+  (void)_any_requires_grad;
+
+  std::shared_ptr<AddBackward0> grad_fn;
+  if (_any_requires_grad) {
+    grad_fn = std::shared_ptr<AddBackward0>(new AddBackward0(), deleteNode);
+    grad_fn->set_next_edges(collect_next_edges( self, other ));
+    grad_fn->other_scalar_type = other.scalar_type();
+    grad_fn->alpha = alpha;
+    grad_fn->self_scalar_type = self.scalar_type();
+  }
+
+  auto _tmp = ([&]() {
+    at::AutoDispatchBelowADInplaceOrView guard;
+    return at::redispatch::add(ks & c10::after_autograd_keyset, self_, other_, alpha);
+  })();
+  auto result = std::move(_tmp);
+
+  if (grad_fn) {
+      set_history(flatten_tensor_args( result ), grad_fn);
+  }
+  return result;
+}
+```
 
 이 코드는 사람이 직접 작성한 것이 아니라, Autograd 라이브러리가 자동으로 생성(codegen)한 커널입니다. Eager mode에서의 dispatch 개념을 떠올리면, PyTorch에는 **dispatch key**가 있어서 텐서의 상태에 따라 어떤 함수를 dispatch할지 결정합니다. Forward용 커널과 backward용 커널이 각각 존재하고, 하드웨어(CPU, GPU 등)에 따라 다른 함수를 dispatch할 수 있도록 설계되어 있습니다.
 
@@ -176,6 +206,98 @@ y = x * 2
 ### [참고] Grad Functions
 
 Grad function들(예: `AddBackward0`)도 결국 PyTorch Op입니다. 이 미분 함수들은 `derivatives.yaml`에 정의된 Op들의 미분 규칙으로부터 자동으로 코드 생성(codegen)됩니다. PyTorch에는 Op을 정의하는 YAML 파일이 여러 개 있으며, 그 중 `derivatives.yaml`에 기본 Op들에 대한 미분 규칙이 정리되어 있고, PyTorch가 이를 읽어서 backward 함수들을 자동으로 생성합니다.
+
+#### 1단계: `derivatives.yaml`의 미분 규칙 선언
+
+예를 들어 `add`, `mul`, `pow` 연산은 [`tools/autograd/derivatives.yaml`](https://github.com/pytorch/pytorch/blob/v1.13.1/tools/autograd/derivatives.yaml)에 아래처럼 입력별 미분식이 선언되어 있습니다. (PyTorch 1.13.1 기준)
+
+```yaml
+- name: add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
+  self: handle_r_to_c(self.scalar_type(), grad)
+  other: handle_r_to_c(other.scalar_type(), maybe_multiply(grad, alpha.conj()))
+  result: self_t + maybe_multiply(other_t, alpha)
+
+- name: mul.Tensor(Tensor self, Tensor other) -> Tensor
+  self: mul_tensor_backward(grad, other, self.scalar_type())
+  other: mul_tensor_backward(grad, self, other.scalar_type())
+  result: other_t * self_p + self_t * other_p
+
+- name: pow.Tensor_Scalar(Tensor self, Scalar exponent) -> Tensor
+  self: pow_backward(grad, self, exponent)
+  result: auto_element_wise
+```
+
+각 입력(`self`, `other`, …)마다 "이 입력에 대한 gradient는 어떻게 계산하는가"를 수식으로 적어 두는 구조입니다.
+
+#### 2단계: Codegen이 만들어주는 backward 클래스
+
+빌드 시 [`tools/autograd/gen_autograd_functions.py`](https://github.com/pytorch/pytorch/blob/v1.13.1/tools/autograd/gen_autograd_functions.py)가 위 YAML을 읽어서 `torch/csrc/autograd/generated/Functions.h`와 `Functions.cpp`를 생성합니다. `AddBackward0`의 경우 다음과 같은 코드가 만들어집니다:
+
+```cpp
+// Functions.h
+struct TORCH_API AddBackward0 : public TraceableFunction {
+  using TraceableFunction::TraceableFunction;
+  variable_list apply(variable_list&& grads) override;
+  std::string name() const override { return "AddBackward0"; }
+  void release_variables() override {
+  }
+
+  at::ScalarType other_scalar_type;
+  at::Scalar alpha;
+  at::ScalarType self_scalar_type;
+};
+```
+
+```cpp
+// Functions.cpp
+variable_list AddBackward0::apply(variable_list&& grads) {
+  IndexRangeGenerator gen;
+  auto self_ix = gen.range(1);
+  auto other_ix = gen.range(1);
+  variable_list grad_inputs(gen.size());
+  const auto& grad = grads[0];
+  bool any_grad_defined = any_variable_defined(grads);
+  if (task_should_compute_output({ other_ix })) {
+    auto grad_result = any_grad_defined ? (handle_r_to_c(other_scalar_type, maybe_multiply(grad, alpha.conj()))) : Tensor();
+    copy_range(grad_inputs, other_ix, grad_result);
+  }
+  if (task_should_compute_output({ self_ix })) {
+    auto grad_result = any_grad_defined ? (handle_r_to_c(self_scalar_type, grad)) : Tensor();
+    copy_range(grad_inputs, self_ix, grad_result);
+  }
+  return grad_inputs;
+}
+```
+
+YAML의 `self:` / `other:` 표현식이 그대로 `apply()` 내부의 `handle_r_to_c(...)` / `maybe_multiply(grad, alpha.conj())`로 옮겨진 것을 볼 수 있습니다. 클래스 멤버(`alpha`, `self_scalar_type`, `other_scalar_type`)에는 forward 시점에 필요한 값을 저장해 두고, backward에서 그 값을 사용하도록 되어 있습니다.
+
+같은 방식으로 `MulBackward0`, `PowBackward0`도 생성됩니다. 예를 들어 앞의 계산 그래프 예제에서 사용된 `MulBackward0::apply`는 다음과 같습니다:
+
+```cpp
+variable_list MulBackward0::apply(variable_list&& grads) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  IndexRangeGenerator gen;
+  auto self_ix = gen.range(1);
+  auto other_ix = gen.range(1);
+  variable_list grad_inputs(gen.size());
+  const auto& grad = grads[0];
+  auto self = self_.unpack();
+  auto other = other_.unpack();
+  bool any_grad_defined = any_variable_defined(grads);
+  if (task_should_compute_output({ other_ix })) {
+    auto grad_result = any_grad_defined ? (mul_tensor_backward(grad, self, other_scalar_type)) : Tensor();
+    copy_range(grad_inputs, other_ix, grad_result);
+  }
+  if (task_should_compute_output({ self_ix })) {
+    auto grad_result = any_grad_defined ? (mul_tensor_backward(grad, other, self_scalar_type)) : Tensor();
+    copy_range(grad_inputs, self_ix, grad_result);
+  }
+  return grad_inputs;
+}
+```
+
+`self_.unpack()`, `other_.unpack()`에서 볼 수 있듯 곱셈은 backward에서 원래 입력값이 필요하므로 `SavedVariable` 멤버로 저장해 두었다가 꺼내 쓰는 구조입니다. (`add`는 입력값이 필요 없으니 저장하지 않았던 것과 대비됩니다.) 결과적으로 derivatives.yaml 한 줄이 곧 하나의 backward 클래스로 변환되며, 개발자는 미분식만 선언하면 실제 `grad_fn` 클래스와 dispatch 코드는 codegen이 만들어주는 구조입니다.
 
 
 ### Step 3: Forward 연산 (z = y ** 2)
@@ -584,3 +706,96 @@ PyTorch는 다음 두 가지 개념을 `torch.autograd.Function`으로 통합합
 <img src="/images/04/slide35_2.png" class="h-20 mx-auto mt-2" />
 
 등록된 backend가 forward/backward를 각각 컴파일하여, 최종적으로 가속된 학습이 이루어집니다.
+
+
+## Appendix: Grad Function Codegen 재현 방법
+
+본문 "[참고] Grad Functions" 섹션에 등장한 `AddBackward0`, `MulBackward0` 등의 C++ 코드는 PyTorch 소스 트리에 커밋되어 있지 않고, 빌드 과정에서 `tools/autograd/`의 codegen 스크립트가 `derivatives.yaml`을 읽어 생성합니다. 본 강의 자료는 PyTorch v1.13.1을 기준으로 codegen만 별도로 재현해서 결과물을 인용했으며, 재현 방법은 다음과 같습니다.
+
+### 1. 환경 준비
+
+PyTorch 1.13.1은 Python 3.7 ~ 3.10까지만 지원하므로 Python 3.10 가상환경을 사용합니다. 전체 PyTorch 빌드는 필요 없고 codegen만 돌리면 되므로 의존성도 `pyyaml`, `typing_extensions` 두 개면 충분합니다.
+
+```bash
+mkdir -p /tmp/pytorch-codegen-113
+cd /tmp/pytorch-codegen-113
+
+# v1.13.1 태그만 shallow clone (전체 히스토리 불필요)
+git clone --branch v1.13.1 --depth 1 https://github.com/pytorch/pytorch.git
+
+# uv로 Python 3.10 venv 생성 후 최소 의존성만 설치
+uv venv --python 3.10 .venv
+source .venv/bin/activate
+uv pip install pyyaml typing_extensions
+```
+
+### 2. Codegen 실행
+
+`tools/autograd/gen_autograd.py`는 다음 네 가지 인자를 받습니다:
+
+1. `native_functions.yaml` 경로 — 네이티브 op 목록
+2. `tags.yaml` 경로 — op에 붙는 태그 목록
+3. 출력 디렉토리
+4. autograd 디렉토리(`derivatives.yaml`, 템플릿 위치)
+
+```bash
+cd /tmp/pytorch-codegen-113/pytorch
+mkdir -p /tmp/pytorch-codegen-113/generated
+
+python -m tools.autograd.gen_autograd \
+  aten/src/ATen/native/native_functions.yaml \
+  aten/src/ATen/native/tags.yaml \
+  /tmp/pytorch-codegen-113/generated \
+  tools/autograd
+```
+
+정상 종료되면 `/tmp/pytorch-codegen-113/generated/` 아래에 다음 파일들이 생성됩니다:
+
+```text
+ADInplaceOrViewType_{0,1}.cpp       # inplace/view op dispatch
+Functions.h                         # AddBackward0, MulBackward0, ... struct 선언
+Functions.cpp                       # 각 backward의 apply() 구현
+TraceType_{0..4}.cpp                # JIT tracer용 kernel
+VariableType.h
+VariableType_{0..4}.cpp             # Autograd dispatch key kernel (forward hook)
+variable_factories.h
+```
+
+본 강의에서 인용한 코드는 이 중 `Functions.h`와 `Functions.cpp`입니다.
+
+### 3. 관심 있는 backward 클래스 찾기
+
+전체 파일이 수천 라인이므로 class/함수명으로 찾는 것이 편합니다.
+
+```bash
+# 헤더에서 struct 선언 위치
+grep -n "^struct TORCH_API AddBackward0" \
+  /tmp/pytorch-codegen-113/generated/Functions.h
+
+# 구현부에서 apply() 위치
+grep -n "^variable_list AddBackward0::apply" \
+  /tmp/pytorch-codegen-113/generated/Functions.cpp
+```
+
+### 4. YAML ↔ 생성 코드 대응관계 확인
+
+`derivatives.yaml`의 원본 항목과 codegen 결과를 같이 읽으면 어떤 식이 어디로 박히는지 확인할 수 있습니다.
+
+```bash
+# derivatives.yaml 원본
+grep -n -A 3 "^- name: add\.Tensor" \
+  /tmp/pytorch-codegen-113/pytorch/tools/autograd/derivatives.yaml
+
+# 생성된 apply() 본문
+sed -n '47,65p' /tmp/pytorch-codegen-113/generated/Functions.cpp
+```
+
+`self:` / `other:` 항목에 적힌 표현식(`handle_r_to_c(...)`, `mul_tensor_backward(...)` 등)이 `apply()` 내부의 `grad_result = any_grad_defined ? (...) : Tensor();` 위치에 그대로 치환되는 것을 눈으로 확인할 수 있습니다.
+
+### 5. 다른 PyTorch 버전으로 재현하고 싶을 때
+
+동일한 절차를 최신 버전(예: `v2.3.0`)으로 바꿔 실행하면 됩니다. 단, 주의점은 다음과 같습니다.
+
+- PyTorch 2.x는 Python 3.8+만 지원, 최신 버전일수록 Python 3.11/3.12를 권장합니다.
+- `gen_autograd.py`의 인자 구성이 바뀌기도 하니 해당 버전의 파일 상단 docstring을 먼저 읽는 편이 안전합니다.
+- codegen은 Autograd 쪽 뿐 아니라 `torchgen/gen.py`(ATen 전체)도 있으며, 이쪽 결과물(예: `RegisterCPU.cpp`, `TypeDefault.cpp`)을 보면 dispatch 테이블이 어떻게 구성되는지 확인할 수 있습니다.
