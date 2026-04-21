@@ -542,6 +542,8 @@ def backward(self, ge_scalar, tangents_1):
 
 **정리하면**, AOTAutograd는 (1) backward tracing을 Python이 아닌 **C++ dispatcher 수준**에서 수행하여 "Autograd engine은 C++, Dynamo는 Python"이라는 층위 차이를 극복하고, (2) **FX Graph normalization**(functionalization + decomposition)을 적용하여 eager mode의 dispatcher가 암묵적으로 해 주던 복잡성 처리를 graph mode에서도 명시적으로 수행합니다. 이 두 축을 통해 graph mode에서도 eager mode와 본질적으로 같은 방식의 backward 구성을 가능하게 합니다.
 
+<img src="/images/04/slide22_1.png" class="h-72 mx-auto" />
+
 
 ### AOTAutograd Architecture
 
@@ -723,30 +725,41 @@ to give us the forwards pass and the backwards pass.
 > - **Partitioning의 성격**: 원문은 forward/backward partition이 "**not strictly disjoint**"라고 명시합니다. 메모리 효율을 위해 backward pass가 forward graph의 일부를 **재계산(recomputation)**할 수 있으며, 어느 부분을 저장하고 어느 부분을 재계산할지는 partitioning 단계의 최적화 결정입니다. (이 주제는 뒤의 "Activation Checkpointing" 절에서 다시 다룹니다.)
 
 
-### Joint Graph Example
+### [D 단계] Joint Graph Example
+
+앞 절의 `joint_fw_bw`를 C++ dispatcher 수준에서 trace하면, forward와 backward가 모두 하나의 graph 안에 들어간 **joint FX Graph**가 만들어집니다. 이것이 수행 순서표의 **D 단계** 결과물입니다.
 
 <img src="/images/04/slide30_1.png" class="h-56 mx-auto" />
 
-Forward와 backward가 하나의 그래프에 포함되어 있으며, Min-Cut 알고리즘으로 partition할 수 있습니다.
+위 그래프에서 볼 수 있듯, forward 연산과 backward 연산이 동일한 계산 그래프 안에 공존하며, forward에서 만들어진 중간 텐서가 backward 노드의 입력으로 연결되는 관계까지 전부 살아 있습니다. 이 구조 덕분에 이어지는 G 단계의 partitioning에서 "어떤 텐서는 저장하고 어떤 텐서는 재계산할지"를 판단할 수 있게 됩니다.
 
 
-### Decomposition (+ Functionalization)
+### [E 단계] Decomposition (+ Functionalization)
+
+D 단계에서 만들어진 joint graph는 아직 Torch IR 수준의 고수준 op들을 포함하고 있습니다. **E 단계(Decomposition)**에서는 이 op들을 더 낮은 수준의 작은 op들로 분해하여, backend compiler가 다루기 쉬운 형태로 내려 줍니다. 참고로 **C 단계의 Functionalization**(aliasing/mutation 제거)도 이 흐름 상에서 같이 이해해 두면 normalization 전체 그림이 잡힙니다.
 
 <img src="/images/04/slide31_1.png" class="h-72 mx-auto" />
 
-Eager mode의 복잡한 연산을 명시적으로 표현하고, 단순한 Op들로 분해하는 과정입니다. IR 계층은 다음과 같이 세분화됩니다:
+IR 계층은 다음과 같이 단계적으로 내려갑니다:
 
 Torch IR → ATen IR → Core ATen IR → Prims IR
 
+- **Functionalization (C 단계 일부)**: Eager mode가 암묵적으로 허용하던 in-place mutation, aliasing 등을 명시적으로 풀어내 pure function 형태로 변환.
+- **Decomposition (E 단계)**: 수천 개에 달하는 Torch op을 정해진 소수의 Prims IR op으로 분해 — eager mode 복잡성 제거와는 별개의 목적(op set 축소)으로, backend 최적화가 쉬워집니다.
 
-### Min-Cut Algorithm으로 Forward/Backward 분리
+
+### [G 단계] Min-Cut Algorithm으로 Forward/Backward 분리
+
+E 단계까지 거쳐 정규화된 joint FX Graph를 이제 **G 단계에서 forward와 backward로 다시 쪼갭니다**. 앞서 언급했듯 단순 슬라이싱이 아니라 **Min-Cut 계열 알고리즘**을 사용하며, 이 단계의 결정이 곧 "어느 중간 텐서를 저장(save)하고 어느 것을 재계산(recompute)할지"와 직결됩니다.
 
 <div class="grid grid-cols-1 gap-4 mt-4">
   <img src="/images/04/slide32_1.png" class="h-28 mx-auto" />
-  <img src="/images/04/slide32_2.png" class="h-24 mx-auto" />
+  <img src="/images/04/slide32_2.png" class="h-28 mx-auto" />
 </div>
 
-Joint FxGraph를 Min-Cut Algorithm으로 forward와 backward로 분리한 후, 각각을 별도로 컴파일합니다.
+Partitioning이 끝나면 forward graph와 backward graph 각각이 독립된 FX Graph로 떨어져 나오고, 이후 H 단계에서 backend compiler(예: Inductor)가 forward/backward를 **각각 별도로** 컴파일하여 최적화된 실행 코드를 생성합니다.
+
+<img src="/images/04/slide32_3.png" class="h-28 mx-auto" />
 
 
 ### Activation Checkpointing
