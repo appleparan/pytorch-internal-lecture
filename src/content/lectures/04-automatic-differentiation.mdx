@@ -814,17 +814,31 @@ AOTAutograd의 출력은 이 두 가지 중 두 번째(custom gradient rules)를
 
 ### 결과적으로
 
-<img src="/images/04/slide35_1.png" class="h-28 mx-auto" />
+AOTAutograd가 만들어낸 `torch.autograd.Function`이 실제 학습 루프에서 어떻게 호출되는지를 세 단계로 정리하면 다음과 같습니다.
 
-전체 과정을 정리하면:
+**[1] Compile된 `forward()` 호출**
 
-1. Compile된 `forward()`가 호출됩니다.
-2. 추가로 compile된 `backward()`가 output tensor의 grad function으로 등록됩니다.
-3. `loss.backward()` 수행 과정에서 compile된 `backward()`를 실행합니다.
+사용자가 compiled model을 호출하면 `torch.autograd.Function`의 `forward()` 부분이 실제로 실행됩니다. 이 forward 코드는 등록된 backend가 이미 컴파일해 둔 상태이므로 가속된 형태로 동작합니다.
 
-<img src="/images/04/slide35_2.png" class="h-20 mx-auto mt-2" />
+<div class="flex flex-col items-center gap-2 mt-4 max-w-3xl mx-auto">
+  <img src="/images/04/slide32_1.png" class="w-full h-auto" />
+  <p class="text-sm text-center">→ 등록된 backend가 forward를 미리 컴파일</p>
+</div>
 
-등록된 backend가 forward/backward를 각각 컴파일하여, 최종적으로 가속된 학습이 이루어집니다.
+**[2] Compile된 `backward()`가 output tensor의 grad function으로 등록**
+
+Forward가 실행되는 동안, 함께 묶여 있던 compiled `backward()`는 곧바로 실행되지는 않고 **output tensor의 `grad_fn`**으로 등록됩니다. 즉 나중에 `loss.backward()`가 호출될 때 타고 들어갈 수 있도록 "대기 상태"로 걸어 두는 단계입니다.
+
+**[3] `loss.backward()` 수행 과정에서 compiled `backward()` 실행**
+
+이후 loss 쪽에서 `backward()`가 호출되면 Autograd engine이 등록된 `grad_fn`을 따라 내려오다가 [2]에서 걸어 둔 compiled backward에 도달하고, 이때 한 스텝으로 backward 함수가 실행됩니다. 이 backward 코드 역시 등록된 backend가 별도로 컴파일해 둔 형태이므로 가속된 실행이 이루어집니다.
+
+<div class="flex flex-col items-center gap-2 mt-4 max-w-3xl mx-auto">
+  <img src="/images/04/slide32_2.png" class="w-full h-auto" />
+  <p class="text-sm text-center">→ 등록된 backend가 backward를 미리 컴파일</p>
+</div>
+
+결과적으로 forward와 backward **둘 다** backend compiler로 미리 최적화되어 있고, 사용자가 작성한 학습 루프는 거의 그대로 둔 채 내부적으로만 가속된 실행 경로를 타게 됩니다.
 
 
 ## Appendix: Grad Function Codegen 재현 방법
