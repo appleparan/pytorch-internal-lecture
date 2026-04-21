@@ -752,20 +752,14 @@ Torch IR → ATen IR → Core ATen IR → Prims IR
 
 E 단계까지 거쳐 정규화된 joint FX Graph를 이제 **G 단계에서 forward와 backward로 다시 쪼갭니다**. 앞서 언급했듯 단순 슬라이싱이 아니라 **Min-Cut 계열 알고리즘**을 사용하며, 이 단계의 결정이 곧 "어느 중간 텐서를 저장(save)하고 어느 것을 재계산(recompute)할지"와 직결됩니다.
 
-**Partitioning 전 — `TORCH_LOGS=aot_graphs`로 덤프한 joint graph**
-
-AOTAutograd가 partitioning을 마친 결과를 `TORCH_LOGS=aot_graphs` 환경변수로 실제로 찍어 보면, 하나의 `torch.autograd.Function` 안에 `forward`와 `backward` 두 개의 함수가 나란히 들어 있는 형태로 보입니다. 초록 음영이 forward, 분홍 음영이 backward에 해당하는 연산입니다. 주목할 점은 `ge_scalar`처럼 backward에서 쓰일 비교 결과가 **forward 쪽에서 미리 계산되어 반환**되고 있다는 것입니다 — 이것이 슬라이드의 "Partitioner moved backward compute to forwards!" 주석이 가리키는 부분이며, partitioner가 메모리/연산 trade-off를 고려해 계산 위치를 옮긴 결과입니다.
-
-<img src="/images/04/slide32_3.png" class="max-w-3xl w-full h-auto mx-auto" />
-
-**Partitioning 후 — forward와 backward로 분리된 모습**
-
-위 joint 덩어리를 Min-Cut 기준으로 쪼개면, forward와 backward가 각각 독립된 FX Graph(혹은 위에서 보이는 `forward()`/`backward()` 함수)로 깔끔하게 떨어집니다.
+입력은 [D 단계] Joint Graph Example에서 본 그래프 — forward와 backward 노드가 한 그래프 안에 얽혀 있는 상태입니다. 여기에 Min-Cut을 적용하면 forward와 backward가 각각 독립된 FX Graph로 깔끔하게 분리됩니다.
 
 <div class="flex flex-col items-center gap-4 mt-4 max-w-3xl mx-auto">
   <img src="/images/04/slide32_1.png" class="w-full h-auto" />
   <img src="/images/04/slide32_2.png" class="w-full h-auto" />
 </div>
+
+이 partitioning 과정에서 한 가지 흥미로운 점은 **단순히 joint graph를 반으로 자르는 것이 아니라, 계산을 어느 쪽에 둘지까지 최적화**한다는 것입니다. 앞쪽 "What Happens When Training with torch.compile()?" 절에서 본 compiled `forward`/`backward` 코드를 다시 떠올려 보면, backward에서 쓰일 비교 결과(`ge_scalar`)가 **forward 쪽에서 미리 계산되어 반환**되고 있습니다 — 이것이 슬라이드의 *"Partitioner moved backward compute to forwards!"* 주석이 가리키는 부분이며, partitioner가 메모리/연산 trade-off를 고려해 계산 위치를 옮긴 결과입니다.
 
 Partitioning이 끝나면 forward graph와 backward graph 각각이 독립된 FX Graph로 떨어져 나오고, 이후 H 단계에서 backend compiler(예: Inductor)가 forward/backward를 **각각 별도로** 컴파일하여 최적화된 실행 코드를 생성합니다.
 
