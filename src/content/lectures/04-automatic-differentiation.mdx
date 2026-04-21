@@ -752,36 +752,50 @@ Torch IR → ATen IR → Core ATen IR → Prims IR
 
 E 단계까지 거쳐 정규화된 joint FX Graph를 이제 **G 단계에서 forward와 backward로 다시 쪼갭니다**. 앞서 언급했듯 단순 슬라이싱이 아니라 **Min-Cut 계열 알고리즘**을 사용하며, 이 단계의 결정이 곧 "어느 중간 텐서를 저장(save)하고 어느 것을 재계산(recompute)할지"와 직결됩니다.
 
-<div class="grid grid-cols-1 gap-4 mt-4">
-  <img src="/images/04/slide32_1.png" class="h-28 mx-auto" />
-  <img src="/images/04/slide32_2.png" class="h-28 mx-auto" />
+**Partitioning 전 — `TORCH_LOGS=aot_graphs`로 덤프한 joint graph**
+
+AOTAutograd가 partitioning을 마친 결과를 `TORCH_LOGS=aot_graphs` 환경변수로 실제로 찍어 보면, 하나의 `torch.autograd.Function` 안에 `forward`와 `backward` 두 개의 함수가 나란히 들어 있는 형태로 보입니다. 초록 음영이 forward, 분홍 음영이 backward에 해당하는 연산입니다. 주목할 점은 `ge_scalar`처럼 backward에서 쓰일 비교 결과가 **forward 쪽에서 미리 계산되어 반환**되고 있다는 것입니다 — 이것이 슬라이드의 "Partitioner moved backward compute to forwards!" 주석이 가리키는 부분이며, partitioner가 메모리/연산 trade-off를 고려해 계산 위치를 옮긴 결과입니다.
+
+<img src="/images/04/slide32_3.png" class="max-w-3xl w-full h-auto mx-auto" />
+
+**Partitioning 후 — forward와 backward로 분리된 모습**
+
+위 joint 덩어리를 Min-Cut 기준으로 쪼개면, forward와 backward가 각각 독립된 FX Graph(혹은 위에서 보이는 `forward()`/`backward()` 함수)로 깔끔하게 떨어집니다.
+
+<div class="flex flex-col items-center gap-4 mt-4 max-w-3xl mx-auto">
+  <img src="/images/04/slide32_1.png" class="w-full h-auto" />
+  <img src="/images/04/slide32_2.png" class="w-full h-auto" />
 </div>
 
 Partitioning이 끝나면 forward graph와 backward graph 각각이 독립된 FX Graph로 떨어져 나오고, 이후 H 단계에서 backend compiler(예: Inductor)가 forward/backward를 **각각 별도로** 컴파일하여 최적화된 실행 코드를 생성합니다.
 
-<img src="/images/04/slide32_3.png" class="h-28 mx-auto" />
-
-
 ### Activation Checkpointing
 
-<div class="grid grid-cols-2 gap-4 mt-4">
+앞서 joint graph가 필요한 이유를 설명할 때 잠깐 언급했던 **recomputation(재계산)**은, training 분야에서는 보통 **"activation checkpointing"** 이라는 이름으로 더 많이 불립니다. (강연자 역시 training 전문가는 아니어서 이 용어가 다소 낯설 수 있다고 언급했습니다.)
+
+<div class="flex flex-col items-center gap-6 mt-4 max-w-3xl mx-auto">
+
 <div>
 
-<img src="/images/04/slide33_1.png" class="h-24" />
+<img src="/images/04/slide33_1.png" class="w-full h-auto" />
 
-Batch size가 커질수록 중간 activation도 함께 커집니다.
+Batch size가 커질수록 forward 과정의 중간 activation도 함께 커지며, 이 값들을 전부 저장해 두면 GPU 메모리를 상당히 많이 차지합니다.
 
 </div>
+
 <div>
 
-<img src="/images/04/slide33_2.png" class="h-36" />
+<img src="/images/04/slide33_2.png" class="w-full h-auto" />
 
-Segment별 input activation만 저장하고, backward 수행시 segment별로 forward를 다시 수행합니다.
+Segment별로 **입력 activation만** 저장해 두고, backward를 수행할 때 segment 단위로 forward를 다시 돌려 필요한 중간값을 그때그때 재계산합니다.
 
 </div>
+
 </div>
 
-Activation checkpointing은 **recomputation** 전략으로, 중간 activation을 저장하지 않고 필요할 때 다시 계산하여 메모리를 절약합니다. 메모리 사용량 감소와 추가 연산 비용 사이의 trade-off가 존재하며, joint graph를 통해 forward와 backward 간의 텐서 관계를 파악하여 효율적으로 적용할 수 있습니다.
+**Recomputation이란?** 모델 학습 과정에서 일부 중간 계산(특히 중간 activation)을 곧바로 저장하지 않고, 나중에 필요할 때 다시 계산함으로써 GPU 메모리를 절약하는 기법입니다. Forward 과정에서 모든 중간 값을 전부 저장해 두면 메모리를 많이 차지하지만, 일정 부분만 저장해 두고 backward 과정에서 필요한 시점에 다시 계산(재계산)하게 되면 메모리 사용량을 크게 줄일 수 있습니다. 다만 필요한 시점에 다시 계산하는 추가 연산이 발생하므로, 메모리를 아끼는 대신 **연산량(시간)은 조금 늘어나는 trade-off**가 있습니다. 이 방식은 흔히 "activation checkpointing"이라고 부르며, 여러 딥러닝 프레임워크에서 관련 기능을 지원합니다.
+
+AOTAutograd 관점에서 중요한 것은, 앞서 강조한 **joint graph** 덕분에 "forward에서 만들어진 어떤 텐서가 backward의 어떤 입력으로 연결되는가"라는 input-output 관계가 전부 살아 있다는 점입니다. 이 관계를 알고 있으면 Min-Cut partitioner가 "어느 텐서는 저장(save)하고 어느 텐서는 재계산(recompute)하는 것이 더 유리한가"를 전체 그래프 관점에서 판단할 수 있어, activation checkpointing을 보다 자동화되고 효율적으로 적용할 수 있습니다.
 
 
 ### Compiled Model = torch.autograd.Function
