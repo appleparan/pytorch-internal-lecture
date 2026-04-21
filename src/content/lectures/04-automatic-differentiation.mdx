@@ -659,6 +659,8 @@ print(p.grad)
 
 앞 절 "AOTAutograd 수행 순서"에서 언급한 B 단계(joint 함수 생성) → D 단계(실제 tracing) → G 단계(partitioning)가 실제로 어떻게 생겼는지 슬라이드에 있는 코드를 그대로 따라가며 살펴보겠습니다. Joint graph를 만들기 전에는 Python 수준에서 먼저 "joint 함수"를 명시적으로 만들어 두는 작업이 필요합니다.
 
+> 출처: [How does torch.compile work with autograd? — PyTorch Dev Discussions](https://dev-discuss.pytorch.org/t/how-does-torch-compile-work-with-autograd/1621/14)
+
 <div class="grid grid-cols-2 gap-4 mt-2 items-start">
 <div>
 
@@ -712,12 +714,18 @@ to give us the forwards pass and the backwards pass.
 </div>
 </div>
 
+> **[참고] 원문(PyTorch Dev Discussions) 기준 보충 사항**
+>
+> 위 설명은 강연 transcript에 기반한 풀이이며, 원문 [How does torch.compile work with autograd?](https://dev-discuss.pytorch.org/t/how-does-torch-compile-work-with-autograd/1621/14)과 대조하면 다음 몇 가지를 추가로 알아두면 좋습니다:
+>
+> - **Joint 함수의 tracing**: 원문에는 "autograd를 켜지 않고 tracing한다"는 표현은 없고, `joint_fw_bw` 내부에서 `torch.autograd.grad(...)`를 **그대로 호출**한 상태로 함수 전체를 trace합니다. 즉 trace 과정에서 autograd가 동작하여 backward 계산 경로가 함께 graph에 기록됩니다. (본문 표현은 강연자의 부연으로 이해해 주세요.)
+> - **`grad_outs`가 필요한 이유 (원문)**: "backward computation depends on incoming gradients" — backward 계산이 본질적으로 외부에서 들어오는 gradient 신호에 의존하기 때문이라는 일반적 서술이며, "loss function이 FX Graph 바깥이라서"라는 구체화는 강연자의 해석입니다.
+> - **Partitioning의 성격**: 원문은 forward/backward partition이 "**not strictly disjoint**"라고 명시합니다. 메모리 효율을 위해 backward pass가 forward graph의 일부를 **재계산(recomputation)**할 수 있으며, 어느 부분을 저장하고 어느 부분을 재계산할지는 partitioning 단계의 최적화 결정입니다. (이 주제는 뒤의 "Activation Checkpointing" 절에서 다시 다룹니다.)
+
 
 ### Joint Graph Example
 
 <img src="/images/04/slide30_1.png" class="h-56 mx-auto" />
-
-<img src="/images/04/slide30_2.png" class="h-12 mx-auto mt-2" />
 
 Forward와 backward가 하나의 그래프에 포함되어 있으며, Min-Cut 알고리즘으로 partition할 수 있습니다.
 
