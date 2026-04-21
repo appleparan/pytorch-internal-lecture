@@ -657,28 +657,57 @@ print(p.grad)
 
 ### Joint Graph 생성
 
-<div class="grid grid-cols-2 gap-4 mt-2">
+앞 절 "AOTAutograd 수행 순서"에서 언급한 B 단계(joint 함수 생성) → D 단계(실제 tracing) → G 단계(partitioning)가 실제로 어떻게 생겼는지 슬라이드에 있는 코드를 그대로 따라가며 살펴보겠습니다. Joint graph를 만들기 전에는 Python 수준에서 먼저 "joint 함수"를 명시적으로 만들어 두는 작업이 필요합니다.
+
+<div class="grid grid-cols-2 gap-4 mt-2 items-start">
 <div>
 
-<img src="/images/04/slide29_1.png" class="h-16" />
+**[B-1] Dynamo가 만들어낸 FX Graph (forward만 있음)**
 
-Dynamo가 만들어낸 FxGraph는 joint graph의 forward 부분에 해당합니다.
+```python
+def f(*inputs):
+    return outputs
+```
 
-<img src="/images/04/slide29_3.png" class="h-28 mt-2" />
+Dynamo가 만들어낸 이 FX Graph는 **joint graph의 forward 부분에 해당**합니다. 이 자체로는 backward가 없기 때문에, training을 위해서는 여기에 backward를 붙여야 합니다.
 
-f()를 수행한 후 grad()를 호출하면 forward와 backward를 모두 수행하는 함수가 됩니다.
+**[B-2] Forward + Backward를 합친 joint 함수**
+
+```python
+# In order to get the backwards pass, we trace something like:
+def joint_fw_bw(fw_inputs, grad_outs):
+    fw_out = f(*fw_inputs)
+    grad_inps = torch.autograd.grad(
+        fw_out, leaves=fw_inputs, gradOuts=grad_outs)
+    return fw_out, grad_inps
+```
+
+`f()`를 수행한 뒤 곧바로 `torch.autograd.grad()`를 호출하여 backward까지 같이 수행하는 **하나의 함수**로 묶어 둡니다. 겉보기에는 forward를 한 번 부른 것처럼 보이지만, 그 안에서 backward가 forward의 연장선처럼 자연스럽게 이어져 실행됩니다.
 
 </div>
 <div>
 
-<img src="/images/04/slide29_2.png" class="h-28" />
+**[D] joint 함수를 trace하여 Joint Graph 생성**
 
-이것을 trace하면 joint graph를 생성할 수 있습니다.
+`joint_fw_bw`를 Autograd를 켜지 않고 그대로 C++ dispatcher 수준에서 trace하면, forward와 backward가 모두 포함된 **joint graph**가 한 번에 만들어집니다.
 
-Joint Function의 Input은 다음과 같이 구성됩니다:
-- **Forward Input**: 원래 모델의 입력값
-- **Backward Input**: Loss로부터 전달되는 gradient (grad_outs)
-- Forward에서 계산된 중간 tensor는 Joint Graph에 이미 포함됩니다.
+**Joint Function의 Input 구성**
+
+`joint_fw_bw`의 입력은 두 종류로 구성됩니다:
+
+- **Forward Input** (`fw_inputs`): 원래 모델이 받는 입력값 그대로.
+- **Backward Input** (`grad_outs`): Loss로부터 전달되는 최종 gradient 값.
+
+왜 `grad_outs`가 필요할까요? Backward를 계산하려면 일반적으로 ① loss 쪽에서 내려오는 최종 gradient와 ② forward 중간 단계에서 계산된 tensor들이 필요합니다. 이 중 **중간 tensor들은 joint graph 안에 forward 부분으로 이미 포함**되어 있으므로 별도 input으로 넘길 필요가 없습니다. 반면 loss function은 이 FX Graph 바깥에 있어 캡처되지 않으므로, loss에서 내려오는 `grad_outs`만큼은 반드시 joint 함수의 input으로 넣어 줘야 최종 gradient를 끝까지 계산할 수 있습니다.
+
+**[G] Joint Graph → Forward/Backward 분리**
+
+```text
+Then, we simply partition this graph into two
+to give us the forwards pass and the backwards pass.
+```
+
+이렇게 얻어진 joint graph를 적절한 기준(이후 절에서 다룰 Min-Cut 알고리즘)으로 partition하면 forward pass와 backward pass로 다시 분리할 수 있습니다.
 
 </div>
 </div>
