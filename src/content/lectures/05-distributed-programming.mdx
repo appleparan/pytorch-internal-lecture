@@ -5,6 +5,7 @@ lecture: 5
 ---
 
 import Mermaid from '../../components/Mermaid.astro';
+import ThemeImage from '../../components/ThemeImage.astro';
 
 
 # Week 5: Distributed Programming in Pytorch
@@ -133,37 +134,28 @@ PyTorch 분산 프로그래밍 모델은 **MPI의 프로세스 개념과 거의 
 
 ### Overall Architecture
 
-PyTorch의 분산 프로그래밍 아키텍처는 세 개의 레이어로 구성됩니다.
+PyTorch의 분산 프로그래밍 모델을 구성하는 주요 개념을 조금 더 자세히 살펴봅니다. 크게 **Node와 Rendezvous 과정**, 그리고 **각 프로세스 내부에서 PyTorch가 동작하는 구조** 두 관점으로 나누어 볼 수 있습니다.
 
-<Mermaid>
-{`graph TB
-    subgraph Process["torch.distributed (process)"]
-        subgraph HL["High-level packages"]
-            DDP["DDP"]
-            FSDP["FSDP"]
-            TP["TP"]
-            SP["SP"]
-            PP["PP"]
-        end
-        subgraph C10D["c10d"]
-            COLL["collective"]
-            P2P["p2p"]
-        end
-        subgraph Backends["Backends"]
-            GLOO["ProcessGroupGloo"]
-            NCCL["ProcessGroupNCCL<br/>(optional)"]
-            MPI["ProcessGroupMPI<br/>(optional)"]
-            CUSTOM["Custom<br/>(optional)"]
-        end
-    end
-    HL --> C10D
-    C10D --> Backends
-    GLOO --> CPU["CPU"]
-    NCCL --> GPU["GPU"]
-    MPI --> MPILIB["MPI lib"]`}
-</Mermaid>
+<ThemeImage
+  darkSrc="/images/05/torch_distributed_dark.svg"
+  lightSrc="/images/05/torch_distributed_light.svg"
+  alt="Trace diagram"
+  class="h-80 mx-auto mt-4"
+/>
 
-최상위에는 DDP, FSDP, TP, SP, PP 등의 **고수준 패키지**가 있습니다. 이 패키지들은 사용자가 복잡한 분산 통신 로직을 직접 작성하지 않아도 모델 병렬화를 쉽게 적용할 수 있도록 해줍니다. 중간에는 collective/p2p 통신을 담당하는 **c10d** 레이어가 있는데, 이것이 PyTorch 분산 통신의 핵심 API입니다. 그리고 하단에는 Gloo, NCCL, MPI 등의 **통신 backend**가 위치하여 실제 하드웨어 수준의 통신을 수행합니다.
+**1. Node와 Rendezvous 과정**
+
+Rendezvous는 여러 Node를 묶어서 하나의 분산 환경을 구성합니다. 각 Node 안에는 여러 개의 Process가 실행될 수 있고, 각 Process에는 **Global rank**(전체 환경에서의 프로세스 순서)와 **Local rank**(특정 Node 내에서의 프로세스 구분)가 부여됩니다. PyTorch는 실행 초기에 Rendezvous 과정을 통해 **참여할 머신들을 확인하고 작업을 배분**합니다.
+
+**2. 각 프로세스 내부의 PyTorch 분산 처리 구조**
+
+하나의 Process를 확대해서 보면 그 안에서 PyTorch가 돌고 있고, 아래에서 위로 다음과 같은 세 개의 레이어로 구성됩니다.
+
+- **Backend** — 가장 맨 아래단에서 실제 통신을 담당합니다. NCCL, MPI, Gloo 등 다른 라이브러리를 활용하여 **CPU 또는 GPU 간의 프로세스 통신**을 관장합니다.
+- **c10d (PyTorch Distributed Core Layer)** — PyTorch 분산 처리의 **핵심(core) 레이어**입니다. 실제 Backend들이 이 레이어에 붙으며, `all-reduce`, `broadcast` 같은 **Collective API의 인터페이스**도 여기에 정리되어 있습니다.
+- **High-level 패키지** — c10d 위에 올라가는 DDP, FSDP, TP, SP, PP 등의 모델 병렬화 패키지입니다. 사용자는 복잡한 분산 통신 로직을 직접 작성하지 않고도 이 패키지들을 활용해 **여러 머신에서 PyTorch 모델을 병렬로** 돌릴 수 있습니다.
+
+이러한 구조를 통해 PyTorch는 효율적인 분산 학습을 수행합니다.
 
 ### Process Group
 

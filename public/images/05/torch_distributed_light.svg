@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 780" role="img" aria-label="torch.distributed architecture (light)">
+<style>
+  :root{
+    --bg:         #ffffff;
+    --ink:        #1f1f1f;
+    --ink-soft:   #6b6b6b;
+    --stroke:     #1f1f1f;
+    --container:  #f1ece3;
+    --container-2:#dfd3bc;
+    --sage:       #cfd8b4;  --sage-ink:   #3e4a2b;
+    --peach:      #f4dcbf;  --peach-ink:  #6f4520;
+    --sand:       #f0e2c8;  --sand-ink:   #5a3d1a;
+    --terra:      #d97757;  --terra-ink:  #fff5eb;
+    --dust:       #c1ccd2;  --dust-ink:   #2a3e47;
+    --rank:       #f3e6ca;  --rank-ink:   #5a3d1a;
+    --node:       #ede3d0;
+    --rendez:     #f4dcbf;
+    --arrow:      #1f1f1f;
+    --arrow-soft: #6b6b6b;
+  }
+  .s-stroke      { stroke: var(--stroke); }
+  .f-bg          { fill: var(--bg); }
+  .f-container   { fill: var(--container); }
+  .f-container2  { fill: var(--container-2); }
+  .f-sage        { fill: var(--sage); }
+  .f-peach       { fill: var(--peach); }
+  .f-sand        { fill: var(--sand); }
+  .f-terra       { fill: var(--terra); }
+  .f-dust        { fill: var(--dust); }
+  .f-rank        { fill: var(--rank); }
+  .f-node        { fill: var(--node); }
+  .f-rendez      { fill: var(--rendez); }
+  .t-ink         { fill: var(--ink); }
+  .t-ink-soft    { fill: var(--ink-soft); }
+  .t-sage        { fill: var(--sage-ink); }
+  .t-peach       { fill: var(--peach-ink); }
+  .t-sand        { fill: var(--sand-ink); }
+  .t-terra       { fill: var(--terra-ink); }
+  .t-dust        { fill: var(--dust-ink); }
+  .t-rank        { fill: var(--rank-ink); }
+  .arrow-line    { stroke: var(--arrow); }
+  .arrow-soft    { stroke: var(--arrow-soft); }
+  .arrow-fill    { fill:  var(--arrow); }
+  .lbl-sans { font-family: 'Inter','Helvetica Neue',Arial,sans-serif; }
+  .lbl-mono { font-family: 'JetBrains Mono','Courier New',monospace; }
+</style>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,1 L9,5 L0,9 Z" class="arrow-fill"/>
+  </marker>
+</defs>
+
+<!-- background -->
+<rect class="f-bg" x="0" y="0" width="1400" height="780"/>
+
+<!-- Rendezvous -->
+<rect x="190" y="40" width="200" height="50" rx="25" class="f-rendez s-stroke" stroke-width="1"/>
+<text x="290" y="71" text-anchor="middle" class="lbl-sans t-peach" font-size="18" font-weight="500">Rendezvous</text>
+
+<path d="M 250 90 C 240 140, 190 160, 155 188" fill="none" class="arrow-soft" stroke-width="1" stroke-dasharray="3 4"/>
+<path d="M 330 90 C 340 140, 400 160, 435 188" fill="none" class="arrow-soft" stroke-width="1" stroke-dasharray="3 4"/>
+
+<!-- Node 1 -->
+<rect x="50" y="188" width="220" height="480" rx="6" class="f-node s-stroke" stroke-width="1"/>
+<text x="72" y="222" class="lbl-sans t-ink" font-size="20" font-weight="600">Node 1</text>
+
+<rect x="72" y="248" width="176" height="112" rx="4" class="f-rank s-stroke" stroke-width=".9"/>
+<text x="160" y="294" text-anchor="middle" class="lbl-sans t-ink" font-size="22" font-weight="600">Rank 0</text>
+<text x="160" y="320" text-anchor="middle" class="lbl-mono t-rank" font-size="11">local rank 0</text>
+
+<rect x="72" y="380" width="176" height="112" rx="4" class="f-rank s-stroke" stroke-width=".9"/>
+<text x="160" y="426" text-anchor="middle" class="lbl-sans t-ink" font-size="22" font-weight="600">Rank 1</text>
+<text x="160" y="452" text-anchor="middle" class="lbl-mono t-rank" font-size="11">local rank 1</text>
+
+<rect x="72" y="512" width="176" height="112" rx="4" class="f-rank s-stroke" stroke-width=".9"/>
+<text x="160" y="558" text-anchor="middle" class="lbl-sans t-ink" font-size="22" font-weight="600">Rank 2</text>
+<text x="160" y="584" text-anchor="middle" class="lbl-mono t-rank" font-size="11">local rank 2</text>
+
+<!-- Node 2 -->
+<rect x="310" y="188" width="220" height="480" rx="6" class="f-node s-stroke" stroke-width="1"/>
+<text x="332" y="222" class="lbl-sans t-ink" font-size="20" font-weight="600">Node 2</text>
+
+<rect x="332" y="248" width="176" height="112" rx="4" class="f-rank s-stroke" stroke-width=".9"/>
+<text x="420" y="294" text-anchor="middle" class="lbl-sans t-ink" font-size="22" font-weight="600">Rank 3</text>
+<text x="420" y="320" text-anchor="middle" class="lbl-mono t-rank" font-size="11">local rank 0</text>
+
+<rect x="332" y="380" width="176" height="112" rx="4" class="f-rank s-stroke" stroke-width=".9"/>
+<text x="420" y="426" text-anchor="middle" class="lbl-sans t-ink" font-size="22" font-weight="600">Rank 4</text>
+<text x="420" y="452" text-anchor="middle" class="lbl-mono t-rank" font-size="11">local rank 1</text>
+
+<rect x="332" y="512" width="176" height="112" rx="4" class="f-rank s-stroke" stroke-width=".9"/>
+<text x="420" y="558" text-anchor="middle" class="lbl-sans t-ink" font-size="22" font-weight="600">Rank 5</text>
+<text x="420" y="584" text-anchor="middle" class="lbl-mono t-rank" font-size="11">local rank 2</text>
+
+<text x="50" y="708" class="lbl-mono t-ink-soft" font-size="13">process_group ≈ world</text>
+
+<!-- process container -->
+<rect x="600" y="40" width="760" height="580" rx="8" class="f-container s-stroke" stroke-width="1"/>
+<text x="620" y="66" class="lbl-mono t-ink-soft" font-size="12">process</text>
+<text x="1340" y="66" text-anchor="end" class="lbl-mono t-ink-soft" font-size="12">torch.distributed</text>
+
+<!-- torch.distributed inner -->
+<rect x="630" y="86" width="700" height="380" rx="6" class="f-container2 s-stroke" stroke-width=".9"/>
+
+<!-- DDP / FSDP / TP / SP / PP -->
+<g class="lbl-sans">
+  <rect x="652" y="112" width="116" height="54" rx="4" class="f-sage s-stroke" stroke-width=".9"/>
+  <text x="710" y="146" text-anchor="middle" class="t-sage" font-size="17" font-weight="600">DDP</text>
+  <rect x="786" y="112" width="116" height="54" rx="4" class="f-sage s-stroke" stroke-width=".9"/>
+  <text x="844" y="146" text-anchor="middle" class="t-sage" font-size="17" font-weight="600">FSDP</text>
+  <rect x="920" y="112" width="116" height="54" rx="4" class="f-sage s-stroke" stroke-width=".9"/>
+  <text x="978" y="146" text-anchor="middle" class="t-sage" font-size="17" font-weight="600">TP</text>
+  <rect x="1054" y="112" width="116" height="54" rx="4" class="f-sage s-stroke" stroke-width=".9"/>
+  <text x="1112" y="146" text-anchor="middle" class="t-sage" font-size="17" font-weight="600">SP</text>
+  <rect x="1188" y="112" width="116" height="54" rx="4" class="f-sage s-stroke" stroke-width=".9"/>
+  <text x="1246" y="146" text-anchor="middle" class="t-sage" font-size="17" font-weight="600">PP</text>
+</g>
+
+<g class="arrow-line" stroke-width="1" fill="none" marker-end="url(#arrow)">
+  <line x1="710"  y1="170" x2="710"  y2="208"/>
+  <line x1="844"  y1="170" x2="844"  y2="208"/>
+  <line x1="978"  y1="170" x2="978"  y2="208"/>
+  <line x1="1112" y1="170" x2="1112" y2="208"/>
+  <line x1="1246" y1="170" x2="1246" y2="208"/>
+</g>
+
+<!-- collective / p2p -->
+<rect x="652" y="210" width="502" height="64" rx="4" class="f-peach s-stroke" stroke-width=".9"/>
+<text x="903" y="250" text-anchor="middle" class="lbl-sans t-peach" font-size="22" font-weight="600">collective</text>
+
+<rect x="1172" y="210" width="132" height="64" rx="4" class="f-peach s-stroke" stroke-width=".9"/>
+<text x="1238" y="250" text-anchor="middle" class="lbl-sans t-peach" font-size="22" font-weight="600">p2p</text>
+
+<text x="644" y="306" class="lbl-mono t-ink-soft" font-size="12">c10d</text>
+
+<!-- ProcessGroup row -->
+<g class="lbl-sans">
+  <rect x="652" y="320" width="152" height="86" rx="4" class="f-sand s-stroke" stroke-width=".9"/>
+  <text x="728" y="352" text-anchor="middle" class="t-sand" font-size="12" font-weight="500">ProcessGroup</text>
+  <text x="728" y="378" text-anchor="middle" class="t-ink" font-size="22" font-weight="600">Gloo</text>
+
+  <rect x="814" y="320" width="152" height="86" rx="4" class="f-sand s-stroke" stroke-width=".9"/>
+  <text x="890" y="352" text-anchor="middle" class="t-sand" font-size="12" font-weight="500">ProcessGroup</text>
+  <text x="890" y="378" text-anchor="middle" class="t-ink" font-size="22" font-weight="600">NCCL</text>
+  <text x="890" y="396" text-anchor="middle" class="lbl-mono t-ink-soft" font-size="10">optional</text>
+
+  <rect x="976" y="320" width="152" height="86" rx="4" class="f-sand s-stroke" stroke-width=".9"/>
+  <text x="1052" y="352" text-anchor="middle" class="t-sand" font-size="12" font-weight="500">ProcessGroup</text>
+  <text x="1052" y="378" text-anchor="middle" class="t-ink" font-size="22" font-weight="600">MPI</text>
+  <text x="1052" y="396" text-anchor="middle" class="lbl-mono t-ink-soft" font-size="10">optional</text>
+
+  <rect x="1138" y="320" width="166" height="86" rx="4" class="f-sand s-stroke" stroke-width=".9" stroke-dasharray="4 3"/>
+  <text x="1221" y="368" text-anchor="middle" class="t-ink" font-size="20" font-weight="500">Custom</text>
+  <text x="1221" y="390" text-anchor="middle" class="lbl-mono t-ink-soft" font-size="10">optional</text>
+</g>
+
+<!-- CUDA / MPI lib -->
+<g class="lbl-sans">
+  <rect x="886" y="500" width="152" height="60" rx="4" class="f-terra s-stroke" stroke-width=".9"/>
+  <text x="962" y="538" text-anchor="middle" class="t-terra" font-size="18" font-weight="600">CUDA</text>
+
+  <rect x="1062" y="500" width="152" height="60" rx="4" class="f-terra s-stroke" stroke-width=".9"/>
+  <text x="1138" y="538" text-anchor="middle" class="t-terra" font-size="18" font-weight="600">MPI lib</text>
+</g>
+
+<g class="arrow-line" stroke-width="1" fill="none" marker-end="url(#arrow)">
+  <path d="M 890 406 C 890 450, 962 470, 962 496"/>
+  <path d="M 1052 406 C 1052 450, 1138 470, 1138 496"/>
+</g>
+
+<!-- CPU / GPU -->
+<g class="lbl-sans">
+  <rect x="800" y="664" width="164" height="64" rx="4" class="f-dust s-stroke" stroke-width=".9"/>
+  <text x="882" y="704" text-anchor="middle" class="t-dust" font-size="20" font-weight="600">CPU</text>
+
+  <rect x="1020" y="664" width="164" height="64" rx="4" class="f-dust s-stroke" stroke-width=".9"/>
+  <text x="1102" y="704" text-anchor="middle" class="t-dust" font-size="20" font-weight="600">GPU</text>
+</g>
+
+<g class="arrow-line" stroke-width="1" fill="none" marker-end="url(#arrow)">
+  <path d="M 728 406 C 728 560, 820 620, 882 660"/>
+  <path d="M 962 560 C 962 620, 1060 640, 1090 660"/>
+  <path d="M 1138 560 C 1090 620, 980 640, 920 660"/>
+  <path d="M 1138 560 C 1138 610, 1130 640, 1120 660"/>
+</g>
+</svg>
