@@ -166,16 +166,28 @@ Process Group은 **서로 통신하는 프로세스들의 집합**입니다. 기
 
 **Default process_group**
 
-<Mermaid>
-{`graph TB
+<Mermaid Wide>
+{`flowchart LR
     subgraph PG["process_group (default)"]
-        R0["Rank 0"]
-        R1["Rank 1"]
-        R2["Rank 2"]
-        R4["Rank 4"]
-        R5["Rank 5"]
-        R6["Rank 6"]
-    end`}
+        subgraph C1[" "]
+            direction TB
+            R0["Rank 0"]
+            R1["Rank 1"]
+            R2["Rank 2"]
+            R0 ~~~ R1 ~~~ R2
+        end
+        subgraph C2[" "]
+            direction TB
+            R4["Rank 4"]
+            R5["Rank 5"]
+            R6["Rank 6"]
+            R4 ~~~ R5 ~~~ R6
+        end
+    end
+    classDef pgStyle fill:#64748b25,stroke:#64748b,stroke-width:3px
+    classDef hiddenStyle fill:none,stroke:none
+    class PG pgStyle
+    class C1,C2 hiddenStyle`}
 </Mermaid>
 
 </div>
@@ -183,20 +195,28 @@ Process Group은 **서로 통신하는 프로세스들의 집합**입니다. 기
 
 **process_group with 2 subgroups**
 
-<Mermaid>
-{`graph TB
+<Mermaid Wide>
+{`flowchart LR
     subgraph PG["process_group"]
         subgraph SG1["subgroup 1"]
+            direction TB
             R0["Rank 0"]
             R1["Rank 1"]
             R2["Rank 2"]
+            R0 ~~~ R1 ~~~ R2
         end
         subgraph SG2["subgroup 2"]
+            direction TB
             R4["Rank 4"]
             R5["Rank 5"]
             R6["Rank 6"]
+            R4 ~~~ R5 ~~~ R6
         end
-    end`}
+    end
+    classDef pgStyle fill:#64748b15,stroke:#64748b,stroke-width:3px
+    classDef sgStyle fill:#64748b30,stroke:#64748b,stroke-width:2px
+    class PG pgStyle
+    class SG1,SG2 sgStyle`}
 </Mermaid>
 
 </div>
