@@ -93,6 +93,43 @@ function extractDiagrams(): Diagram[] {
 
 // ── render ───────────────────────────────────────────────────────────
 
+/** Workaround for a Mermaid bug: when classDef styling is applied to an outer
+ *  cluster that contains other clusters, the rendered <rect> drops its `height`
+ *  attribute, so the styled background never appears. Inner clusters render
+ *  fine. We patch missing heights on cluster rects that have inline fill/stroke. */
+function fixClusterHeights(svg: string): string {
+  const viewBoxMatch = svg.match(/viewBox="0 0 [\d.]+ ([\d.]+)"/);
+  if (!viewBoxMatch) return svg;
+  const viewBoxHeight = parseFloat(viewBoxMatch[1]);
+  const BOTTOM_PADDING = 8;
+
+  return svg.replace(
+    /(<g class="cluster[^"]*"[^>]*>\s*<rect\s+style="[^"]*(?:fill|stroke):[^"]*"\s+x="[\d.]+"\s+y="([\d.]+)"\s+width="[\d.]+")(\s*\/>)/g,
+    (full, prefix, y, suffix) => {
+      // Skip rects that already have a height attribute
+      if (/\bheight="/.test(full)) return full;
+      const yNum = parseFloat(y);
+      const height = Math.max(0, viewBoxHeight - yNum - BOTTOM_PADDING);
+      return `${prefix} height="${height}"${suffix}`;
+    },
+  );
+}
+
+function postProcessSvg(svg: string, uniqueId: string): string {
+  // Remove width/height/max-width on the root <svg> tag only — keep viewBox.
+  // (Anchoring to the <svg> tag is critical: a global replace would strip
+  //  width/height from inner <rect> elements on idempotent re-runs.)
+  svg = svg.replace(/(<svg\b[^>]*?)\s+width="[^"]*"/, '$1');
+  svg = svg.replace(/(<svg\b[^>]*?)\s+height="[^"]*"/, '$1');
+  svg = svg.replace(/(<svg\b[^>]*?)\s+style="[^"]*max-width:[^"]*"/, '$1');
+  // Replace default id="my-svg" with a unique id to prevent CSS collisions
+  // when both light and dark SVGs coexist on the same page.
+  svg = svg.replace(/id="my-svg"/g, `id="${uniqueId}"`);
+  svg = svg.replace(/#my-svg/g, `#${uniqueId}`);
+  svg = fixClusterHeights(svg);
+  return svg;
+}
+
 function renderSvg(
   source: string,
   theme: 'default' | 'dark',
@@ -108,25 +145,42 @@ function renderSvg(
     { stdio: 'pipe', timeout: 30_000 },
   );
 
-  // Post-process SVG
   if (existsSync(outPath)) {
-    let svg = readFileSync(outPath, 'utf-8');
-    // Remove width="..." and height="..." but keep viewBox
-    svg = svg.replace(/\s+width="[^"]*"/, '');
-    svg = svg.replace(/\s+height="[^"]*"/, '');
-    svg = svg.replace(/style="[^"]*max-width:[^"]*"/, '');
-    // Replace default id="my-svg" with a unique id to prevent CSS collisions
-    // when both light and dark SVGs coexist on the same page.
-    svg = svg.replace(/id="my-svg"/g, `id="${uniqueId}"`);
-    svg = svg.replace(/#my-svg/g, `#${uniqueId}`);
-    writeFileSync(outPath, svg);
+    const svg = readFileSync(outPath, 'utf-8');
+    writeFileSync(outPath, postProcessSvg(svg, uniqueId));
   }
+}
+
+/** Idempotently re-apply post-processing fixes to all cached SVGs.
+ *  The width/height/id transforms are no-ops on already-processed files;
+ *  only the cluster-height workaround mutates files that need fixing. */
+function repostProcessCachedSvgs(): void {
+  const files = readdirSync(OUT_DIR).filter((f) => f.endsWith('.svg'));
+  let fixed = 0;
+  for (const file of files) {
+    const path = join(OUT_DIR, file);
+    const svg = readFileSync(path, 'utf-8');
+    // Derive uniqueId from filename: <hash>-<theme>.svg → mermaid-<hash>-<theme>
+    const m = file.match(/^([a-f0-9]+)-(light|dark)\.svg$/);
+    if (!m) continue;
+    const uniqueId = `mermaid-${m[1]}-${m[2]}`;
+    const out = postProcessSvg(svg, uniqueId);
+    if (out !== svg) {
+      writeFileSync(path, out);
+      fixed++;
+    }
+  }
+  if (fixed > 0) console.log(`Re-post-processed ${fixed} cached SVG(s).`);
 }
 
 // ── main ─────────────────────────────────────────────────────────────
 
 function main(): void {
   mkdirSync(OUT_DIR, { recursive: true });
+
+  // Apply current post-processing rules to any cached SVGs so workarounds
+  // and tweaks ship without forcing a full re-render.
+  repostProcessCachedSvgs();
 
   console.log('Extracting Mermaid diagrams from MDX files...');
   const diagrams = extractDiagrams();
