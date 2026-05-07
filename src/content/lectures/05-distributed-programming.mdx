@@ -478,7 +478,14 @@ def local_matmul(local_A, local_B):
 
 ## Device와 연결: CUDA 예제
 
-앞서 살펴본 `dist_matmul_allreduce` 함수에는 CUDA와의 접점이 네 군데 있습니다. 하나씩 상세히 살펴봅니다.
+`dist_matmul_allreduce`는 PyTorch가 실행된 이후에 호출되는 함수이고, 그 컨텍스트 안에서 device와 backend가 실제 연결됩니다. 큰 그림으로 보면 PyTorch의 분산 연산은 **c10d 뒤에 붙어 있는 NCCL backend를 통해 CUDA와 직접 연결**되며, 다음과 같은 지점들이 그 접점입니다.
+
+* **GPU 선택** — `torch.cuda.set_device(local_rank)`로 어느 GPU를 쓸지 결정
+* **Backend 선택** — `dist.init_process_group(backend="nccl")`로 어떤 통신 backend를 쓸지 결정
+* **Collective communication** — `dist.broadcast`, `dist.all_reduce` 등이 NCCL backend를 통해 CUDA interface 위에서 수행
+* **종료 처리** — 모든 작업이 끝난 뒤 process group을 정리하는 과정도 CUDA와 맞물려 동작
+
+즉, NCCL을 backend로 쓰면 GPU 간 통신이 최적화되고, 대부분의 collective 연산은 CUDA interface와 직접 연결되어 병렬로 실행됩니다. 아래에서는 `dist_matmul_allreduce`의 CUDA 접점 네 군데를 하나씩 살펴봅니다.
 
 ```python {3, 4, 5-6, 7-8, 9, 10}
 def dist_matmul_allreduce(A, B, local_rank, world_size):
