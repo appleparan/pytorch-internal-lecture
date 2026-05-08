@@ -27,7 +27,7 @@ PyTorch + NPU 온라인 모임 #5 | 2025-01-15
 
 ## MPI vs. OpenMP
 
-병렬 프로그래밍 모델이라고 하면 가장 대표적으로 떠오르는 것이 바로 **MPI (Message Passing Interface)**와 **OpenMP (Open Multi-Processing)** 두 가지입니다. 이 두 모델이 가장 크게 다른 점은, 가정하고 있는 **밑에 있는 메모리 시스템**이 다르다는 것입니다.
+병렬 프로그래밍 모델이라고 하면 가장 대표적으로 떠오르는 것이 바로 **MPI**(Message Passing Interface)와 **OpenMP**(Open Multi-Processing) 두 가지입니다. 이 두 모델이 가장 크게 다른 점은, 가정하고 있는 **밑에 있는 메모리 시스템**이 다르다는 것입니다.
 
 <div class="grid grid-cols-2 gap-4 mt-4">
 <div class="text-center">
@@ -91,7 +91,7 @@ PyTorch의 분산 학습에서 각 GPU 프로세스가 독립적으로 동일한
 
 MPI 프로그램은 대체로 위와 같이 구성됩니다. MPI를 사용할 때 많은 경우 **여러 프로세스에서 동일한 프로그램(single program)을 돌리는 방식**이 일반적이며, 특히 PyTorch로 작성된 근사 모델의 경우 대부분 이런 방식을 따릅니다. 실제로는 동일한 코드가 각각의 다른 프로세스에서 실행된다고 생각하면 됩니다.
 
-각 프로세스는 일단 **initialization(초기화)**를 수행한 후, 실제로 병렬로 **job**을 수행합니다. 이 job에는 해당 task/process가 처리해야 할 부분에 대한 기술이 포함되어 있습니다. Single program 방식이라면 같은 job을 실행하되 **rank에 따라 다르게 동작**하도록 코드를 작성하게 됩니다. 예를 들어 `if` 문을 활용해 자신의 rank에 따라 실제로는 다른 일을 하도록 분기할 수도 있습니다. 모든 작업이 끝나면 **finalize** 단계를 거쳐 전체적으로 종료합니다.
+각 프로세스는 일단 **initialization**(초기화)를 수행한 후, 실제로 병렬로 **job**을 수행합니다. 이 job에는 해당 task/process가 처리해야 할 부분에 대한 기술이 포함되어 있습니다. Single program 방식이라면 같은 job을 실행하되 **rank에 따라 다르게 동작**하도록 코드를 작성하게 됩니다. 예를 들어 `if` 문을 활용해 자신의 rank에 따라 실제로는 다른 일을 하도록 분기할 수도 있습니다. 모든 작업이 끝나면 **finalize** 단계를 거쳐 전체적으로 종료합니다.
 
 **PyTorch도 거의 비슷한 구조를 따르고 있으며**, 뒤에서 살펴볼 torchrun 예제에서 이를 직접 확인할 수 있습니다.
 
@@ -605,13 +605,13 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 지금까지 c10d 레벨의 저수준 분산 통신을 살펴봤습니다. 실제 모델 학습에서는 이런 저수준 API를 직접 사용하기보다, PyTorch가 제공하는 고수준 병렬화 패키지를 사용하는 경우가 대부분입니다. 각 패키지는 서로 다른 병렬화 전략을 구현하고 있습니다.
 
-**Distributed Data Parallel (DDP)**은 모델을 잘게 나누는 게 아니라 **동일한 모델을 여러 GPU에 복제**해 두고 데이터를 GPU별로 분배하는 Data Parallel 방식입니다. 각 GPU가 서로 다른 데이터 배치를 처리해서 throughput을 끌어올리고, 매 step마다 gradient를 `all_reduce`로 합산한 뒤 모든 GPU의 모델 파라미터를 동일하게 업데이트합니다.
+**Distributed Data Parallel**(DDP)은 모델을 잘게 나누는 게 아니라 **동일한 모델을 여러 GPU에 복제**해 두고 데이터를 GPU별로 분배하는 Data Parallel 방식입니다. 각 GPU가 서로 다른 데이터 배치를 처리해서 throughput을 끌어올리고, 매 step마다 gradient를 `all_reduce`로 합산한 뒤 모든 GPU의 모델 파라미터를 동일하게 업데이트합니다.
 
-**Fully Sharded Data Parallel (FSDP)**은 모델이 너무 커서 한 머신에 통째로 올릴 수 없을 때 사용합니다. parameter(weight, bias)를 world_size로 나누어 각 GPU에 sharding해 두고, 어떤 op을 실행하기 직전에 그 op에 필요한 weight 조각을 다른 GPU들로부터 모아 완전한 weight를 구성한 뒤 계산합니다. 계산이 끝나면 받아 온 조각들은 다시 버리고, 다음 op에서 필요한 다른 조각을 또 모으는 식입니다. 즉 sharding 되는 건 **weight일 뿐 계산 자체는 한 머신에서 온전히 수행**됩니다.
+**Fully Sharded Data Parallel**(FSDP)은 모델이 너무 커서 한 머신에 통째로 올릴 수 없을 때 사용합니다. parameter(weight, bias)를 world_size로 나누어 각 GPU에 sharding해 두고, 어떤 op을 실행하기 직전에 그 op에 필요한 weight 조각을 다른 GPU들로부터 모아 완전한 weight를 구성한 뒤 계산합니다. 계산이 끝나면 받아 온 조각들은 다시 버리고, 다음 op에서 필요한 다른 조각을 또 모으는 식입니다. 즉 sharding 되는 건 **weight일 뿐 계산 자체는 한 머신에서 온전히 수행**됩니다.
 
-**Tensor Parallel (TP)**은 한 layer의 연산조차 한 머신에서 처리하지 못할 만큼 클 때 사용하는, FSDP보다 더 복잡한 병렬화입니다. weight뿐 아니라 **연산 자체를 여러 GPU로 쪼개서** row parallel 또는 column parallel 방식으로 분할 계획(plan)을 따라 처리한 뒤, 결과를 다시 합쳐 최종 output을 만듭니다.
+**Tensor Parallel**(TP)은 한 layer의 연산조차 한 머신에서 처리하지 못할 만큼 클 때 사용하는, FSDP보다 더 복잡한 병렬화입니다. weight뿐 아니라 **연산 자체를 여러 GPU로 쪼개서** row parallel 또는 column parallel 방식으로 분할 계획(plan)을 따라 처리한 뒤, 결과를 다시 합쳐 최종 output을 만듭니다.
 
-이 외에도 **Sequence Parallel (SP)**과 **Pipeline Parallel (PP)**이 있으며, 실제 대규모 모델 학습에서는 이러한 기법들을 조합하여 사용합니다.
+이 외에도 **Sequence Parallel**(SP)과 **Pipeline Parallel**(PP)이 있으며, 실제 대규모 모델 학습에서는 이러한 기법들을 조합하여 사용합니다.
 
 > **컴파일러처럼 보이지만 컴파일러는 아닙니다.** FSDP나 TP는 모델을 재구성하는 방식이라는 점에서 어떻게 보면 컴파일러가 하는 일과 비슷합니다. 다만 실제 컴파일 과정 같은 건 구현되어 있지 않고, 입력도 출력도 `nn.Module`입니다. Python의 동적 클래스 생성 능력을 활용해 FSDP/TP가 해야 할 일을 함수로 정의하고 그것을 새로운 클래스로 wrap한 뒤 리턴하는 방식으로 "컴파일된 듯한 효과"만 만들어 냅니다.
 
@@ -684,7 +684,7 @@ FSDP의 내부 동작은 initialization, forward, backward 세 단계로 나눌 
 
 ### Tensor Parallel 예제 코드
 
-Tensor Parallel은 FSDP와 달리 개발자가 **분할 계획(plan)**을 직접 설계해야 합니다. 어떤 layer의 어떤 parameter를 column 방향으로 쪼갈지, row 방향으로 쪼갈지를 명시적으로 지정해야 하는 것입니다.
+Tensor Parallel은 FSDP와 달리 개발자가 **분할 계획**(plan)을 직접 설계해야 합니다. 어떤 layer의 어떤 parameter를 column 방향으로 쪼갈지, row 방향으로 쪼갈지를 명시적으로 지정해야 하는 것입니다.
 
 ```python
 from torch.distributed.device_mesh \

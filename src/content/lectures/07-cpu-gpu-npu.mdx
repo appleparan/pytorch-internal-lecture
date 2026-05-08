@@ -107,7 +107,7 @@ Latency Hiding의 가장 기본적인 형태는 명령어 수준의 파이프라
 
 <img src="/images/07/slide16_1.png" />
 
-파이프라이닝에서는 레지스터 간 의존성에 의한 **Data Hazard**가 발생할 수 있습니다. Data Hazard가 발생하면 파이프라인에 **버블(Bubble)** 또는 **스톨(Stall)**이 생겨 성능이 저하됩니다. 이를 해결하기 위해 **Bypass Logic**(Forwarding)이 사용됩니다. 아직 레지스터에 저장되지 않은 데이터를 다음 스테이지로 바로 전달하는 방식인데, 모든 해저드를 항상 해결할 수 있는 것은 아닙니다.
+파이프라이닝에서는 레지스터 간 의존성에 의한 **Data Hazard**가 발생할 수 있습니다. Data Hazard가 발생하면 파이프라인에 **버블(Bubble)** 또는 **스톨**(Stall)이 생겨 성능이 저하됩니다. 이를 해결하기 위해 **Bypass Logic**(Forwarding)이 사용됩니다. 아직 레지스터에 저장되지 않은 데이터를 다음 스테이지로 바로 전달하는 방식인데, 모든 해저드를 항상 해결할 수 있는 것은 아닙니다.
 
 ### Branch Latency 문제
 
@@ -125,7 +125,7 @@ MIPS 아키텍처에서는 **Branch Delay Slot**이라는 기법을 사용했습
 
 <img src="/images/07/slide19_1.png" />
 
-현대 프로세서에서 Branch Latency를 해결하는 핵심 기법은 **Branch Prediction**입니다. 분기가 Taken인지 Not Taken인지를 예측하고, **Branch Target Buffer(BTB)**를 통해 분기 대상 주소를 캐싱합니다. 예측이 맞으면 대기 없이 다음 명령어를 Fetch할 수 있지만, 예측이 틀리면 **Misprediction**이 발생하여 Rollback이 필요합니다. 이처럼 예측에 기반하여 미리 실행을 진행하는 방식을 **Speculative Execution**이라고 부릅니다.
+현대 프로세서에서 Branch Latency를 해결하는 핵심 기법은 **Branch Prediction**입니다. 분기가 Taken인지 Not Taken인지를 예측하고, **Branch Target Buffer**(BTB)를 통해 분기 대상 주소를 캐싱합니다. 예측이 맞으면 대기 없이 다음 명령어를 Fetch할 수 있지만, 예측이 틀리면 **Misprediction**이 발생하여 Rollback이 필요합니다. 이처럼 예측에 기반하여 미리 실행을 진행하는 방식을 **Speculative Execution**이라고 부릅니다.
 
 
 ## Loop-Level Pipelining
@@ -314,7 +314,7 @@ GPU의 설계 철학은 CPU와 근본적으로 다릅니다. GPU는 픽셀이나
 
 <img src="/images/07/slide45_1.png" />
 
-2007년 NVIDIA가 발표한 **CUDA**는 Shader 아키텍처를 소프트웨어가 이해할 수 있는 프로그래밍 모델로 정리한 것입니다. CUDA의 실행 모델은 **SIMT(Single Instruction Multiple Threads)**로, SIMD와 유사하지만 GPU의 메모리 레이턴시 하이딩에 특화되어 있습니다.
+2007년 NVIDIA가 발표한 **CUDA**는 Shader 아키텍처를 소프트웨어가 이해할 수 있는 프로그래밍 모델로 정리한 것입니다. CUDA의 실행 모델은 **SIMT**(Single Instruction Multiple Threads)로, SIMD와 유사하지만 GPU의 메모리 레이턴시 하이딩에 특화되어 있습니다.
 
 SIMT에서는 ThreadBlock과 **Warp** 개념이 핵심입니다. 하나의 Warp 내 스레드들이 동일한 명령어를 실행하면서, Cache miss가 발생하면 해당 Warp 대신 다른 Warp으로 즉시 switch하여 Latency Hiding을 수행합니다.
 

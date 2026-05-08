@@ -164,7 +164,7 @@ Out-of-Order engine의 목표는 instruction을 재배열하여 **Instruction-Le
 
 1. 확률이 높은 방향으로 trace를 생성하되, branch prediction을 **여러 번 반복**하여 긴 trace를 구성
 2. 이 긴 trace를 대상으로 out-of-order execution을 수행하면 성능이 크게 향상
-3. 만약 prediction이 틀리면(misprediction), **Reorder Buffer(ROB)**를 통해 rollback — 실제 결과를 commit하기 전에 in-order로 저장해두고, branch 결과가 확정되면 그때 publish
+3. 만약 prediction이 틀리면(misprediction), **Reorder Buffer**(ROB)를 통해 rollback — 실제 결과를 commit하기 전에 in-order로 저장해두고, branch 결과가 확정되면 그때 publish
 
 **이 구조가 결국 PyTorch 2.0의 Dynamo가 하는 일과 매우 유사합니다.** Dynamo도 실행 가능한 trace를 미리 추출하여 최적화하고, 동일한 패턴이 반복되면 이를 활용합니다.
 

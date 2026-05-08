@@ -18,7 +18,7 @@ PyTorch + NPU 온라인 모임 #2 | 2024-12-11
 이번 강의는 PyTorch 기초의 첫 번째 시간으로, Eager mode에 대해 다룹니다. 크게 네 부분으로 구성됩니다:
 
 1. **Eager mode의 high-level architecture**
-2. **`torch.matmul` 예제** — call stack을 통해 **Operator(Op)**가 실제로 어떻게 dispatch되고 실행되는지를 분석합니다
+2. **`torch.matmul` 예제** — call stack을 통해 **Operator**(Op)가 실제로 어떻게 dispatch되고 실행되는지를 분석합니다
 3. **Eager mode에 대한 detail** — `torch.matmul` 예제에서 등장한 개념들을 **Tensor**, **Operator**, **Runtime** 세 축으로 나눠 상세히 살펴봅니다
 4. **PyTorch build** — 빌드 과정과 빌드 산출물에 대한 개요
 
@@ -934,7 +934,7 @@ Dispatch table의 함수 포인터가 어떻게 등록되는지를 담당하는 
 
 <img src="/images/02/slide38_1.png" class="h-96 mx-auto" />
 
-Dispatcher는 **모든 operator마다 함수 포인터 테이블(dispatch table)**을 유지합니다. 각 dispatch key는 PyTorch의 cross-cutting concern(백엔드, autograd, tracing 등)에 대응하며, 위 다이어그램에서 CPU, CUDA, XLA 같은 백엔드뿐 아니라 autograd, tracing 같은 상위 개념에 대한 dispatch entry도 볼 수 있습니다. Dispatcher는 입력 tensor와 기타 정보를 기반으로 **dispatch key를 계산**한 뒤, 해당 테이블의 함수 포인터로 **indirect jump**합니다.
+Dispatcher는 **모든 operator마다 함수 포인터 테이블**(dispatch table)을 유지합니다. 각 dispatch key는 PyTorch의 cross-cutting concern(백엔드, autograd, tracing 등)에 대응하며, 위 다이어그램에서 CPU, CUDA, XLA 같은 백엔드뿐 아니라 autograd, tracing 같은 상위 개념에 대한 dispatch entry도 볼 수 있습니다. Dispatcher는 입력 tensor와 기타 정보를 기반으로 **dispatch key를 계산**한 뒤, 해당 테이블의 함수 포인터로 **indirect jump**합니다.
 
 ##### C++ vtable과의 비교
 
