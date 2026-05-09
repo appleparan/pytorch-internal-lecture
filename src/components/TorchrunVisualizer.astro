@@ -1,0 +1,494 @@
+---
+// TorchrunVisualizer.astro
+// 8단계 torchrun two-node distributed training 시각화 위젯
+//
+// 사용법:
+//   import TorchrunVisualizer from './TorchrunVisualizer.astro';
+//
+//   <TorchrunVisualizer theme="light" />
+//   <TorchrunVisualizer theme="dark" />
+//
+//   같은 페이지에 두 인스턴스를 동시에 두는 것도 가능합니다.
+
+export interface Props {
+  theme?: 'light' | 'dark';
+}
+
+const { theme = 'light' } = Astro.props;
+
+// Ring all-reduce 경로. visible path와 animateMotion 모두에 같은 string을 사용해
+// 인스턴스 간 ID 충돌을 피합니다.
+const ringPath = 'M 54 154 L 123 154 L 192 154 L 261 154 L 261 310 L 192 310 L 123 310 L 54 310 L 54 372 L 419 372 L 419 310 L 488 310 L 557 310 L 626 310 L 626 154 L 557 154 L 488 154 L 419 154 L 419 84 L 54 84 L 54 154';
+---
+
+<div class:list={['trv-root', `trv-theme-${theme}`]}>
+  <div class="trv-stage-card">
+    <div>
+      <span class="trv-stage-num">1 / 8</span>
+      <span class="trv-stage-title"></span>
+    </div>
+    <div class="trv-stage-desc"></div>
+  </div>
+
+  <div class="trv-diagram show-command">
+    <svg width="100%" viewBox="0 0 680 440" role="img" aria-label="torchrun 2-node 8-stage lifecycle">
+      <g class="trv-command-display">
+        <rect x="10" y="6" width="295" height="52" rx="6"
+              fill="var(--trv-bg-tertiary)"
+              stroke="var(--trv-border-tertiary)" stroke-width="0.5"/>
+        <text x="20" y="20" font-family="var(--trv-font-mono)" font-size="10" fill="var(--trv-text-secondary)">user@<tspan fill="var(--trv-text-primary)" font-weight="500">node-0</tspan> $ torchrun \</text>
+        <text x="20" y="34" font-family="var(--trv-font-mono)" font-size="10" fill="var(--trv-text-primary)">    --nnodes=2 --nproc_per_node=8 \</text>
+        <text x="20" y="48" font-family="var(--trv-font-mono)" font-size="10" fill="var(--trv-text-primary)">    --rdzv_endpoint=192.168.0.2:29400 \</text>
+        <text x="20" y="62" font-family="var(--trv-font-mono)" font-size="10" fill="var(--trv-text-primary)">    <tspan fill="var(--trv-node0-stroke)" font-weight="500">--node_rank=0</tspan> train.py</text>
+
+        <rect x="375" y="6" width="295" height="52" rx="6"
+              fill="var(--trv-bg-tertiary)"
+              stroke="var(--trv-border-tertiary)" stroke-width="0.5"/>
+        <text x="385" y="20" font-family="var(--trv-font-mono)" font-size="10" fill="var(--trv-text-secondary)">user@<tspan fill="var(--trv-text-primary)" font-weight="500">node-1</tspan> $ torchrun \</text>
+        <text x="385" y="34" font-family="var(--trv-font-mono)" font-size="10" fill="var(--trv-text-primary)">    --nnodes=2 --nproc_per_node=8 \</text>
+        <text x="385" y="48" font-family="var(--trv-font-mono)" font-size="10" fill="var(--trv-text-primary)">    --rdzv_endpoint=192.168.0.2:29400 \</text>
+        <text x="385" y="62" font-family="var(--trv-font-mono)" font-size="10" fill="var(--trv-text-primary)">    <tspan fill="var(--trv-node1-stroke)" font-weight="500">--node_rank=1</tspan> train.py</text>
+      </g>
+
+      <g class="trv-rdzv-coord">
+        <rect x="270" y="18" width="140" height="42" rx="8"
+              fill="var(--trv-bg-primary)"
+              stroke="var(--trv-info)" stroke-width="1"/>
+        <text x="340" y="36" text-anchor="middle" font-size="11" font-weight="500" fill="var(--trv-info)">Rendezvous</text>
+        <text x="340" y="52" text-anchor="middle" font-size="10" font-family="var(--trv-font-mono)" fill="var(--trv-text-secondary)">:29400 · WORLD=16</text>
+      </g>
+
+      <g>
+        <rect x="10" y="78" width="295" height="282" rx="14"
+              fill="var(--trv-bg-tertiary)"
+              stroke="var(--trv-border-secondary)" stroke-width="0.5"
+              stroke-dasharray="3 3"/>
+        <text x="157" y="100" text-anchor="middle" font-size="14" font-weight="500" fill="var(--trv-text-primary)">Node 0 · 192.168.0.2</text>
+        <text x="157" y="116" text-anchor="middle" font-size="12" fill="var(--trv-text-secondary)">node_rank = 0</text>
+      </g>
+
+      <g>
+        <rect x="375" y="78" width="295" height="282" rx="14"
+              fill="var(--trv-bg-tertiary)"
+              stroke="var(--trv-border-secondary)" stroke-width="0.5"
+              stroke-dasharray="3 3"/>
+        <text x="522" y="100" text-anchor="middle" font-size="14" font-weight="500" fill="var(--trv-text-primary)">Node 1 · 192.168.0.3</text>
+        <text x="522" y="116" text-anchor="middle" font-size="12" fill="var(--trv-text-secondary)">node_rank = 1</text>
+      </g>
+
+      <g class="trv-rdzv-lines"></g>
+      <g class="trv-compute-glows"></g>
+      <g class="trv-processes"></g>
+      <g class="trv-data-badges"></g>
+
+      <g class="trv-ring-elements">
+        <path d={ringPath}
+              fill="none" stroke="#BA7517" stroke-width="1.2" opacity="0.3" stroke-dasharray="3 3"/>
+        <circle r="4.5" fill="#BA7517">
+          <animateMotion dur="9s" repeatCount="indefinite" begin="0s" path={ringPath}/>
+        </circle>
+        <circle r="4.5" fill="#BA7517">
+          <animateMotion dur="9s" repeatCount="indefinite" begin="-2.25s" path={ringPath}/>
+        </circle>
+        <circle r="4.5" fill="#BA7517">
+          <animateMotion dur="9s" repeatCount="indefinite" begin="-4.5s" path={ringPath}/>
+        </circle>
+        <circle r="4.5" fill="#BA7517">
+          <animateMotion dur="9s" repeatCount="indefinite" begin="-6.75s" path={ringPath}/>
+        </circle>
+      </g>
+
+      <g class="trv-pg-coord">
+        <rect x="284" y="200" width="112" height="44" rx="8"
+              fill="var(--trv-bg-primary)"
+              stroke="#BA7517" stroke-width="1"/>
+        <text x="340" y="218" text-anchor="middle" font-size="11" font-weight="500" fill="#BA7517">Process Group</text>
+        <text x="340" y="234" text-anchor="middle" font-size="10" font-family="var(--trv-font-mono)" fill="var(--trv-text-secondary)">backend = nccl</text>
+      </g>
+
+      <g class="trv-cleanup-label">
+        <rect x="244" y="200" width="192" height="44" rx="8"
+              fill="var(--trv-bg-primary)"
+              stroke="var(--trv-text-secondary)" stroke-width="0.5"/>
+        <text x="340" y="218" text-anchor="middle" font-size="11" font-weight="500" fill="var(--trv-text-secondary)">destroy_process_group()</text>
+        <text x="340" y="234" text-anchor="middle" font-size="10" fill="var(--trv-text-tertiary)">통신 그룹 해제</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="trv-controls">
+    <button class="trv-btn trv-btn-prev" type="button">← 이전</button>
+    <button class="trv-btn trv-btn-play" type="button">▶ 자동재생</button>
+    <button class="trv-btn trv-btn-next" type="button">다음 →</button>
+    <div class="trv-progress"></div>
+    <button class="trv-btn trv-btn-reset" type="button" aria-label="처음으로">↻</button>
+  </div>
+</div>
+
+<style>
+  .trv-root {
+    --trv-font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --trv-font-mono: ui-monospace, "SF Mono", Monaco, "Cascadia Mono", "Courier New", monospace;
+    font-family: var(--trv-font-sans);
+    color: var(--trv-text-primary);
+    line-height: 1.5;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .trv-root.trv-theme-light {
+    --trv-bg-primary: #ffffff;
+    --trv-bg-secondary: #f5f3ec;
+    --trv-bg-tertiary: #ece8df;
+    --trv-text-primary: #1a1a1a;
+    --trv-text-secondary: #5f5e5a;
+    --trv-text-tertiary: #888780;
+    --trv-info: #185FA5;
+    --trv-border-tertiary: rgba(0, 0, 0, 0.12);
+    --trv-border-secondary: rgba(0, 0, 0, 0.22);
+    --trv-node0-fill: #E6F1FB;
+    --trv-node0-stroke: #185FA5;
+    --trv-node0-pill-bg: #B5D4F4;
+    --trv-node0-pill-text: #185FA5;
+    --trv-node1-fill: #EEEDFE;
+    --trv-node1-stroke: #534AB7;
+    --trv-node1-pill-bg: #CECBF6;
+    --trv-node1-pill-text: #534AB7;
+  }
+
+  .trv-root.trv-theme-dark {
+    --trv-bg-primary: #1f1f1f;
+    --trv-bg-secondary: #2a2a2a;
+    --trv-bg-tertiary: #232323;
+    --trv-text-primary: #e8e6dc;
+    --trv-text-secondary: #b4b2a9;
+    --trv-text-tertiary: #888780;
+    --trv-info: #85B7EB;
+    --trv-border-tertiary: rgba(255, 255, 255, 0.12);
+    --trv-border-secondary: rgba(255, 255, 255, 0.22);
+    --trv-node0-fill: #0C447C;
+    --trv-node0-stroke: #85B7EB;
+    --trv-node0-pill-bg: #185FA5;
+    --trv-node0-pill-text: #B5D4F4;
+    --trv-node1-fill: #3C3489;
+    --trv-node1-stroke: #AFA9EC;
+    --trv-node1-pill-bg: #534AB7;
+    --trv-node1-pill-text: #CECBF6;
+  }
+
+  .trv-stage-card {
+    padding: 14px 16px;
+    background: var(--trv-bg-secondary);
+    border-radius: 8px;
+    margin-bottom: 14px;
+    min-height: 110px;
+  }
+
+  .trv-stage-num {
+    display: inline-block;
+    background: var(--trv-info);
+    color: var(--trv-bg-primary);
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    margin-right: 10px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .trv-stage-title {
+    font-weight: 500;
+    font-size: 15px;
+    color: var(--trv-text-primary);
+  }
+
+  .trv-stage-desc {
+    font-size: 13px;
+    color: var(--trv-text-secondary);
+    margin-top: 8px;
+    line-height: 1.65;
+  }
+
+  .trv-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .trv-btn {
+    background: transparent;
+    border: 0.5px solid var(--trv-border-secondary);
+    color: var(--trv-text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .trv-btn:hover { background: var(--trv-bg-secondary); }
+  .trv-btn:active { transform: scale(0.98); }
+  .trv-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .trv-progress {
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    padding: 0 8px;
+    min-width: 120px;
+  }
+
+  .trv-progress-pip {
+    flex: 1;
+    height: 4px;
+    background: var(--trv-border-tertiary);
+    border-radius: 2px;
+    transition: background 0.3s;
+    cursor: pointer;
+  }
+  .trv-progress-pip.active { background: var(--trv-info); }
+  .trv-progress-pip.done { background: var(--trv-info); opacity: 0.45; }
+
+  .trv-proc-box { opacity: 0; transition: opacity 0.45s ease; }
+  .trv-diagram.spawned .trv-proc-box { opacity: 1; }
+
+  .trv-rank-pill { opacity: 0; transition: opacity 0.5s ease; }
+  .trv-diagram.ranks-shown .trv-rank-pill { opacity: 1; }
+
+  .trv-rdzv-coord { opacity: 0; transition: opacity 0.5s ease; }
+  .trv-diagram.ranks-shown .trv-rdzv-coord { opacity: 1; }
+  .trv-diagram.cleanup .trv-rdzv-coord { opacity: 0.35; }
+
+  .trv-rdzv-line { opacity: 0; transition: opacity 0.6s ease; }
+  .trv-diagram.rdzv .trv-rdzv-line { opacity: 0.3; }
+
+  .trv-pg-coord { opacity: 0; transition: opacity 0.5s ease; }
+  .trv-diagram.init-group .trv-pg-coord { opacity: 1; }
+
+  .trv-command-display { opacity: 0; transition: opacity 0.4s ease; }
+  .trv-diagram.show-command .trv-command-display { opacity: 1; }
+
+  .trv-data-badge { opacity: 0; transition: opacity 0.5s ease; }
+  .trv-diagram.sharding .trv-data-badge { opacity: 1; }
+
+  .trv-compute-glow { opacity: 0; }
+  .trv-diagram.computing .trv-compute-glow {
+    animation: trv-glow-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes trv-glow-pulse {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 0.35; }
+  }
+
+  .trv-ring-elements { opacity: 0; transition: opacity 0.4s ease; }
+  .trv-diagram.all-reduce .trv-ring-elements { opacity: 1; }
+
+  .trv-cleanup-label { opacity: 0; transition: opacity 0.4s ease; }
+  .trv-diagram.cleanup .trv-cleanup-label { opacity: 1; }
+  .trv-diagram.cleanup .trv-proc-box { opacity: 0.35; }
+  .trv-diagram.cleanup .trv-rank-pill { opacity: 0.2; }
+  .trv-diagram.cleanup .trv-data-badge { opacity: 0; }
+</style>
+
+<script>
+  const stages = [
+    {
+      title: '1. torchrun 명령어 실행',
+      desc: '두 노드에서 각자 torchrun을 실행합니다. nnodes·nproc_per_node·rdzv_endpoint 등 다른 인자는 모두 같고, --node_rank만 0/1로 다르게 줍니다.',
+      classes: ['show-command'],
+    },
+    {
+      title: '2. Process spawn',
+      desc: '각 노드의 torchrun이 nproc_per_node=8 만큼 자식 프로세스를 fork합니다. LOCAL_RANK 0~7이 부여되지만 다른 노드의 존재는 아직 모르는 상태입니다.',
+      classes: ['spawned'],
+    },
+    {
+      title: '3. Rendezvous + GLOBAL_RANK 할당',
+      desc: '16개 프로세스가 192.168.0.2:29400로 모여 서로를 발견하고 동기화합니다. 코디네이터가 WORLD_SIZE=16을 확정한 뒤 GLOBAL_RANK 0~15를 일관되게 할당합니다. 이후로도 rendezvous 서버는 endpoint로 계속 살아있습니다.',
+      classes: ['spawned', 'rdzv', 'ranks-shown'],
+    },
+    {
+      title: '4. Process group 초기화 (backend 선택)',
+      desc: "init_process_group(backend='nccl')이 호출되면서 rendezvous 위에 process group이 만들어집니다. 이때 backend가 결정되는데, GPU 학습이면 NCCL, CPU면 Gloo를 보통 씁니다.",
+      classes: ['spawned', 'ranks-shown', 'init-group'],
+    },
+    {
+      title: '5. 데이터 로딩 + sharding',
+      desc: 'DistributedSampler가 데이터셋을 GLOBAL_RANK 기준으로 16조각으로 쪼개 각 worker에 다른 shard를 분배합니다. 즉 worker마다 보는 데이터가 다릅니다.',
+      classes: ['spawned', 'ranks-shown', 'init-group', 'sharding'],
+    },
+    {
+      title: '6. Forward + Backward 계산',
+      desc: '각 worker가 자기 shard로 forward → backward를 수행해 local gradient를 만듭니다. 16개 worker의 gradient는 서로 다른 데이터에서 나왔기 때문에 다릅니다.',
+      classes: ['spawned', 'ranks-shown', 'init-group', 'sharding', 'computing'],
+    },
+    {
+      title: '7. Ring all-reduce 동기화',
+      desc: 'process group 안에서 16개 프로세스가 ring 토폴로지로 연결되어 gradient를 옆 worker에게 넘기며 합쳐갑니다. 한 바퀴 돌고 나면 모든 worker가 동일한 평균 gradient를 갖게 됩니다.',
+      classes: ['spawned', 'ranks-shown', 'init-group', 'sharding', 'all-reduce'],
+    },
+    {
+      title: '8. Process group 제거',
+      desc: 'destroy_process_group()으로 process group이 해제되고 프로세스가 종료됩니다. rendezvous endpoint는 (재시작에 대비해) 잠시 더 유지될 수 있고, --max-restarts=N 옵션이면 worker 실패 시 N번까지 재시작을 시도합니다.',
+      classes: ['spawned', 'ranks-shown', 'cleanup'],
+    },
+  ];
+
+  function initWidget(root) {
+    if (root.dataset.trvInit === '1') return;
+    root.dataset.trvInit = '1';
+
+    const diagram = root.querySelector('.trv-diagram');
+    const stageNum = root.querySelector('.trv-stage-num');
+    const stageTitle = root.querySelector('.trv-stage-title');
+    const stageDesc = root.querySelector('.trv-stage-desc');
+    const btnPrev = root.querySelector('.trv-btn-prev');
+    const btnPlay = root.querySelector('.trv-btn-play');
+    const btnNext = root.querySelector('.trv-btn-next');
+    const btnReset = root.querySelector('.trv-btn-reset');
+    const progress = root.querySelector('.trv-progress');
+    const procs = root.querySelector('.trv-processes');
+    const lines = root.querySelector('.trv-rdzv-lines');
+    const glows = root.querySelector('.trv-compute-glows');
+    const badges = root.querySelector('.trv-data-badges');
+
+    let currentStage = 0;
+    let isPlaying = false;
+    let playTimer = null;
+
+    const rdzvX = 340;
+    const rdzvY = 40;
+    const colXNode0 = [26, 95, 164, 233];
+    const colXNode1 = [391, 460, 529, 598];
+    const rowY = [124, 280];
+
+    let procSVG = '';
+    let lineSVG = '';
+    let glowSVG = '';
+    let badgeSVG = '';
+
+    for (let nodeIdx = 0; nodeIdx < 2; nodeIdx++) {
+      const colX = nodeIdx === 0 ? colXNode0 : colXNode1;
+      const fillVar = nodeIdx === 0 ? 'var(--trv-node0-fill)' : 'var(--trv-node1-fill)';
+      const strokeVar = nodeIdx === 0 ? 'var(--trv-node0-stroke)' : 'var(--trv-node1-stroke)';
+      const pillBgVar = nodeIdx === 0 ? 'var(--trv-node0-pill-bg)' : 'var(--trv-node1-pill-bg)';
+      const pillTextVar = nodeIdx === 0 ? 'var(--trv-node0-pill-text)' : 'var(--trv-node1-pill-text)';
+
+      for (let local = 0; local < 8; local++) {
+        const col = local % 4;
+        const rowI = Math.floor(local / 4);
+        const x = colX[col];
+        const y = rowY[rowI];
+        const cx = x + 28;
+        const cy = y + 30;
+        const globalRank = nodeIdx * 8 + local;
+        const delay = (globalRank * 0.04).toFixed(2);
+
+        glowSVG +=
+          '<rect class="trv-compute-glow" x="' + (x - 3) + '" y="' + (y - 3) +
+          '" width="62" height="66" rx="9" fill="#EF9F27"/>';
+
+        procSVG +=
+          '<g class="trv-proc-box" style="transition-delay:' + delay + 's">' +
+            '<rect x="' + x + '" y="' + y + '" width="56" height="60" rx="6" ' +
+              'fill="' + fillVar + '" stroke="' + strokeVar + '" stroke-width="0.5"/>' +
+            '<text font-size="12" x="' + cx + '" y="' + (y + 22) +
+              '" text-anchor="middle" fill="var(--trv-text-secondary)">GPU ' + local + '</text>' +
+            '<g class="trv-rank-pill">' +
+              '<rect x="' + (x + 4) + '" y="' + (y + 36) + '" width="48" height="16" rx="8" ' +
+                'fill="' + pillBgVar + '" opacity="0.6"/>' +
+              '<text x="' + cx + '" y="' + (y + 47) +
+                '" text-anchor="middle" font-size="10" font-weight="500" fill="' + pillTextVar + '">rank ' + globalRank + '</text>' +
+            '</g>' +
+          '</g>';
+
+        badgeSVG +=
+          '<rect class="trv-data-badge" x="' + (x + 8) + '" y="' + (y + 5) +
+          '" width="40" height="3" rx="1.5" fill="#1D9E75"/>';
+
+        lineSVG +=
+          '<line class="trv-rdzv-line" x1="' + cx + '" y1="' + cy +
+          '" x2="' + rdzvX + '" y2="' + rdzvY +
+          '" stroke="var(--trv-info)" stroke-width="0.5" stroke-dasharray="3 3"/>';
+      }
+    }
+
+    glows.innerHTML = glowSVG;
+    procs.innerHTML = procSVG;
+    lines.innerHTML = lineSVG;
+    badges.innerHTML = badgeSVG;
+
+    for (let i = 0; i < stages.length; i++) {
+      const pip = document.createElement('div');
+      pip.className = 'trv-progress-pip';
+      pip.addEventListener('click', (function (idx) {
+        return function () { stopPlay(); applyStage(idx); };
+      })(i));
+      progress.appendChild(pip);
+    }
+
+    function applyStage(idx) {
+      currentStage = idx;
+      const stage = stages[idx];
+      stageNum.textContent = (idx + 1) + ' / ' + stages.length;
+      stageTitle.textContent = stage.title;
+      stageDesc.textContent = stage.desc;
+
+      diagram.className = 'trv-diagram ' + (stage.classes || []).join(' ');
+
+      const pips = progress.querySelectorAll('.trv-progress-pip');
+      pips.forEach(function (pip, i) {
+        pip.className = 'trv-progress-pip' + (i === idx ? ' active' : (i < idx ? ' done' : ''));
+      });
+
+      btnPrev.disabled = idx === 0;
+      btnNext.disabled = idx === stages.length - 1;
+    }
+
+    function goPrev() { if (currentStage > 0) { stopPlay(); applyStage(currentStage - 1); } }
+    function goNext() { if (currentStage < stages.length - 1) { applyStage(currentStage + 1); } }
+    function togglePlay() { if (isPlaying) stopPlay(); else startPlay(); }
+    function startPlay() {
+      if (currentStage === stages.length - 1) applyStage(0);
+      isPlaying = true;
+      btnPlay.textContent = '⏸ 일시정지';
+      scheduleNext();
+    }
+    function scheduleNext() {
+      playTimer = setTimeout(function () {
+        if (currentStage < stages.length - 1) {
+          applyStage(currentStage + 1);
+          scheduleNext();
+        } else {
+          stopPlay();
+        }
+      }, 4000);
+    }
+    function stopPlay() {
+      isPlaying = false;
+      clearTimeout(playTimer);
+      btnPlay.textContent = '▶ 자동재생';
+    }
+    function resetAnim() { stopPlay(); applyStage(0); }
+
+    btnPrev.addEventListener('click', goPrev);
+    btnNext.addEventListener('click', goNext);
+    btnPlay.addEventListener('click', togglePlay);
+    btnReset.addEventListener('click', resetAnim);
+
+    applyStage(0);
+  }
+
+  function bootstrap() {
+    document.querySelectorAll('.trv-root').forEach(initWidget);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrap);
+  } else {
+    bootstrap();
+  }
+</script>

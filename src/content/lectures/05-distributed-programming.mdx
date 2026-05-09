@@ -6,6 +6,7 @@ lecture: 5
 
 import Mermaid from '../../components/Mermaid.astro';
 import ThemeImage from '../../components/ThemeImage.astro';
+import TorchrunVisualizer from '../../components/TorchrunVisualizer.astro';
 
 
 # Week 5: Distributed Programming in PyTorch
@@ -371,6 +372,8 @@ torchrun을 실행하면 내부적으로 다음과 같은 단계를 거칩니다
 3. **랑데뷰 (rendezvous)** — 모든 프로세스가 서로를 발견하고 동기화합니다. 각 프로세스에 global rank가 할당됩니다.
 4. **Process별로 PyTorch 스크립트 실행** — 프로세스 그룹을 생성하면서 communication backend를 선택(nccl 혹은 gloo)하고, 데이터를 로딩 및 sharding한 뒤, 계산을 수행하고, `torch.distributed.all_reduce`를 이용해 동기화한 후, 프로세스 그룹을 제거합니다.
 5. **부가 기능** — fault tolerance를 위해 checkpointing과 logging을 지원합니다. `--max-restarts=N` 옵션으로 실패 시 N번까지 재시작을 시도할 수 있습니다.
+
+<TorchrunVisualizer />
 
 ### 랑데뷰 (Rendezvous) 상세
 
