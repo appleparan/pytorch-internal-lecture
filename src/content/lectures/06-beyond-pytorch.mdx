@@ -90,16 +90,48 @@ import Mermaid from '../../components/Mermaid.astro';
 
 ### Self Attention과 Scaled Dot-Product
 
-LLM의 핵심 연산인 Self Attention은 모든 단어의 Key-Value 값과 특정 단어의 Query를 사용하여 계산됩니다. 예를 들어 "it"이라는 단어를 처리할 때, "it"의 query가 문장 내 모든 단어의 key에 반영되고, 각 단어별로 query-key 내적값과 value를 곱한 뒤, 모든 단어의 영향을 합산하여 self-attention이 반영된 새로운 embedding을 생성합니다. 하단 레이어의 연산은 병렬 처리가 가능하지만, softmax 등 상위 연산은 병렬화가 까다롭습니다.
+LLM에서 가장 중요한 연산을 하나 꼽으라면 단연 **Self-Attention**, 그중에서도 실제로 그것을 계산하는 핵심 연산인 **Scaled Dot-Product**입니다. 왼쪽 그림처럼 한 문장이 주어졌을 때, 단어들 사이의 관계를 통해 "이 문장 안에서 이 단어가 어떤 의미를 갖는가"를 더 명확하게 뽑아내는 과정이 곧 self-attention이라고 생각할 수 있습니다.
 
-<div class="grid grid-cols-2 gap-4 mt-4">
-<div>
-  <img src="/images/06/slide06_1.png" class="h-72" />
-  <div class="text-sm text-center mt-2">모든 단어의 kv값과 특정 단어의 query를 사용</div>
-</div>
-<div>
-  <img src="/images/06/slide06_2.png" class="h-72" />
-</div>
+이 과정은 잘 알려져 있듯이 **K(Key), Q(Query), V(Value)** 세 가지 값으로 이루어집니다. **Attention**은 단어들 사이의 연관성의 크기이고, query–key 내적으로 그 크기를 구한 뒤 value를 곱해 누적하면(=scaled dot-product), 특정 단어에 self-attention이 반영된 **새로운 표현(embedding)** 이 만들어집니다.
+
+오른쪽 그림에서 계산 측면의 재미있는 포인트가 몇 가지 있는데, 하나는 처음에 입력 단어 embedding으로부터 K·Q·V를 뽑아내는 부분은 모두 **병렬로 처리할 수 있다**는 점입니다. 그다음 새로운 representation을 만들고자 하는 단어의 query와, 모든 단어의 key를 곱해 attention score를 만들고, 거기에 **softmax**를 거쳐 분포를 normalize한 뒤, 다시 V와 곱해 모든 단어를 더하면 새로운 embedding이 나옵니다.
+
+요약하자면 계산 특성은 다음과 같습니다.
+
+- **병렬 처리가 자연스러운 부분** — 입력 embedding으로부터의 K·Q·V 계산, 그리고 단어별로 독립적인 하위(아래쪽) 연산
+- **병렬 처리가 까다로운 부분** — 전체 분포를 봐야 하는 **softmax**, 그리고 그 결과와 V를 곱한 뒤 모든 단어에 대해 합산하는 **summation**
+
+이 "위쪽이 병렬화하기 까다롭다"는 점은 이후 Flash Attention 같은 GPU-aware 알고리듬이 풀어야 하는 핵심 문제로 다시 등장합니다.
+
+<div class="flex flex-col gap-8 mt-6">
+  <div class="text-center">
+    <img src="/images/06/slide06_1.png" class="h-72 mx-auto" />
+    <div class="text-sm mt-2">모든 단어의 kv값과, "it"의 query만 사용</div>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+    <div class="text-center">
+      <img src="/images/06/slide06_2.png" class="h-80 mx-auto" />
+      <div class="text-sm mt-2">그림 속 $x_1$이 "it"에 해당한다고 가정한 Scaled Dot-Product 계산 흐름</div>
+    </div>
+    <div class="flex flex-col gap-2">
+      <div class="rounded p-3" style="background-color:#3a7bd5">
+        <p class="text-sm font-bold text-white">④ Self-attention이 반영된 "it"(=$x_1$)의 새 embedding</p>
+        <p class="text-xs text-white/80 mt-1">출력 $a_1$이 곧 "it"의 새 표현</p>
+      </div>
+      <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
+        <p class="text-sm font-bold text-slate-100">③ 모든 단어의 영향을 더함</p>
+        <p class="text-xs text-slate-300 mt-1">softmax 분포로 정규화 후 $\sum$로 합산</p>
+      </div>
+      <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
+        <p class="text-sm font-bold text-slate-100">② 단어별로 $qk$와 $v$를 곱함</p>
+        <p class="text-xs text-slate-300 mt-1">attention score($\alpha$)와 value를 element-wise 곱</p>
+      </div>
+      <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
+        <p class="text-sm font-bold text-slate-100">① "it"(=$x_1$)의 query가 모든 k에 반영</p>
+        <p class="text-xs text-slate-300 mt-1">$q_1$을 $k_1$, $k_2$, $k_3$와 각각 내적해 attention score 계산</p>
+      </div>
+    </div>
+  </div>
 </div>
 
 ### Non-Causal vs. Causal Attention
