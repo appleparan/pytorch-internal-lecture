@@ -21,33 +21,30 @@ import Mermaid from '../../components/Mermaid.astro';
 3. **Kernel Programming** — CUDA, CUTLASS, OpenAI Triton
 4. **Serving 최적화 Framework** — vLLM과 기타 상용 프레임워크
 
-### 강의 진행 현황
-
-원래 계획에서는 PyTorch internal 기초 3회와 심화 8회로 구성되어 있었으나, 현재 계획은 다음과 같이 조정되었습니다:
-
-- Week 1: 기술적인 배경
-- Week 2: eager mode
-- Week 3: graph mode
-- Week 4: automatic differentiation
-- Week 5: distributed programming
-- **Week 6: beyond PyTorch: custom kernel과 vLLM** (이번 강의)
-- Week 7: CPU / GPU / NPU
-- Week 8: 리벨리온 NPU (마지막 강의)
-
 ### 오늘의 핵심 질문
 
-이번 강의를 관통하는 핵심 질문은 세 가지입니다. 첫째, **AI 반도체 관점에서 PyTorch만 지원하면 되는가?** 특히 추론에 특화된 AI 반도체라면 어떤 추가 기술이 필요한지를 살펴봅니다. 둘째, **성능 측면에서 LLM 추론의 핵심 이슈는 무엇이며 그 해결책은 무엇인가?** 셋째, **개발자들이 이러한 해결책을 구현하기 위해 PyTorch만으로 충분한가?**
+이번 강의는 "Beyond PyTorch"라는 제목 그대로, PyTorch 외에 무엇을 더 준비해야 하는지를 다룹니다. 특히 **리벨리온을 비롯해 이번 강의에 참여하고 계신 다른 AI 반도체 회사들** 관점에서, 그리고 그중에서도 **추론(inference)에 특화된 AI 반도체** 관점에서, 개발 환경으로 PyTorch만 지원하면 충분한가, 아니면 무엇을 더 갖춰야 하는가를 함께 고민해 보려고 합니다.
 
-결론부터 말하면, LLM 추론 관점에서 PyTorch는 큰 그림의 일부입니다. Open Pretrained LLM(Llama, DeepSeek 등)이 Hugging Face 같은 플랫폼을 통해 배포되고, PyTorch 같은 ML Framework 위에서 실행되지만, 실제 성능을 끌어내려면 **Kernel Programming**과 **서빙 최적화**라는 PyTorch를 넘어서는 기술이 필수적입니다.
+성능이 가장 중요한 이슈라고 본다면, 자연스럽게 다음 세 가지 질문이 따라옵니다.
 
-<Mermaid scale={0.7}>
+1. 성능 측면에서 LLM 추론의 핵심 **문제**는 무엇인가?
+2. 그 문제들을 어떻게 **해결**할 수 있는가?
+3. 그 해결책을 개발자가 잘 구현하기 위해 **PyTorch만으로 충분한가**, 아니면 보조적인 다른 개발 환경이 필요한가?
+
+이 세 질문에 답을 하다 보면 오늘 다루려는 주제들을 자연스럽게 모두 짚게 됩니다.
+
+답부터 먼저 드리면 — 어디까지나 개인적인 생각이지만 많은 분들도 비슷하게 보실 거라 생각합니다 — **LLM 추론 관점에서 PyTorch는 전체 큰 그림의 (매우 중요한) 일부**입니다. 전체 생태계의 구심점은 분명히 PyTorch이지만, PyTorch만 가지고 모든 게 되지는 않습니다. 우리가 잘 활용하고 있는 **Llama, DeepSeek 같은 공개 Pretrained LLM**, 그리고 이들이 배포되는 **Hugging Face 중심의 배포 기술** 모두가 큰 그림 안에서 굉장히 중요한 환경 중 하나입니다.
+
+성능에 초점을 맞춰 보면 더 분명해집니다. PyTorch만으로는 해결되지 않는 영역이 분명히 존재하고, 이를 메우려면 **커널 프로그래밍**(병렬 프로그래밍)과 더 상위 레이어인 **서빙 최적화**까지 함께 갖춰져 있어야 합니다. 이 모든 것이 갖춰져야 비로소 개발자들이 LLM 추론에서 제대로 된 성능을 낼 수 있고, 따라서 AI 반도체 회사 입장에서도 PyTorch 외의 환경을 함께 잘 준비해야 합니다. 오늘 아젠다는 이 관점에서 정리한 것입니다.
+
+<Mermaid wide>
 {`graph LR
-    A[Open Pretrained LLM] --> B[LLM 배포]
-    B --> C[ML Framework]
-    C --> D[Kernel Programming]
-    C --> E[서빙 최적화]
-    style D fill:#f97316,stroke:#f97316,color:#fff
-    style E fill:#f97316,stroke:#f97316,color:#fff`}
+    A[Open Pretrained LLM<br/>Llama, DeepSeek] --> B[Hugging Face<br/>배포]
+    B --> C[ML Framework<br/>PyTorch]
+    C --> D[Kernel Programming<br/>병렬 프로그래밍]
+    C --> E[서빙 최적화<br/>vLLM 등]
+    style D fill:#3a7bd5,stroke:#2c5ea0,color:#fff
+    style E fill:#d97b1e,stroke:#a85d15,color:#fff`}
 </Mermaid>
 
 
