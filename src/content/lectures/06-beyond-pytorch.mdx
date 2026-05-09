@@ -37,15 +37,53 @@ import Mermaid from '../../components/Mermaid.astro';
 
 성능에 초점을 맞춰 보면 더 분명해집니다. PyTorch만으로는 해결되지 않는 영역이 분명히 존재하고, 이를 메우려면 **커널 프로그래밍**(병렬 프로그래밍)과 더 상위 레이어인 **서빙 최적화**까지 함께 갖춰져 있어야 합니다. 이 모든 것이 갖춰져야 비로소 개발자들이 LLM 추론에서 제대로 된 성능을 낼 수 있고, 따라서 AI 반도체 회사 입장에서도 PyTorch 외의 환경을 함께 잘 준비해야 합니다. 오늘 아젠다는 이 관점에서 정리한 것입니다.
 
-<Mermaid wide>
-{`graph LR
-    A[Open Pretrained LLM<br/>Llama, DeepSeek] --> B[Hugging Face<br/>배포]
-    B --> C[ML Framework<br/>PyTorch]
-    C --> D[Kernel Programming<br/>병렬 프로그래밍]
-    C --> E[서빙 최적화<br/>vLLM 등]
-    style D fill:#3a7bd5,stroke:#2c5ea0,color:#fff
-    style E fill:#d97b1e,stroke:#a85d15,color:#fff`}
-</Mermaid>
+<div class="mt-6 mb-6">
+  <div class="grid grid-cols-4 gap-0 text-center">
+    <div></div>
+    <div></div>
+    <div></div>
+    <div class="text-orange-400 text-sm font-bold pb-1 border-b-2 border-orange-400 mx-2">
+      ⌐ 오늘의 초점 ¬
+    </div>
+  </div>
+  <div class="grid grid-cols-4 gap-0 text-center mt-3">
+    <div class="px-4 border-r border-dashed border-gray-500 flex flex-col">
+      <div class="flex flex-col items-center gap-3 flex-1 justify-center">
+        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">Llama 3</div>
+        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">DeepSeek</div>
+      </div>
+      <p class="mt-4 text-sm font-bold text-gray-200">Open Pretrained LLM</p>
+    </div>
+    <div class="px-4 border-r border-dashed border-gray-500 flex flex-col">
+      <div class="flex flex-col items-center gap-3 flex-1 justify-center">
+        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">🤗 Hub</div>
+        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">🤗 Transformers</div>
+      </div>
+      <p class="mt-4 text-sm font-bold text-gray-200">LLM 배포</p>
+    </div>
+    <div class="px-4 border-r border-dashed border-gray-500 flex flex-col">
+      <div class="flex flex-col items-center gap-3 flex-1 justify-center">
+        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">PyTorch</div>
+      </div>
+      <p class="mt-4 text-sm font-bold text-gray-200">ML Framework</p>
+    </div>
+    <div class="px-4 flex flex-col">
+      <div class="flex flex-col items-center gap-3 flex-1 justify-center">
+        <div class="flex flex-col items-center gap-2">
+          <div class="flex gap-2">
+            <div class="px-3 py-1.5 rounded bg-blue-700 text-white text-sm font-semibold">Triton</div>
+            <div class="px-3 py-1.5 rounded bg-blue-700 text-white text-sm font-semibold">CUDA</div>
+          </div>
+          <p class="text-xs text-blue-300 font-bold">Kernel Programming</p>
+        </div>
+        <div class="flex flex-col items-center gap-2 mt-2">
+          <div class="px-3 py-1.5 rounded bg-blue-700 text-white text-sm font-semibold">vLLM</div>
+          <p class="text-xs text-blue-300 font-bold">서빙 최적화</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 
 ## LLM Inference의 성능 문제
