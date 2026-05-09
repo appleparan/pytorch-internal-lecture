@@ -757,8 +757,27 @@ https://pytorch.org/tutorials/intermediate/TP_tutorial.html
 
 ## Next Week Preview: Beyond PyTorch
 
-다음 주에는 PyTorch의 경계를 넘어서는 두 가지 주제를 다룰 예정입니다.
+지금까지 5주에 걸쳐 PyTorch 안에 기본으로 들어 있는 주요 기능들을 살펴봤습니다. 다음 주에는 **PyTorch만으로 해결되지 않는 영역**을 한 시간 정도 다룹니다.
 
-**Custom kernel**은 두 가지 경우에 필요합니다. 첫째는 기존 op으로 cover되지 않는 새로운 op이 필요한 경우이고, 둘째는 PyTorch에서 제공하는 op의 성능이 부족한 경우입니다. CUDA, cuBLAS, cuTLASS, Triton 등을 사용하여 작성할 수 있습니다.
+**Custom kernel** — 두 가지 경우에 필요합니다.
 
-**vLLM**은 대규모 언어 모델 추론을 위한 핵심 프레임워크입니다. vLLM의 전체 구조, vLLM이 제공하는 최적화 기능들, 그리고 vLLM이 요구하는 custom op들을 살펴볼 예정입니다.
+* 기존 op으로 cover되지 않는 **새로운 op이 필요한 경우**
+* op 인터페이스는 그대로 두되 PyTorch가 제공하는 op의 성능이 부족해 **자체 구현으로 갈아끼우고 싶은 경우**
+
+NVIDIA GPU 환경을 가정한다면 CUDA(또는 cuBLAS, cuTLASS) 같은 NVIDIA 제공 도구로 작성할 수 있고, Triton처럼 custom kernel 작성에 특화된 언어를 활용하는 방법도 살펴봅니다.
+
+**vLLM** — PyTorch보다 한 단계 위 레벨에 있는 LLM inference / serving 프레임워크로, 현재 사실상 표준에 가까운 위치를 차지하고 있습니다. vLLM의 전체 구조, vLLM이 제공하는 최적화 기능, 그리고 그런 최적화를 PyTorch 기본 op만으로는 표현할 수 없기 때문에 vLLM이 정의해 둔 **custom op 셋**이 어떤 모양인지를 함께 살펴볼 예정입니다.
+
+### Q&A
+
+> **Q. NVCC 같은 컴파일러는 distributed를 고려해서 설계됐나요?**
+> 아닙니다. NVCC는 단일 GPU에서 실행되는 커널 하나를 컴파일하는 도구이고, PyTorch 입장에서 그 커널은 그저 op 하나입니다. 분산 처리는 NVCC가 아니라 **c10d 레이어가 담당**합니다 — collective communication op들이 데이터 분배·수집을 책임지고, 그 op이 GPU에서 실행될 때 또 다른 커널로 내려가는 구조라고 보면 됩니다. 즉 컴파일과 분산은 분리된 레이어입니다.
+
+> **Q. AMD나 리벨리온 같은 NPU/GPU 컴파일러도 distributed를 고려하지 않을까요?**
+> 리벨리온 컴파일러는 **sharding 기능을 갖고 있습니다**. 다만 이 sharding을 다른 노드로 넘어가는 계산까지 활용할지에 대해서는 아직 그렇게 가지는 않을 가능성이 높습니다. AMD가 어떻게 처리하고 있는지는 확인이 필요합니다.
+
+> **Q. Hadoop/MapReduce와 MPI는 어떻게 다른가요?**
+> Hadoop은 디스크에 있는 데이터를 긁어와 처리하는 디스크 기반 분산이고, MPI는 메모리에 데이터가 이미 로딩된 상황에서 동작합니다. 그런 의미에서 Hadoop도 shared memory를 가정하지는 않으므로 OpenMP보다는 MPI 쪽에 가깝고, MapReduce의 reduce 단계는 MPI의 `allreduce`와 모델적으로 크게 다르지 않습니다.
+
+> **Q. Transformer가 사실상 표준이 됐는데 custom kernel 수요는 계속 있나요?**
+> 네. 특히 **Attention**은 context length가 길어질수록 가장 비싸지는 부분이고, 이를 가속하는 기법만도 계속 새로 나오고 있습니다. DRAM access를 줄이는 최적화도 있고, NVIDIA가 새 GPU에 공격적으로 추가하는 hardware feature를 활용하려면 **같은 기능의 커널도 GPU 세대마다 다시 작성**해야 합니다. Flash Attention v1 → v2 → v3가 GPU 발전에 맞춰 진화한 것이 대표 사례입니다.
