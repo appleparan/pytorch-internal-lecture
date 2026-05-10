@@ -477,6 +477,35 @@ OOO Processor는 명령어가 들어올 때마다 코드에 적힌 Architectural
 
 결과적으로 ISA는 여전히 Sequential Semantics를 유지하지만, 하드웨어 내부에서는 루프가 파이프라인된 형태로 수행되며 매 cycle 여러 개의 instruction을 동시에 처리하는 효과를 얻습니다. 오늘날 사용되는 대부분의 CPU(Intel, AMD 등)가 이 OOO 기법을 채택하고 있습니다.
 
+#### 결과적으로 Loop이 Pipeline된 형태로 수행
+
+이 흐름이 실제 실행 시점에는 어떤 모습으로 나타나는지를 그림으로 보면 다음과 같습니다.
+
+<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', margin: '16px 0' }}>
+  <ThemeImage
+    lightSrc="/images/07/loop_pipeline_light.svg"
+    darkSrc="/images/07/loop_pipeline_dark.svg"
+    alt="Loop Pipeline"
+    class="h-36 mx-auto"
+  />
+  <div style={{ fontSize: '0.9em', fontStyle: 'italic', opacity: 0.75, textAlign: 'center' }}>매 cycle 3개의 instruction을 수행</div>
+</div>
+
+여러 iteration의 루프 본문이 살짝씩 밀려서 나란히 진행되고, 같은 시점(cycle)을 기준으로 슬라이스를 떠 보면 **서로 다른 iteration의 명령어들이 동시에 수행되고 있는** 모습이 됩니다.
+
+여기서 흥미로운 점은, 이 모습이 앞 절에서 본 **Instruction-Level Pipelining의 5-Stage 표와 구조적으로 매우 닮았다**는 것입니다. 다만 단위가 한 단계 커져서, "한 명령어 안의 IF/ID/EX/ME/W stage"가 아니라 "한 iteration 안의 명령어 묶음"이 각 stage를 차지하고, 서로 다른 iteration들이 다른 stage에 동시에 머무르며 매 cycle 한 칸씩 진행됩니다. 반복되는 패턴만 잘라내면 동일한 코드가 계속 돌아가는 것처럼 보이게 되는 것입니다.
+
+다만 한 가지 주의할 점은, **OOO Processor가 정확히 이 그림과 똑같이 고정된 패턴으로 돈다는 뜻은 아니라는 것**입니다. OOO는 매 cycle 들어오는 명령어 윈도우의 상태에 따라 동적으로 다른 명령어 조합을 골라 실행합니다. 위 그림은 그 동작이 **개념적으로** 만들어 내는 중첩 효과를 단순화해서 보여 주는 그림으로 이해하면 됩니다.
+
+##### 보충 — 데이터 플로우 그래프는 어디에 살아있는가?
+
+수강생 질문이 있어서 잠깐 보태둡니다. **하드웨어가 데이터 플로우 그래프를 자료구조로 유지하는가?** 라는 질문에 대한 답은 "그렇다"입니다. OOO Processor는 다음 장치들을 통해 그 그래프를 동적으로 만들고 갱신합니다.
+
+- **Reservation Station / Reservation Table** — 각 명령어가 어떤 Physical Register의 값을 기다리고 있는지 태깅해 두는 테이블. 입력 값이 도착하면 해당 명령어가 실행 가능 상태로 바뀝니다.
+- **Renaming Table** — 어떤 Architectural Register가 현재 어떤 Physical Register에 매핑되어 있는지를 추적합니다. 새 명령어가 들어올 때마다 이 테이블을 참조해 입력 레지스터를 올바른 Physical Register로 다시 이름 붙입니다(rename).
+
+이 자료구조들이 유지하는 그래프의 범위는 무한이 아닙니다. **명령어 윈도우(Instruction Window)** — 즉 아직 처리되지 않았거나 진행 중인 일정 개수의 명령어 — 안에 있는 명령어들에 대해서만 그래프가 만들어집니다. 명령어가 다 끝나서 윈도우에서 빠져나가면 그래프에서도 사라지고, 새로 들어온 명령어가 그 자리를 채우면서 그래프가 계속 모양을 바꿉니다. 즉 **OOO의 데이터 플로우 그래프는 매 cycle 유동적으로 변하는 슬라이딩 윈도우 위의 그래프**입니다.
+
 ### Intel Core Architecture의 OOO Engine
 
 <img src="/images/07/slide26_1.png" />

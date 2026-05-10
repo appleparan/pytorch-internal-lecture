@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="320" viewBox="0 0 800 320"
+  font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif">
+
+  <g font-family="ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace"
+     font-size="14" fill="#D3D1C7" xml:space="preserve">
+
+    <text x="60" y="40">slli    s2, s1, 2</text>
+    <text x="60" y="60">add     s3, s0, s2</text>
+    <text x="60" y="80">lw      t1, 0(s3)</text>
+    <text x="60" y="100">mul     t2, t1, t1</text>
+    <text x="60" y="120">add     t3, t2, t1</text>
+    <text x="60" y="140">sw      t3, 0(s3)</text>
+    <text x="60" y="160">addi    s1, s1, 1</text>
+
+    <text x="240" y="80">slli    s2, s1, 2</text>
+    <text x="240" y="100">add     s3, s0, s2</text>
+    <text x="240" y="120">lw      t1, 0(s3)</text>
+    <text x="240" y="140">mul     t2, t1, t1</text>
+    <text x="240" y="160">add     t3, t2, t1</text>
+    <text x="240" y="180">sw      t3, 0(s3)</text>
+    <text x="240" y="200">addi    s1, s1, 1</text>
+
+    <text x="420" y="140">slli    s2, s1, 2</text>
+    <text x="420" y="160">add     s3, s0, s2</text>
+    <text x="420" y="180">lw      t1, 0(s3)</text>
+    <text x="420" y="200">mul     t2, t1, t1</text>
+    <text x="420" y="220">add     t3, t2, t1</text>
+    <text x="420" y="240">sw      t3, 0(s3)</text>
+    <text x="420" y="260">addi    s1, s1, 1</text>
+
+    <text x="600" y="180">slli    s2, s1, 2</text>
+    <text x="600" y="200">add     s3, s0, s2</text>
+    <text x="600" y="220">lw      t1, 0(s3)</text>
+    <text x="600" y="240">mul     t2, t1, t1</text>
+    <text x="600" y="260">add     t3, t2, t1</text>
+    <text x="600" y="280">sw      t3, 0(s3)</text>
+    <text x="600" y="300">addi    s1, s1, 1</text>
+  </g>
+
+  <rect x="50" y="126" width="525" height="40" rx="6" fill="none" stroke="#EF9F27" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <rect x="230" y="168" width="525" height="40" rx="6" fill="none" stroke="#EF9F27" stroke-width="1.5" stroke-dasharray="6 3"/>
+</svg>
