@@ -931,27 +931,25 @@ NPU라는 이름으로 묶인 칩들의 구체적인 구조는 회사마다 꽤 
 
 NPU의 내부 구조를 위 Memory Hierarchy 그림이 아니라 **명령어 관점**에서 다시 보면, 하드웨어가 **횡으로 쭉 펼쳐져** 있고 그 위에 각 유닛이 매 cycle 무엇을 할지를 명령어가 직접 지정해 주는 구조에 가깝습니다. 즉 Compute Unit 들과 L1 DMA 들과 L2 DMA 들이 **모두 각각 독립적으로 프로그래밍 가능한 유닛**으로 노출되어 있는 셈입니다.
 
-| Compute Unit | Compute Unit | Compute Unit | L1 DMA | L1 DMA | L1 DMA | L2 DMA | L2 DMA | L2 DMA |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| cmd | cmd | cmd | cmd | cmd | cmd | cmd | cmd | cmd |
+<ThemeImage
+    lightSrc="/images/07/command_processor_arch_light.svg"
+    darkSrc="/images/07/command_processor_arch_dark.svg"
+    alt="NPU Architecture as Horizontal Encoding"
+    class="h-36 mx-auto"
+/>
 
 이런 모습은 앞 절에서 본 **Horizontal Encoding** 의 형태와 정확히 닮아 있습니다. 즉 NPU는 **VLIW (또는 Reconfigurable Architecture) 계열에 가까운 ISA**를 가진다고 보면 됩니다.
-
-<Mermaid scale={0.55}>
-{`graph TD
-    CS["Command Stream"] --> CP["Command Processor"]
-    CP --> SN["Sync Network"]
-    SN --> U1["Unit 1"]
-    SN --> U2["Unit 2"]
-    SN --> U3["..."]
-    SN --> UN["Unit N"]`}
-</Mermaid>
 
 이 구조에서 **Command Processor**가 소프트웨어가 미리 만들어 놓은 실행 계획을 받아 각 하드웨어 유닛에 분배하고, **Sync Network**를 통해 서브태스크 간 순서 관계를 유지합니다. 그래서 NPU에서 "프로그래밍한다"는 것은 곧 **이 Command Stream을 어떻게 짤 것인가** 의 문제가 됩니다.
 
 ### NPU Compiler의 역할
 
-<img src="/images/07/slide53_1.png" />
+<ThemeImage
+    lightSrc="/images/07/npu_compiler_light.svg"
+    darkSrc="/images/07/npu_compiler_dark.svg"
+    alt="NPU Compiler"
+    class="h-36 mx-auto"
+/>
 
 NPU에서 컴파일러가 실제로 무엇을 하는지를 한 번 따라가 보면, NPU와 GPU의 차이가 가장 분명해집니다. ML 모델은 일반적으로 **노드 단위의 그래프** 형태로 컴파일러에 들어옵니다. 그런데 그래프의 한 노드(예: 큰 matmul, attention 한 블록)가 곧바로 한 cycle에 끝낼 수 있는 작업인 경우는 거의 없고, **하드웨어가 한 번에 처리할 수 있는 작은 단위로 더 잘게 쪼개야** 합니다.
 
