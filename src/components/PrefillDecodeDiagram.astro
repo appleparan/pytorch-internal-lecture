@@ -65,24 +65,41 @@
    * not apply to those dynamic elements, breaking the styles.
    */
   .pd-widget {
-    --pd-bg-secondary: var(--color-background-secondary, #f4f4f3);
-    --pd-bg-info: var(--color-background-info, #e6f0ff);
-    --pd-bg-primary: var(--color-background-primary, #ffffff);
-    --pd-text-primary: var(--color-text-primary, #1a1a1a);
-    --pd-text-secondary: var(--color-text-secondary, #525252);
-    --pd-text-tertiary: var(--color-text-tertiary, #8a8a8a);
-    --pd-text-info: var(--color-text-info, #2563eb);
-    --pd-border-secondary: var(--color-border-secondary, #cfcfcf);
-    --pd-border-tertiary: var(--color-border-tertiary, #e3e3e3);
-    --pd-radius-md: var(--border-radius-md, 6px);
-    --pd-font-sans: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
-    --pd-font-mono: var(--font-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+    /* Light mode defaults — match site theme (--bg, --bg-surface, --text, --text-muted, --border) */
+    --pd-bg-secondary: #f4f4f3;
+    --pd-bg-info: #e6f0ff;
+    --pd-bg-primary: #ffffff;
+    --pd-text-primary: #1a1a1a;
+    --pd-text-secondary: #525252;
+    --pd-text-tertiary: #8a8a8a;
+    --pd-text-info: #2563eb;
+    --pd-border-secondary: #cfcfcf;
+    --pd-border-tertiary: #e3e3e3;
     --pd-fb-color: #d85a30;
     --pd-fb-text: #993c1d;
+
+    --pd-radius-md: 6px;
+    --pd-font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --pd-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
     padding: 1rem 0;
     color: var(--pd-text-primary);
     font-family: var(--pd-font-sans);
+  }
+
+  /* Dark mode overrides — [data-theme='dark'] is on <html>, this is an is:global block */
+  [data-theme='dark'] .pd-widget {
+    --pd-bg-secondary: #2a2d31;
+    --pd-bg-info: #0c447c;
+    --pd-bg-primary: #1c1c1d;
+    --pd-text-primary: #d2d2d2;
+    --pd-text-secondary: #a8a8a8;
+    --pd-text-tertiary: #828282;
+    --pd-text-info: #85b7eb;
+    --pd-border-secondary: #424246;
+    --pd-border-tertiary: #353539;
+    --pd-fb-color: #ef9f27;
+    --pd-fb-text: #f4b878;
   }
 
   .pd-widget .pd-sr-only {
