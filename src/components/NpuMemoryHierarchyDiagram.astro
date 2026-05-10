@@ -1,0 +1,178 @@
+---
+/**
+ * NpuMemoryHierarchyDiagram.astro
+ *
+ * NPU 아키텍처 다이어그램. Memory Hierarchy 위에 L1 DMA · L2 DMA 가
+ * Interconnect / Memory Wall 옆에 함께 표시되는 형태입니다.
+ *
+ * 기본 Memory Hierarchy 구조 (Compute Unit → Interconnect → On-Chip Mem
+ * → Memory Wall → DRAM)는 MemoryHierarchyDiagram 과 동일하지만, NPU 절에서는:
+ *  - 온칩 메모리가 Cache 가 아니라 Scratchpad 임을 강조 (highlightOnChip + 라벨)
+ *  - L1 DMA / L2 DMA stack 을 좌측 사이드에 배치
+ *
+ * MDX 사용 예:
+ *   import NpuMemoryHierarchyDiagram from '../../components/NpuMemoryHierarchyDiagram.astro';
+ *
+ *   <NpuMemoryHierarchyDiagram />
+ */
+
+export interface Props {
+  /** Compute Unit / Scratchpad 박스 개수 */
+  units?: number;
+  /** 온칩 메모리 라벨 */
+  onChipLabel?: string;
+  /** 온칩 메모리 박스를 강조 색으로 표시 (Scratchpad 강조) */
+  highlightOnChip?: boolean;
+  class?: string;
+}
+
+const {
+  units = 3,
+  onChipLabel = 'On-Chip Mem',
+  highlightOnChip = true,
+  class: className,
+} = Astro.props;
+
+const unitArray = Array.from({ length: units });
+---
+
+<div class:list={['npu-mh-diagram', className]} style={`--mh-cols: ${units}`}>
+  {/* Row 1: Compute Units (col 2) */}
+  <div class="npu-mh-row npu-mh-row-compute">
+    {unitArray.map(() => <div class="npu-mh-box">Compute Unit</div>)}
+  </div>
+
+  {/* Row 2: L1 DMA stack (col 1) + Interconnect (col 2) */}
+  <div class="npu-mh-dma-stack">
+    <span class="npu-mh-dma-card npu-mh-dma-card-3"></span>
+    <span class="npu-mh-dma-card npu-mh-dma-card-2"></span>
+    <span class="npu-mh-dma-card npu-mh-dma-card-1">L1 DMA</span>
+  </div>
+  <div class="npu-mh-interconnect">Interconnect</div>
+
+  {/* Row 3: On-Chip Memory / Scratchpad (col 2) */}
+  <div class="npu-mh-row npu-mh-row-onchip">
+    {unitArray.map(() => (
+      <div class:list={['npu-mh-box', highlightOnChip && 'npu-mh-box-accent']}>
+        {onChipLabel}
+      </div>
+    ))}
+  </div>
+
+  {/* Row 4: L2 DMA stack (col 1) + Memory Wall (col 2) */}
+  <div class="npu-mh-dma-stack">
+    <span class="npu-mh-dma-card npu-mh-dma-card-3"></span>
+    <span class="npu-mh-dma-card npu-mh-dma-card-2"></span>
+    <span class="npu-mh-dma-card npu-mh-dma-card-1">L2 DMA</span>
+  </div>
+  <div class="npu-mh-memory-wall">Memory Wall</div>
+
+  {/* Row 5: DRAM (col 2) */}
+  <div class="npu-mh-box npu-mh-dram">DRAM</div>
+</div>
+
+<style>
+  .npu-mh-diagram {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 24px;
+    row-gap: 12px;
+    align-items: center;
+    margin: 24px auto;
+    max-width: 600px;
+    width: 100%;
+  }
+
+  .npu-mh-row {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(var(--mh-cols, 3), 1fr);
+    gap: 8px;
+  }
+
+  .npu-mh-interconnect {
+    grid-column: 2;
+  }
+
+  .npu-mh-memory-wall {
+    grid-column: 2;
+  }
+
+  .npu-mh-dram {
+    grid-column: 2;
+    width: 100%;
+    padding: 12px;
+  }
+
+  .npu-mh-dma-stack {
+    grid-column: 1;
+    position: relative;
+    width: 80px;
+    height: 44px;
+  }
+
+  .npu-mh-dma-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 72px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    border: 1px solid rgba(125, 125, 125, 0.45);
+    border-radius: 4px;
+    font-size: 0.75em;
+    background: rgba(125, 125, 125, 0.05);
+    box-sizing: border-box;
+  }
+
+  .npu-mh-dma-card-1 {
+    z-index: 3;
+  }
+  .npu-mh-dma-card-2 {
+    z-index: 2;
+    transform: translate(4px, 4px);
+  }
+  .npu-mh-dma-card-3 {
+    z-index: 1;
+    transform: translate(8px, 8px);
+  }
+
+  .npu-mh-box {
+    padding: 10px;
+    text-align: center;
+    border: 1px solid rgba(125, 125, 125, 0.4);
+    border-radius: 6px;
+    font-size: 0.85em;
+    background: transparent;
+  }
+
+  .npu-mh-box-accent {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+
+  .npu-mh-interconnect {
+    padding: 8px 16px;
+    text-align: center;
+    border: 1px solid rgba(125, 125, 125, 0.4);
+    border-radius: 20px;
+    font-size: 0.85em;
+    background: rgba(125, 125, 125, 0.08);
+    width: 100%;
+  }
+
+  .npu-mh-memory-wall {
+    padding: 8px 16px;
+    text-align: center;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px dashed rgba(239, 68, 68, 0.6);
+    color: rgb(239, 68, 68);
+    width: 100%;
+  }
+</style>
