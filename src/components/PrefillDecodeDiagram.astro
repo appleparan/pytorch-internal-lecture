@@ -1,0 +1,725 @@
+---
+// PrefillDecodeDiagram.astro
+// Interactive diagram showing Prefill (parallel, causal mask) vs Decode (sequential, KV cache reuse)
+// Drop this component into any .astro page. No props required.
+---
+
+<div class="pd-widget">
+  <h2 class="pd-sr-only">Prefill과 Decode 다이어그램</h2>
+
+  <svg
+    class="pd-svg"
+    viewBox="0 -25 680 380"
+    role="img"
+    aria-label="Prefill (parallel, causal mask) vs Decode (sequential, KV cache reuse) interactive diagram"
+  >
+    <text class="pd-lbl-phase" x="236" y="22">Prefill</text>
+    <text class="pd-lbl-tag" x="236" y="36">병렬 · 1 pass</text>
+    <text class="pd-lbl-phase" x="530" y="22">Decode</text>
+    <text class="pd-lbl-tag" x="530" y="36">순차 · N pass</text>
+    <g class="pd-svg-content"></g>
+  </svg>
+
+  <div class="pd-legend">
+    <div class="pd-legend-item"><span class="pd-legend-cell"></span>hover로 셀 외곽선 flash</div>
+    <div class="pd-legend-item">점은 그 layer가 계산되면 등장</div>
+    <div class="pd-legend-item"><span class="pd-legend-swatch pd-legend-swatch-fb"></span>Autoregressive feedback</div>
+  </div>
+
+  <div class="pd-controls">
+    <button class="pd-btn" data-pd-play type="button" aria-label="Play">
+      <svg class="pd-icon pd-icon-play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      <svg class="pd-icon pd-icon-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
+      <span class="pd-btn-label">Play</span>
+    </button>
+    <button class="pd-btn" data-pd-reset type="button" aria-label="Reset">
+      <svg class="pd-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      <span>Reset</span>
+    </button>
+    <input type="range" class="pd-slider" data-pd-slider min="0" max="12" step="1" value="0" aria-label="Step slider" />
+    <span class="pd-step-l" data-pd-step-l>스텝 0 / 12</span>
+  </div>
+
+  <div class="pd-expl">
+    <div class="pd-expl-tag" data-pd-expl-tag>대기</div>
+    <div class="pd-expl-text" data-pd-expl-text>점 없음 = 아직 attention이 일어나지 않음. Play하면 각 layer가 계산될 때마다 그 row의 점들이 등장합니다.</div>
+  </div>
+
+  <div class="pd-metrics">
+    <div class="pd-metric">
+      <div class="pd-metric-l">Prefill 작업량</div>
+      <div class="pd-metric-v" data-pd-m-pre>—</div>
+    </div>
+    <div class="pd-metric">
+      <div class="pd-metric-l">Decode 작업량</div>
+      <div class="pd-metric-v" data-pd-m-dec>—</div>
+    </div>
+  </div>
+</div>
+
+<style is:global>
+  /*
+   * All rules namespaced under .pd-widget. is:global is used because the SVG
+   * content is generated via innerHTML at runtime — Astro's auto-scoping
+   * (which adds data-astro-cid-* attributes to elements at build time) would
+   * not apply to those dynamic elements, breaking the styles.
+   */
+  .pd-widget {
+    --pd-bg-secondary: var(--color-background-secondary, #f4f4f3);
+    --pd-bg-info: var(--color-background-info, #e6f0ff);
+    --pd-bg-primary: var(--color-background-primary, #ffffff);
+    --pd-text-primary: var(--color-text-primary, #1a1a1a);
+    --pd-text-secondary: var(--color-text-secondary, #525252);
+    --pd-text-tertiary: var(--color-text-tertiary, #8a8a8a);
+    --pd-text-info: var(--color-text-info, #2563eb);
+    --pd-border-secondary: var(--color-border-secondary, #cfcfcf);
+    --pd-border-tertiary: var(--color-border-tertiary, #e3e3e3);
+    --pd-radius-md: var(--border-radius-md, 6px);
+    --pd-font-sans: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+    --pd-font-mono: var(--font-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+    --pd-fb-color: #d85a30;
+    --pd-fb-text: #993c1d;
+
+    padding: 1rem 0;
+    color: var(--pd-text-primary);
+    font-family: var(--pd-font-sans);
+  }
+
+  .pd-widget .pd-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .pd-widget .pd-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  /* Cells (token × layer hidden states) */
+  .pd-widget .pd-cell {
+    fill: var(--pd-bg-secondary);
+    stroke: var(--pd-border-tertiary);
+    stroke-width: 0.5;
+    transition: stroke 0.2s, stroke-width 0.2s, fill 0.3s;
+    cursor: pointer;
+  }
+  .pd-widget .pd-cell.is-done { stroke: var(--pd-border-secondary); stroke-width: 0.8; }
+  .pd-widget .pd-cell.is-active { fill: var(--pd-bg-info); stroke: var(--pd-text-info); stroke-width: 1.5; }
+  .pd-widget .pd-cell.is-flash { stroke: var(--pd-text-info); stroke-width: 2.6; }
+
+  /* Lines: buses, source verticals, target verticals, output arrows */
+  .pd-widget .pd-line {
+    fill: none;
+    stroke: var(--pd-border-secondary);
+    stroke-width: 0.7;
+    opacity: 0.45;
+    pointer-events: none;
+    transition: opacity 0.2s, stroke 0.2s, stroke-width 0.2s;
+  }
+  .pd-widget .pd-line.is-hl { stroke: var(--pd-text-info); stroke-width: 1.5; opacity: 1; }
+  .pd-widget .pd-line.is-done-hl { stroke: var(--pd-text-info); stroke-width: 1; opacity: 0.55; }
+
+  /* Dots: attention taps. Hidden by default, appear once their target cell is computed. */
+  .pd-widget .pd-dot {
+    fill: var(--pd-border-secondary);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s, fill 0.2s;
+  }
+  .pd-widget .pd-dot.is-computed { opacity: 0.7; }
+  .pd-widget .pd-dot.is-done-hl { opacity: 0.8; fill: var(--pd-text-info); }
+  .pd-widget .pd-dot.is-hl { opacity: 1; fill: var(--pd-text-info); }
+
+  /* Transparent hit areas for bus/dot hover */
+  .pd-widget .pd-bus-hit { pointer-events: stroke; cursor: pointer; }
+  .pd-widget .pd-dot-hit { pointer-events: all; cursor: pointer; fill: transparent; }
+
+  /* Autoregressive feedback arcs */
+  .pd-widget .pd-fb {
+    fill: none;
+    stroke: var(--pd-fb-color);
+    stroke-width: 1.4;
+    opacity: 0.18;
+    pointer-events: none;
+    transition: opacity 0.4s, stroke-width 0.3s;
+  }
+  .pd-widget .pd-fb.is-shown { opacity: 0.9; }
+  .pd-widget .pd-fb.is-flash { stroke-width: 2.4; }
+
+  /* Labels */
+  .pd-widget .pd-lbl {
+    font-family: var(--pd-font-sans);
+    font-size: 12px;
+    fill: var(--pd-text-primary);
+    text-anchor: middle;
+  }
+  .pd-widget .pd-tok-lbl {
+    cursor: pointer;
+    transition: font-weight 0.2s, fill 0.2s;
+  }
+  .pd-widget .pd-tok-lbl:hover {
+    font-weight: 500;
+    fill: var(--pd-text-info);
+  }
+  .pd-widget .pd-lbl-out {
+    font-family: var(--pd-font-sans);
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    fill: var(--pd-fb-text);
+    text-anchor: middle;
+    transition: opacity 0.5s;
+    pointer-events: none;
+  }
+  .pd-widget .pd-lbl-out.is-shown { opacity: 1; }
+  .pd-widget .pd-lbl-in {
+    font-family: var(--pd-font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0;
+    fill: var(--pd-fb-text);
+    text-anchor: middle;
+    transition: opacity 0.5s;
+  }
+  .pd-widget .pd-lbl-in.is-shown { opacity: 1; }
+  .pd-widget .pd-lbl-phase {
+    font-family: var(--pd-font-sans);
+    font-size: 13px;
+    fill: var(--pd-text-secondary);
+    text-anchor: middle;
+    pointer-events: none;
+  }
+  .pd-widget .pd-lbl-tag {
+    font-family: var(--pd-font-sans);
+    font-size: 11px;
+    fill: var(--pd-text-tertiary);
+    text-anchor: middle;
+    font-style: italic;
+    pointer-events: none;
+  }
+  .pd-widget .pd-lbl-axis {
+    font-family: var(--pd-font-sans);
+    font-size: 11px;
+    fill: var(--pd-text-secondary);
+    text-anchor: middle;
+    letter-spacing: 0.6px;
+    pointer-events: none;
+  }
+  .pd-widget .pd-axis-line {
+    fill: none;
+    stroke: var(--pd-border-secondary);
+    stroke-width: 1;
+    pointer-events: none;
+  }
+  .pd-widget .pd-axis-head {
+    fill: var(--pd-border-secondary);
+    pointer-events: none;
+  }
+  .pd-widget .pd-region-bg {
+    fill: var(--pd-bg-secondary);
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  /* Controls */
+  .pd-widget .pd-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .pd-widget .pd-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--pd-border-secondary);
+    border-radius: var(--pd-radius-md);
+    background: var(--pd-bg-primary);
+    color: var(--pd-text-primary);
+    font-family: var(--pd-font-sans);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pd-widget .pd-btn:hover {
+    background: var(--pd-bg-secondary);
+    border-color: var(--pd-text-tertiary);
+  }
+  .pd-widget .pd-btn:focus-visible {
+    outline: 2px solid var(--pd-text-info);
+    outline-offset: 2px;
+  }
+  .pd-widget .pd-icon { display: inline-block; flex-shrink: 0; }
+  .pd-widget .pd-icon-pause { display: none; }
+  .pd-widget .pd-btn.is-playing .pd-icon-play { display: none; }
+  .pd-widget .pd-btn.is-playing .pd-icon-pause { display: inline-block; }
+
+  .pd-widget .pd-slider {
+    flex: 1;
+    min-width: 100px;
+    accent-color: var(--pd-text-info);
+  }
+  .pd-widget .pd-step-l {
+    font-size: 13px;
+    color: var(--pd-text-secondary);
+    margin-left: auto;
+    min-width: 100px;
+    text-align: right;
+  }
+
+  /* Explanation panel */
+  .pd-widget .pd-expl {
+    background: var(--pd-bg-secondary);
+    border-radius: var(--pd-radius-md);
+    padding: 12px 16px;
+    margin-top: 12px;
+    min-height: 78px;
+  }
+  .pd-widget .pd-expl-tag {
+    font-size: 12px;
+    color: var(--pd-text-tertiary);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .pd-widget .pd-expl-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--pd-text-primary);
+  }
+  .pd-widget .pd-expl-text code {
+    font-family: var(--pd-font-mono);
+    font-size: 13px;
+    background: var(--pd-bg-primary);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* Metrics */
+  .pd-widget .pd-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .pd-widget .pd-metric {
+    background: var(--pd-bg-secondary);
+    border-radius: var(--pd-radius-md);
+    padding: 10px 14px;
+  }
+  .pd-widget .pd-metric-l {
+    font-size: 12px;
+    color: var(--pd-text-secondary);
+    margin-bottom: 2px;
+  }
+  .pd-widget .pd-metric-v {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* Legend */
+  .pd-widget .pd-legend {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--pd-text-tertiary);
+    margin-top: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .pd-widget .pd-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pd-widget .pd-legend-swatch {
+    width: 18px;
+    height: 2px;
+    flex-shrink: 0;
+  }
+  .pd-widget .pd-legend-swatch-fb { background: var(--pd-fb-color); }
+  .pd-widget .pd-legend-cell {
+    width: 12px;
+    height: 8px;
+    border: 2px solid var(--pd-text-info);
+    border-radius: 1px;
+    flex-shrink: 0;
+    background: transparent;
+  }
+</style>
+
+<script>
+  // Widget initializer — runs once, finds every <div class="pd-widget"> on the page
+  // and bootstraps an independent instance. Each instance scopes its DOM queries
+  // to its own root element, so multiple widgets on the same page do not collide.
+  function initPrefillDecodeWidget(root: HTMLElement) {
+    const PT = ['I', 'like', 'my', 'cat'];
+    const NL = 4, CW = 64, CH = 24;
+    const PX = [90, 166, 242, 318];
+    const DX = [460, 536];
+    const TOP = 80, LG = 30;
+    const ly = (li: number) => TOP + (NL - 1 - li) * (CH + LG);
+
+    const colX = [
+      PX[0] + CW / 2, PX[1] + CW / 2, PX[2] + CW / 2, PX[3] + CW / 2,
+      DX[0] + CW / 2, DX[1] + CW / 2,
+    ];
+    const N_COLS = 6;
+
+    // Returns true if cell at (column k, layer L) has been computed by the given step.
+    function isCellComputed(stepN: number, k: number, layer: number): boolean {
+      if (stepN === 0) return false;
+      if (k <= 3) return stepN >= layer + 1;
+      if (k === 4) return stepN >= layer + 5;
+      if (k === 5) return stepN >= layer + 9;
+      return false;
+    }
+
+    function getCellId(k: number, layer: number): string {
+      return (k <= 3) ? ('cp-' + k + '-' + layer) : ('cd-' + (k - 4) + '-' + layer);
+    }
+
+    const $ = <T extends Element = Element>(sel: string): T | null => root.querySelector<T>(sel);
+    const $$ = <T extends Element = Element>(sel: string): NodeListOf<T> => root.querySelectorAll<T>(sel);
+    const byId = <T extends Element = Element>(id: string): T | null => root.querySelector<T>('#' + id);
+
+    const svgRoot = $<SVGGElement>('.pd-svg-content');
+    if (!svgRoot) return;
+
+    let s = '';
+
+    const cellAreaTop = 74;
+    const cellAreaBot = ly(0) + CH + 4;
+    s += '<rect class="pd-region-bg" x="78" y="' + cellAreaTop + '" width="316" height="' + (cellAreaBot - cellAreaTop) + '" rx="6"/>';
+    s += '<rect class="pd-region-bg" x="448" y="' + cellAreaTop + '" width="166" height="' + (cellAreaBot - cellAreaTop) + '" rx="6"/>';
+
+    // Layer axis on the left: vertical arrow + rotated "Transformer Layer" label
+    const axisX = 44;
+    const axisYTop = ly(3) - 6;
+    const axisYBot = ly(0) + CH + 6;
+    const axisCenterY = (axisYTop + axisYBot) / 2;
+    s += '<path class="pd-axis-line" d="M ' + axisX + ' ' + axisYBot + ' L ' + axisX + ' ' + (axisYTop + 4) + '"/>';
+    s += '<polygon class="pd-axis-head" points="' + (axisX - 3.5) + ',' + (axisYTop + 5) + ' ' + axisX + ',' + axisYTop + ' ' + (axisX + 3.5) + ',' + (axisYTop + 5) + '"/>';
+    s += '<text class="pd-lbl-axis" x="22" y="' + axisCenterY + '" text-anchor="middle" transform="rotate(-90, 22, ' + axisCenterY + ')">Transformer Layer</text>';
+
+    // Layer transitions: buses (one per target column k), source verticals, target verticals, taps
+    for (let L = 0; L < NL - 1; L++) {
+      const src_top_y = ly(L);
+      const tgt_bot_y = ly(L + 1) + CH;
+
+      for (let k = 0; k < N_COLS; k++) {
+        const bus_y = tgt_bot_y + 2 + 4 * k;
+        const tgt_x = colX[k];
+        const left_x = colX[0];
+
+        if (k > 0) {
+          s += '<path class="pd-line pd-bus" id="bus-' + L + '-' + k + '" d="M' + left_x + ',' + bus_y + ' L' + tgt_x + ',' + bus_y + '"/>';
+          s += '<path class="pd-bus-hit" data-l="' + L + '" data-k="' + k + '" d="M' + left_x + ',' + bus_y + ' L' + tgt_x + ',' + bus_y + '" stroke="transparent" stroke-width="6" fill="none"/>';
+        } else {
+          s += '<circle class="pd-dot-hit" data-l="' + L + '" data-k="' + k + '" cx="' + tgt_x + '" cy="' + bus_y + '" r="6"/>';
+        }
+        s += '<path class="pd-line pd-tv" id="tv-' + L + '-' + k + '" d="M' + tgt_x + ',' + bus_y + ' L' + tgt_x + ',' + tgt_bot_y + '"/>';
+
+        for (let i = 0; i <= k; i++) {
+          s += '<circle class="pd-dot pd-tap" id="tap-' + L + '-' + i + '-' + k + '" cx="' + colX[i] + '" cy="' + bus_y + '" r="2.5"/>';
+        }
+      }
+
+      for (let i = 0; i < N_COLS; i++) {
+        const src_x = colX[i];
+        const top_bus_y = tgt_bot_y + 2 + 4 * i;
+        s += '<path class="pd-line pd-sv" id="sv-' + L + '-' + i + '" d="M' + src_x + ',' + src_top_y + ' L' + src_x + ',' + top_bus_y + '"/>';
+      }
+    }
+
+    // Output arrows from top layer to output text
+    s += '<path class="pd-line" d="M' + (PX[3] + CW / 2) + ',' + ly(3) + ' L' + (PX[3] + CW / 2) + ',68"/>';
+    s += '<path class="pd-line" d="M' + (DX[0] + CW / 2) + ',' + ly(3) + ' L' + (DX[0] + CW / 2) + ',68"/>';
+    s += '<path class="pd-line" d="M' + (DX[1] + CW / 2) + ',' + ly(3) + ' L' + (DX[1] + CW / 2) + ',68"/>';
+
+    // Autoregressive feedback arcs (right-angle Manhattan routing)
+    const fbEnd = ly(0) + CH + 22;
+    const fb1 = 'M ' + (PX[3] + CW / 2) + ' 52 L ' + (PX[3] + CW / 2) + ' 30 L 421 30 L 421 ' + fbEnd + ' L ' + (DX[0] + CW / 2) + ' ' + fbEnd;
+    s += '<path class="pd-fb" id="fb-1" d="' + fb1 + '"/>';
+    const fb2 = 'M ' + (DX[0] + CW / 2) + ' 52 L ' + (DX[0] + CW / 2) + ' 8 L 530 8 L 530 ' + fbEnd + ' L ' + (DX[1] + CW / 2) + ' ' + fbEnd;
+    s += '<path class="pd-fb" id="fb-2" d="' + fb2 + '"/>';
+
+    // Cells
+    for (let c = 0; c < 4; c++) {
+      for (let l = 0; l < 4; l++) {
+        s += '<rect class="pd-cell" id="cp-' + c + '-' + l + '" x="' + PX[c] + '" y="' + ly(l) + '" width="' + CW + '" height="' + CH + '" rx="3"/>';
+      }
+    }
+    for (let c = 0; c < 2; c++) {
+      for (let l = 0; l < 4; l++) {
+        s += '<rect class="pd-cell" id="cd-' + c + '-' + l + '" x="' + DX[c] + '" y="' + ly(l) + '" width="' + CW + '" height="' + CH + '" rx="3"/>';
+      }
+    }
+
+    // Token labels
+    const tokLabelY = ly(0) + CH + 30;
+    PT.forEach((t, i) => {
+      s += '<text class="pd-lbl pd-tok-lbl" data-col="' + i + '" x="' + (PX[i] + CW / 2) + '" y="' + tokLabelY + '">' + t + '</text>';
+    });
+    s += '<text class="pd-lbl pd-tok-lbl pd-lbl-in" data-col="4" id="in-a" x="' + (DX[0] + CW / 2) + '" y="' + tokLabelY + '">a</text>';
+    s += '<text class="pd-lbl pd-tok-lbl pd-lbl-in" data-col="5" id="in-lot" x="' + (DX[1] + CW / 2) + '" y="' + tokLabelY + '">lot</text>';
+
+    // Output text labels (a, lot, .)
+    s += '<text class="pd-lbl-out" id="out-a" x="' + (PX[3] + CW / 2) + '" y="62">a</text>';
+    s += '<text class="pd-lbl-out" id="out-lot" x="' + (DX[0] + CW / 2) + '" y="62">lot</text>';
+    s += '<text class="pd-lbl-out" id="out-dot" x="' + (DX[1] + CW / 2) + '" y="62">.</text>';
+
+    // Phase tags below
+    const phaseTagY = tokLabelY + 22;
+    s += '<text class="pd-lbl-tag" x="236" y="' + phaseTagY + '">Parallel</text>';
+    s += '<text class="pd-lbl-tag" x="530" y="' + phaseTagY + '">Sequential</text>';
+
+    svgRoot.innerHTML = s;
+
+    type Step = {
+      tag: string;
+      text: string;
+      active?: string[];
+      phase?: 'p' | 'd';
+      output?: 'a' | 'lot' | 'dot';
+      decodeIn?: 'a' | 'lot';
+      fb?: 1 | 2;
+    };
+
+    const STEPS: Step[] = [
+      { tag: '대기', text: '점 없음 = 아직 attention이 일어나지 않음. Play하면 각 layer가 계산될 때마다 그 row의 점들이 등장합니다.' },
+      { active: ['cp-0-0', 'cp-1-0', 'cp-2-0', 'cp-3-0'], phase: 'p', tag: 'Prefill · Layer 0 (input embedding)', text: '4개 프롬프트 토큰을 <em>병렬로</em> 임베딩. 아직 attention 없음 → 점 없음.' },
+      { active: ['cp-0-1', 'cp-1-1', 'cp-2-1', 'cp-3-1'], phase: 'p', tag: 'Prefill · Layer 1 (causal self-attention)', text: 'L0→L1 transition의 점 1+2+3+4=10개 등장 = causal mask. 4개 컬럼 <em>동시에</em> 처리.' },
+      { active: ['cp-0-2', 'cp-1-2', 'cp-2-2', 'cp-3-2'], phase: 'p', tag: 'Prefill · Layer 2', text: 'L1→L2 점 row가 새로 등장. KV cache가 이 layer까지 채워짐.' },
+      { active: ['cp-0-3', 'cp-1-3', 'cp-2-3', 'cp-3-3'], phase: 'p', output: 'a', fb: 1, tag: 'Prefill 완료 → 첫 토큰 <code>a</code>', text: '모든 prefill 점 완성. 4개 토큰 × 모든 layer K/V가 <strong>cache에 저장</strong>. 마지막 컬럼 출력으로 <code>a</code>.' },
+      { active: ['cd-0-0'], decodeIn: 'a', phase: 'd', tag: 'Decode · "a" 임베딩 입력', text: '<code>a</code>만 입력. 여기서부터 <em>순차</em>. 아직 decode attention 없음.' },
+      { active: ['cd-0-1'], decodeIn: 'a', phase: 'd', tag: 'Decode · Layer 1 (KV cache 재사용)', text: '5번째 row의 5개 점 등장 — I, like, my, cat (cached) + a (자기). <strong>Q만 새로, K/V는 cache</strong>.' },
+      { active: ['cd-0-2'], decodeIn: 'a', phase: 'd', tag: 'Decode · Layer 2', text: 'L1→L2 transition에 5번째 row 점들이 추가됨. 한 번에 1개 컬럼만.' },
+      { active: ['cd-0-3'], decodeIn: 'a', phase: 'd', output: 'lot', fb: 2, tag: 'Decode → <code>lot</code>', text: '출력 <code>lot</code>. <code>a</code>의 K/V 한 줄이 cache에 추가.' },
+      { active: ['cd-1-0'], decodeIn: 'lot', phase: 'd', tag: 'Decode · "lot" 입력', text: '<code>lot</code>이 만들어진 후에야 시작.' },
+      { active: ['cd-1-1'], decodeIn: 'lot', phase: 'd', tag: 'Decode · Layer 1', text: '6번째 (가장 긴) row 등장 — 6개 점. cache 길이 +1.' },
+      { active: ['cd-1-2'], decodeIn: 'lot', phase: 'd', tag: 'Decode · Layer 2', text: '6번째 row가 위 layer에도 추가. N×L 시퀀셜 forward pass.' },
+      { active: ['cd-1-3'], decodeIn: 'lot', phase: 'd', output: 'dot', tag: 'Decode 완료', text: '모든 점 완성 — full causal triangle. 최종: <em>I like my cat a lot .</em>' },
+    ];
+
+    let cur = 0;
+    let playing = false;
+    let timer: number | null = null;
+
+    const playBtn = $<HTMLButtonElement>('[data-pd-play]');
+    const resetBtn = $<HTMLButtonElement>('[data-pd-reset]');
+    const slider = $<HTMLInputElement>('[data-pd-slider]');
+    const stepLabel = $('[data-pd-step-l]');
+    const explTag = $('[data-pd-expl-tag]');
+    const explText = $('[data-pd-expl-text]');
+    const metricPre = $('[data-pd-m-pre]');
+    const metricDec = $('[data-pd-m-dec]');
+    const playLabel = playBtn?.querySelector('.pd-btn-label');
+
+    function clearAll() {
+      $$('.pd-cell').forEach(c => c.classList.remove('is-active', 'is-done', 'is-flash'));
+      $$('.pd-line').forEach(b => b.classList.remove('is-hl', 'is-done-hl'));
+      $$('.pd-dot').forEach(b => b.classList.remove('is-hl', 'is-done-hl', 'is-computed'));
+      $$('.pd-lbl-out').forEach(o => o.classList.remove('is-shown'));
+      $$('.pd-lbl-in').forEach(o => o.classList.remove('is-shown'));
+      $$('.pd-fb').forEach(f => f.classList.remove('is-shown', 'is-flash'));
+    }
+
+    function markComputedDots(stepN: number) {
+      for (let L = 0; L < NL - 1; L++) {
+        for (let k = 0; k < N_COLS; k++) {
+          if (isCellComputed(stepN, k, L + 1)) {
+            for (let i = 0; i <= k; i++) {
+              const tap = byId('tap-' + L + '-' + i + '-' + k);
+              if (tap) tap.classList.add('is-computed');
+            }
+          }
+        }
+      }
+    }
+
+    function highlightFanInForCell(cellId: string, lineState: 'is-hl' | 'is-done-hl') {
+      const p = cellId.split('-');
+      const t = p[0];
+      const col = parseInt(p[1]);
+      const lay = parseInt(p[2]);
+      const k = (t === 'cp') ? col : (col + 4);
+      if (lay > 0) {
+        const L = lay - 1;
+        const bus = byId('bus-' + L + '-' + k);
+        if (bus) bus.classList.add(lineState);
+        const tv = byId('tv-' + L + '-' + k);
+        if (tv) tv.classList.add(lineState);
+        for (let i = 0; i <= k; i++) {
+          const sv = byId('sv-' + L + '-' + i);
+          if (sv) sv.classList.add(lineState);
+          const tap = byId('tap-' + L + '-' + i + '-' + k);
+          if (tap) tap.classList.add(lineState);
+        }
+      }
+    }
+
+    function render(n: number) {
+      cur = n;
+      clearAll();
+      markComputedDots(n);
+
+      let pCells = 0, pSteps = 0, dCells = 0, dSteps = 0;
+      for (let i = 1; i <= n; i++) {
+        const st = STEPS[i];
+        const isCur = (i === n);
+        const cellState = isCur ? 'is-active' : 'is-done';
+        const lineState: 'is-hl' | 'is-done-hl' = isCur ? 'is-hl' : 'is-done-hl';
+
+        if (st.active) {
+          st.active.forEach(id => {
+            const el = byId(id);
+            if (el) el.classList.add(cellState);
+            highlightFanInForCell(id, lineState);
+          });
+        }
+        if (st.output) {
+          const id = st.output === 'a' ? 'out-a' : (st.output === 'lot' ? 'out-lot' : 'out-dot');
+          const el = byId(id);
+          if (el) el.classList.add('is-shown');
+        }
+        if (st.decodeIn) {
+          const id = st.decodeIn === 'a' ? 'in-a' : 'in-lot';
+          const el = byId(id);
+          if (el) el.classList.add('is-shown');
+        }
+        if (st.fb) {
+          const fbEl = byId('fb-' + st.fb);
+          if (fbEl) {
+            fbEl.classList.add('is-shown');
+            if (isCur) fbEl.classList.add('is-flash');
+          }
+        }
+        if (st.phase === 'p' && st.active) { pCells += st.active.length; pSteps++; }
+        else if (st.phase === 'd' && st.active) { dCells += st.active.length; dSteps++; }
+      }
+
+      if (slider) slider.value = String(n);
+      if (stepLabel) stepLabel.textContent = '스텝 ' + n + ' / 12';
+      if (explTag) explTag.innerHTML = STEPS[n].tag;
+      if (explText) explText.innerHTML = STEPS[n].text;
+      if (metricPre) metricPre.textContent = pSteps > 0 ? (pCells + ' ops · ' + pSteps + ' wall-clock pass') : '—';
+      if (metricDec) metricDec.textContent = dSteps > 0 ? (dCells + ' ops · ' + dSteps + ' wall-clock pass') : '—';
+    }
+
+    function setPlayingUI(isPlaying: boolean) {
+      if (!playBtn) return;
+      playBtn.classList.toggle('is-playing', isPlaying);
+      if (playLabel) playLabel.textContent = isPlaying ? 'Pause' : 'Play';
+      playBtn.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+    }
+
+    function play() {
+      if (cur >= STEPS.length - 1) render(0);
+      playing = true;
+      setPlayingUI(true);
+      timer = window.setInterval(() => {
+        if (cur >= STEPS.length - 1) {
+          pause();
+          return;
+        }
+        render(cur + 1);
+      }, 950);
+    }
+
+    function pause() {
+      playing = false;
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+      }
+      setPlayingUI(false);
+    }
+
+    playBtn?.addEventListener('click', () => {
+      if (playing) pause();
+      else play();
+    });
+    resetBtn?.addEventListener('click', () => {
+      pause();
+      render(0);
+    });
+    slider?.addEventListener('input', (e) => {
+      pause();
+      const v = parseInt((e.target as HTMLInputElement).value);
+      render(v);
+    });
+
+    // Hover handler shared by cell hover and bus/dot hover
+    function highlightAttentionInto(L: number, k: number) {
+      const bus = byId('bus-' + L + '-' + k);
+      if (bus) bus.classList.add('is-hl');
+      const tv = byId('tv-' + L + '-' + k);
+      if (tv) tv.classList.add('is-hl');
+      for (let i = 0; i <= k; i++) {
+        const sv = byId('sv-' + L + '-' + i);
+        if (sv) sv.classList.add('is-hl');
+        const tap = byId('tap-' + L + '-' + i + '-' + k);
+        if (tap) tap.classList.add('is-hl');
+        const srcCell = byId(getCellId(i, L));
+        if (srcCell) srcCell.classList.add('is-flash');
+      }
+      const tgtCell = byId(getCellId(k, L + 1));
+      if (tgtCell) tgtCell.classList.add('is-flash');
+    }
+
+    $$<SVGRectElement>('.pd-cell').forEach(cell => {
+      cell.addEventListener('mouseenter', () => {
+        const id = cell.id;
+        const p = id.split('-');
+        const t = p[0];
+        const col = parseInt(p[1]);
+        const lay = parseInt(p[2]);
+        const k = (t === 'cp') ? col : (col + 4);
+        if (lay > 0) {
+          highlightAttentionInto(lay - 1, k);
+        }
+      });
+      cell.addEventListener('mouseleave', () => render(cur));
+    });
+
+    $$<SVGElement>('.pd-bus-hit, .pd-dot-hit').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        const L = parseInt(el.dataset.l ?? '0');
+        const k = parseInt(el.dataset.k ?? '0');
+        highlightAttentionInto(L, k);
+      });
+      el.addEventListener('mouseleave', () => render(cur));
+    });
+
+    $$<SVGTextElement>('.pd-tok-lbl').forEach(lbl => {
+      lbl.addEventListener('mouseenter', () => {
+        const k_src = parseInt(lbl.dataset.col ?? '0');
+        for (let k_t = k_src; k_t < N_COLS; k_t++) {
+          for (let L = 0; L < NL; L++) {
+            if (isCellComputed(cur, k_t, L)) {
+              const cell = byId(getCellId(k_t, L));
+              if (cell) cell.classList.add('is-flash');
+            }
+          }
+        }
+      });
+      lbl.addEventListener('mouseleave', () => render(cur));
+    });
+
+    render(0);
+  }
+
+  document.querySelectorAll<HTMLElement>('.pd-widget').forEach(initPrefillDecodeWidget);
+</script>
