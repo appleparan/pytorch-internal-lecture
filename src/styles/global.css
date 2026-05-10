@@ -4,13 +4,13 @@
 /* ===== al-folio Theme Variables ===== */
 :root {
   /* Background */
-  --bg: #ffffff;
+  --bg: #fafaf8;
   --bg-surface: #f8f9fa;
   --bg-code: rgba(181, 9, 172, 0.05);
-  --bg-diagram: #ffffff;
+  --bg-diagram: #fafaf8;
   --bg-table-head: #f8f9fa;
-  --bg-navbar: rgba(255, 255, 255, 0.95);
-  --bg-search: #ffffff;
+  --bg-navbar: rgba(250, 250, 248, 0.95);
+  --bg-search: #fafaf8;
   --bg-search-item-hover: #f8f9fa;
 
   /* Text */
