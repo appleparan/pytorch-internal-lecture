@@ -367,6 +367,12 @@ a:hover {
   gap: 0;
 }
 
+/* Allow grid items to shrink below their min-content size — without this,
+   wide tables/widgets/SVGs force the whole layout wider than the viewport. */
+.lecture-grid > * {
+  min-width: 0;
+}
+
 .lecture-grid .content-container {
   margin: 0;
   max-width: 930px;
@@ -935,5 +941,83 @@ a:hover {
   .search-modal {
     width: 95%;
     margin-top: 5vh;
+  }
+
+  /* ----- Mobile overflow containment -----
+     Goal: keep non-image content inside the viewport. Wide content (tables,
+     custom diagrams, SVG widgets) gets a horizontal scroll inside its own
+     box rather than pushing the whole page sideways. */
+
+  .article-body {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* Tables: scroll horizontally instead of forcing the page wider.
+     Disable the article-body's overflow-wrap inside cells so words/numbers
+     stay intact and the user scrolls the table sideways. */
+  .article-body table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .article-body table th,
+  .article-body table td {
+    overflow-wrap: normal;
+    word-break: keep-all;
+    white-space: nowrap;
+  }
+
+  /* Code blocks already have overflow-x: auto, but make sure they cannot
+     exceed the article width. */
+  .article-body pre {
+    max-width: 100%;
+  }
+
+  /* Custom interactive widgets and inline-styled diagrams: contain them
+     with horizontal scroll on mobile so they cannot widen the page. */
+  .article-body .lr-widget,
+  .article-body .bp-widget,
+  .article-body .npu-mh-diagram,
+  .article-body .torchrun-visualizer,
+  .article-body .attention-tiling-diagram,
+  .article-body .memory-hierarchy-diagram,
+  .article-body .prefill-decode-diagram,
+  .article-body > div[style*='display:grid'],
+  .article-body > div[style*='display: grid'],
+  .article-body > div[style*='display:flex'],
+  .article-body > div[style*='display: flex'] {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* SVGs (diagram widgets) shouldn't exceed the article width. */
+  .article-body svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* LaTeX-rendered math images use Tailwind h-* classes that fix the height
+     and let the natural aspect ratio drive a very wide intrinsic width.
+     On mobile, prefer fitting the width and let height auto-adjust. */
+  .article-body img[class*='h-'] {
+    height: auto;
+    max-width: 100%;
+  }
+
+  /* Display-math (KaTeX) blocks can be wider than the viewport — let them
+     scroll horizontally inside their own box. */
+  .article-body .katex-display {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Mermaid pre-rendered SVGs: allow them to use the full mobile width
+     instead of being capped at 60%. */
+  .mermaid-wrapper svg {
+    max-width: 100%;
   }
 }
