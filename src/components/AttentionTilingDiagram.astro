@@ -1,0 +1,353 @@
+---
+/**
+ * AttentionTilingDiagram.astro
+ *
+ * Self-attention 흐름 (Q × Kᵀ → mask → softmax → × V → O) 다이어그램.
+ * 슬라이드 진행에 따라 annotation을 토글할 수 있도록 props로 분리.
+ *
+ * 사이트 루트의 data-theme="dark" attribute를 기준으로 자동으로 라이트/다크가 전환됩니다.
+ *
+ * MDX 사용 예:
+ *   import AttentionTilingDiagram from '../../components/AttentionTilingDiagram.astro';
+ *
+ *   <AttentionTilingDiagram />
+ *   <AttentionTilingDiagram showTilingBrackets showTiles />
+ *   <AttentionTilingDiagram showFusionBracket showTilingBrackets
+ *     showTiles showSoftmaxQuestion />
+ */
+
+export interface Props {
+  // annotation 토글
+  showFusionBracket?: boolean;
+  showTilingBrackets?: boolean;
+  showTiles?: boolean;
+  showSoftmaxQuestion?: boolean;
+
+  // 텍스트 커스터마이즈 (영어 슬라이드 등에 활용)
+  fusionText?: [string, string];
+  tilingText?: [string, string];
+  tileLabels?: [string, string, string];
+  softmaxQuestion?: [string, string];
+
+  class?: string;
+}
+
+const {
+  showFusionBracket = false,
+  showTilingBrackets = false,
+  showTiles = false,
+  showSoftmaxQuestion = false,
+
+  fusionText = [
+    '모든 연산이 같은 방식으로 tiling된다면',
+    '자연스럽게 fusion 적용 가능',
+  ],
+  tilingText = ['자연스럽게', 'tiling 적용 가능'],
+  tileLabels = ['Tile 1', 'Tile 2', 'Tile 3'],
+  softmaxQuestion = ['하지만 어떻게 softmax', '에 tiling을 적용?'],
+
+  class: className = '',
+} = Astro.props;
+
+const C = 11; // 셀 사이즈
+const N = 10; // 매트릭스 차원 (10×10)
+
+// 매트릭스 내부 그리드 라인 path 생성
+function gridLines(w: number, h: number): string {
+  const lines: string[] = [];
+  for (let i = 1; i < N; i++) {
+    lines.push(`M 0 ${i * C} L ${w} ${i * C}`);
+  }
+  if (w === N * C) {
+    for (let j = 1; j < N; j++) {
+      lines.push(`M ${j * C} 0 L ${j * C} ${h}`);
+    }
+  }
+  return lines.join(' ');
+}
+
+// 하부삼각 영역 path (계단형) - mask/softmax 매트릭스용
+function lowerTriPath(): string {
+  const steps = [`M 0 0`];
+  for (let i = 0; i < N; i++) {
+    const x = (i + 1) * C;
+    steps.push(`L ${x} ${i * C}`);
+    steps.push(`L ${x} ${(i + 1) * C}`);
+  }
+  steps.push(`L 0 ${N * C}`);
+  steps.push(`Z`);
+  return steps.join(' ');
+}
+
+const gridFull = gridLines(N * C, N * C);
+const gridVec = gridLines(C, N * C);
+const triPath = lowerTriPath();
+---
+
+<div class:list={['attn-tile-root', className]}>
+  <svg
+    viewBox="0 0 680 350"
+    xmlns="http://www.w3.org/2000/svg"
+    role="img"
+    width="100%"
+    class="attn-tile-svg"
+  >
+    <title>Self-attention with tiling annotations</title>
+    <desc>
+      Self-attention computation flow showing Q multiplied by K-transpose,
+      then masked, then softmax applied, then multiplied by V to produce
+      output O.
+    </desc>
+
+    <defs>
+      <marker
+        id="att-arrow"
+        viewBox="0 0 10 10"
+        refX="8"
+        refY="5"
+        markerWidth="6"
+        markerHeight="6"
+        orient="auto-start-reverse"
+      >
+        <path
+          d="M2 1L8 5L2 9"
+          fill="none"
+          stroke="context-stroke"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </marker>
+    </defs>
+
+    {/* ===== TOP FUSION BRACKET ===== */}
+    {showFusionBracket && (
+      <g>
+        <text class="at-text-fill" x="340" y="18" text-anchor="middle" font-size="12">
+          {fusionText[0]}
+        </text>
+        <text class="at-text-fill" x="340" y="36" text-anchor="middle" font-size="12">
+          {fusionText[1]}
+        </text>
+        <path
+          class="at-muted-stroke"
+          d="M 55 50 L 55 56 L 626 56 L 626 50 M 340 56 L 340 62"
+          fill="none"
+          stroke-width="0.8"
+        />
+      </g>
+    )}
+
+    {/* ===== TILING SUB BRACKETS (LEFT + RIGHT) ===== */}
+    {showTilingBrackets && (
+      <g>
+        {/* Left: Q × K → A */}
+        <text class="at-text-fill" x="162" y="76" text-anchor="middle" font-size="12">
+          {tilingText[0]}
+        </text>
+        <text class="at-text-fill" x="162" y="92" text-anchor="middle" font-size="12">
+          {tilingText[1]}
+        </text>
+        <path
+          class="at-muted-stroke"
+          d="M 55 104 L 55 110 L 270 110 L 270 104 M 162 110 L 162 116"
+          fill="none"
+          stroke-width="0.8"
+        />
+
+        {/* Right: V → O */}
+        <text class="at-text-fill" x="600" y="76" text-anchor="middle" font-size="12">
+          {tilingText[0]}
+        </text>
+        <text class="at-text-fill" x="600" y="92" text-anchor="middle" font-size="12">
+          {tilingText[1]}
+        </text>
+        <path
+          class="at-muted-stroke"
+          d="M 575 104 L 575 110 L 626 110 L 626 104 M 600 110 L 600 116"
+          fill="none"
+          stroke-width="0.8"
+        />
+      </g>
+    )}
+
+    {/* ===== MATRIX LABELS ===== */}
+    <g class="at-text-fill" font-size="12">
+      <text x="60" y="135" text-anchor="middle">Q : N×d</text>
+      <text x="125" y="135" text-anchor="middle">K : N×d</text>
+      <text x="215" y="135" text-anchor="middle">A = QKᵀ : N×N</text>
+      <text x="355" y="135" text-anchor="middle">A = mask(A)</text>
+      <text x="495" y="135" text-anchor="middle">A = softmax(A) : N×N</text>
+      <text x="580" y="135" text-anchor="middle">V : N×d</text>
+      <text x="620" y="135" text-anchor="middle">O : N×d</text>
+    </g>
+
+    {/* ===== Q VECTOR ===== */}
+    <g transform="translate(55, 145)">
+      <rect class="at-strong-fill" width={C} height={N * C} />
+      <path class="at-grid-stroke" d={gridVec} fill="none" stroke-width="1" />
+    </g>
+
+    {/* × */}
+    <text
+      class="at-text-fill"
+      x="93"
+      y="205"
+      text-anchor="middle"
+      font-size="16"
+      font-weight="500"
+    >×</text>
+
+    {/* ===== K VECTOR ===== */}
+    <g transform="translate(120, 145)">
+      <rect class="at-strong-fill" width={C} height={N * C} />
+      <path class="at-grid-stroke" d={gridVec} fill="none" stroke-width="1" />
+    </g>
+
+    <line
+      class="at-text-stroke"
+      x1="138" y1="200" x2="156" y2="200"
+      stroke-width="1.5"
+      marker-end="url(#att-arrow)"
+    />
+
+    {/* ===== A1 = QKᵀ ===== */}
+    <g transform="translate(160, 145)">
+      <rect class="at-strong-fill" width={N * C} height={N * C} />
+      <path class="at-grid-stroke" d={gridFull} fill="none" stroke-width="1" />
+    </g>
+
+    <line
+      class="at-text-stroke"
+      x1="274" y1="200" x2="296" y2="200"
+      stroke-width="1.5"
+      marker-end="url(#att-arrow)"
+    />
+
+    {/* ===== A2 = mask(A) ===== */}
+    <g transform="translate(300, 145)">
+      <rect class="at-light-fill" width={N * C} height={N * C} />
+      <path class="at-strong-fill" d={triPath} />
+      <path class="at-grid-stroke" d={gridFull} fill="none" stroke-width="1" />
+    </g>
+
+    <line
+      class="at-text-stroke"
+      x1="414" y1="200" x2="436" y2="200"
+      stroke-width="1.5"
+      marker-end="url(#att-arrow)"
+    />
+
+    {/* ===== A3 = softmax(A) ===== */}
+    <g transform="translate(440, 145)">
+      <rect class="at-light-fill" width={N * C} height={N * C} />
+      <path class="at-strong-fill" d={triPath} />
+      <path class="at-grid-stroke" d={gridFull} fill="none" stroke-width="1" />
+    </g>
+
+    {/* × */}
+    <text
+      class="at-text-fill"
+      x="562" y="205"
+      text-anchor="middle"
+      font-size="16"
+      font-weight="500"
+    >×</text>
+
+    {/* ===== V VECTOR ===== */}
+    <g transform="translate(575, 145)">
+      <rect class="at-strong-fill" width={C} height={N * C} />
+      <path class="at-grid-stroke" d={gridVec} fill="none" stroke-width="1" />
+    </g>
+
+    <line
+      class="at-text-stroke"
+      x1="593" y1="200" x2="611" y2="200"
+      stroke-width="1.5"
+      marker-end="url(#att-arrow)"
+    />
+
+    {/* ===== O VECTOR ===== */}
+    <g transform="translate(615, 145)">
+      <rect class="at-strong-fill" width={C} height={N * C} />
+      <path class="at-grid-stroke" d={gridVec} fill="none" stroke-width="1" />
+    </g>
+
+    {/* ===== TILE BRACKETS BELOW A1 ===== */}
+    {showTiles && (
+      <g>
+        <g class="at-muted-stroke" fill="none" stroke-width="0.8">
+          <path d="M 160 263 L 160 268 L 196 268 L 196 263" />
+          <path d="M 197 263 L 197 268 L 233 268 L 233 263" />
+          <path d="M 234 263 L 234 268 L 270 268 L 270 263" />
+        </g>
+        <g class="at-muted-fill" font-size="11">
+          <text x="178" y="283" text-anchor="middle">{tileLabels[0]}</text>
+          <text x="215" y="283" text-anchor="middle">{tileLabels[1]}</text>
+          <text x="252" y="283" text-anchor="middle">{tileLabels[2]}</text>
+        </g>
+      </g>
+    )}
+
+    {/* ===== RED QUESTION BELOW A3 ===== */}
+    {showSoftmaxQuestion && (
+      <g>
+        <path
+          class="at-danger-stroke"
+          d="M 440 263 L 440 268 L 550 268 L 550 263 M 495 268 L 495 274"
+          fill="none"
+          stroke-width="0.8"
+        />
+        <text class="at-danger-fill" x="495" y="295" text-anchor="middle" font-size="12">
+          {softmaxQuestion[0]}
+        </text>
+        <text class="at-danger-fill" x="495" y="313" text-anchor="middle" font-size="12">
+          {softmaxQuestion[1]}
+        </text>
+      </g>
+    )}
+  </svg>
+</div>
+
+<style>
+  /* ── Light mode defaults ─────────────────────────────────────── */
+  .attn-tile-root {
+    --at-text: #525252;
+    --at-muted: #666666;
+    --at-strong: #378ADD;
+    --at-light: #B5D4F4;
+    --at-danger: #A32D2D;
+    --at-grid: #ffffff;
+
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    color: var(--at-text);
+  }
+
+  /* ── Dark mode overrides ─────────────────────────────────────── */
+  /* :global() prevents Astro from scoping [data-theme='dark']; the attribute
+     lives on <html> which has no component scope id. */
+  :global([data-theme='dark']) .attn-tile-root {
+    --at-text: #d2d2d2;
+    --at-muted: #a8a8a8;
+    --at-strong: #85B7EB;
+    --at-light: #2A4D74;
+    --at-danger: #EF9F27;
+    --at-grid: #1c1c1d;
+  }
+
+  .attn-tile-svg {
+    display: block;
+  }
+
+  .at-text-fill { fill: var(--at-text); }
+  .at-text-stroke { stroke: var(--at-text); }
+  .at-muted-fill { fill: var(--at-muted); }
+  .at-muted-stroke { stroke: var(--at-muted); }
+  .at-strong-fill { fill: var(--at-strong); }
+  .at-light-fill { fill: var(--at-light); }
+  .at-danger-fill { fill: var(--at-danger); }
+  .at-danger-stroke { stroke: var(--at-danger); }
+  .at-grid-stroke { stroke: var(--at-grid); }
+</style>

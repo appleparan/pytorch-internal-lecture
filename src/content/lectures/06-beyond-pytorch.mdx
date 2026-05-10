@@ -6,6 +6,7 @@ lecture: 6
 
 import Mermaid from '../../components/Mermaid.astro';
 import PrefillDecodeDiagram from '../../components/PrefillDecodeDiagram.astro';
+import AttentionTilingDiagram from '../../components/AttentionTilingDiagram.astro';
 
 # Week 6: Beyond PyTorch: Custom Kernel과 vLLM
 
@@ -135,7 +136,9 @@ LLM에서 가장 중요한 연산을 하나 꼽으라면 단연 **Self-Attention
 </div>
 
 > 출처: [https://jalammar.github.io/illustrated-transformer/](https://jalammar.github.io/illustrated-transformer/)
+
 > 출처: [Why Self-Attention? A Targeted Evaluation of Neural Machine Translation Architectures](https://arxiv.org/abs/1808.08946)
+
 > 출처: [Advanced Natural Language Processing (CS769, Spring 23)](https://junjiehu.github.io/cs769-spring23/assets/pdf/anlp-08-attention.pdf)
 
 ### Non-Causal vs. Causal Attention
@@ -344,6 +347,7 @@ Flash Attention은 이를 **타일 단위로 쪼개서**(tiling), 한 타일을 
 </div>
 
 > 출처: [Flash Attention](https://huggingface.co/docs/text-generation-inference/conceptual/flash_attention)
+
 > 출처: [FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness](https://arxiv.org/abs/2205.14135)
 
 ### Paged Attention
@@ -379,27 +383,87 @@ Paged Attention은 OS의 virtual memory · paging과 거의 같은 발상으로 
 
 ### Flash Attention과 GPU-Aware 알고리즘
 
-Flash Attention은 단순히 알고리즘 수준의 최적화가 아니라, **GPU 하드웨어 특성을 깊이 이해한** GPU-Aware Attention 알고리즘입니다. PyTorch의 Op 추상화에는 한계가 있습니다. 각 커널이 DRAM에서 읽고 쓰는 I/O 모델을 따르기 때문에 타일링과 퓨전이 불가능합니다. 이를 해결하려면 **저수준 API**로 커널을 직접 작성하고, 이를 **Custom Op**으로 래핑하여 PyTorch에서 사용해야 합니다.
+지금까지 본 메모리 오버헤드 감소 기법들의 공통점은 한 가지입니다 — **하드웨어 특성을 적극적으로 활용해야 비로소 동작한다**는 점이죠. 그런데 정확히 이 지점에서 **PyTorch의 Op 추상화는 잘 맞지 않습니다**. PyTorch가 우리에게 주는 추상화는 *내부 계산을 직접 제어*하는 것이 아니라, *이미 정해진 연산을 빌딩 블록으로 조합*하는 형태입니다. 게다가 각 op이 (특히 eager 모드에서) **하나의 커널**로 매핑되면, 그 커널의 I/O 모델은 사실상 "**DRAM에서 읽어 → 계산 → DRAM에 다시 씀**"으로 고정됩니다. Flash Attention의 동기였던 "DRAM 왕복을 줄이고 싶다"는 요구를 op 단위로는 표현할 수가 없는 것입니다.
 
-GPU 메모리 계층에서 **DRAM**은 용량이 크지만 느리고, **Shared Memory**는 용량이 작지만 빠릅니다. Flash Attention은 데이터를 쪼개서 Shared Memory에 올려놓고 고대역폭으로 연산하는 전략을 취합니다.
+이 한계를 넘으려면 결국 **PyTorch op보다 한 단계 낮은 저수준 API**로 커널을 직접 작성하고, 그것을 **Custom Op**으로 wrap해서 PyTorch 레벨에 다시 노출시켜야 합니다. 이게 바로 다음 절들에서 다룰 **Kernel Programming**의 출발점입니다.
+
+Flash Attention이 가정하는 GPU 모델은 단순합니다.
+
+- **Grid** — 대규모로 병렬 처리할 수 있는 연산기들의 집합
+- **DRAM** — 외부 메모리. 용량은 크지만 대역폭이 상대적으로 낮음
+- **Shared Memory** — 블록별로 할당되는 **온칩 메모리**. 용량은 작지만 대역폭이 훨씬 높음
+
+핵심 통찰은 같은 데이터라도 **DRAM에 두고 계산하는 것보다, 한 번 Shared Memory에 올려놓고 그 안에서 계산하는 편이 훨씬 빠르다**는 점입니다. Flash Attention은 입력과 유지해야 하는 데이터가 DRAM에 있더라도 그것을 **타일 단위로 쪼개 Shared Memory에 올려놓고**, 실제 곱·합 연산은 Shared Memory의 높은 대역폭으로 수행합니다. 결국 질문은 이렇게 정리됩니다 — **이런 아키텍처적 특성을 어떻게 알고리즘과 코드에 직접 반영해 줄 것인가?**
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide24_1.png" class="h-44" />
 </div>
 
-### Tiling과 Fusion의 적용
+같은 맥락에서, sequence가 길어질수록 attention 자체가 얼마나 무거워지는지를 한 번에 보여주는 그림은 다음과 같습니다. $Q \times K^T$ → mask → softmax → $\times V$로 이어지는 전 과정에서 **연산량과 메모리 접근량 모두 $O(N^2)$** 으로 커집니다.
 
-Attention 연산 $\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right) V$ 에서 각 연산의 Tiling 적용 가능성은 다릅니다:
+<div class="flex justify-center mt-4">
+  <img src="/images/06/slide27_1.png" class="h-44" />
+</div>
+
+### Flash Attention = (Chunked Prefill +) Tiling + Fusion for Attention
+
+Flash Attention은 앞 절에서 본 비효율을 풀기 위해 **두 가지 핵심 기법**을 적용합니다.
+
+- **Tiling** — 큰 계산을 작게 쪼개서, 그때그때 필요한 부분만 들고 와서 처리할 수 있게 만들어주는 방법
+- **Fusion** — 한 계산에 필요한 모든 데이터를 한 번 메모리(Shared Memory)에 올려놓은 뒤, **DRAM에 다시 접근하지 않은 채** 가능한 한 많은 연산을 끝내고, 마지막에 결과만 한 번에 내보내는 방식
+
+이 둘을 함께 적용해 attention을 다시 짜면, 같은 $O(N^2)$ 연산이라도 메모리를 훨씬 효율적으로 사용할 수 있게 됩니다.
+
+#### Tiling
+
+큰 행렬을 통째로 처리하는 대신, 결과 행렬을 작은 타일로 쪼개고 각 타일을 만드는 데 필요한 입력 조각만 한 번씩 Shared Memory에 올려 곱·누적합니다. 같은 데이터를 여러 번 DRAM에서 다시 읽지 않고 재사용할 수 있어, 메모리 트래픽이 크게 줄어듭니다.
+
+<div class="flex justify-center mt-4">
+  <img src="/images/06/tiling.gif" class="h-64" />
+</div>
+
+> 출처: [Tiled Matrix Multiplication](https://penny-xu.github.io/blog/tiled-matrix-multiplication?curius=1144)
+
+#### Fusion
+
+여러 op이 한 줄로 이어진 연산 그래프(예: $a \to b \to c \to d$)를 그대로 실행하면, op마다 결과를 DRAM에 썼다가 다음 op이 다시 읽어가는 **DRAM 왕복**이 반복됩니다. 인접한 op들을 **하나의 커널로 합치면(fusion)**, 중간 결과는 Shared Memory/레지스터 위에 머물고 최종 결과만 DRAM에 한 번 내보낼 수 있습니다.
+
+<div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-center mt-4">
+  <div class="text-center">
+    <img src="/images/06/fusion-multi.png" class="h-44 mx-auto" />
+    <div class="text-sm mt-2">op마다 DRAM 왕복</div>
+  </div>
+  <div class="text-3xl text-center" style="color:#3a7bd5">→</div>
+  <div class="text-center">
+    <img src="/images/06/fusion-fused.png" class="h-44 mx-auto" />
+    <div class="text-sm mt-2">하나의 커널로 fuse</div>
+  </div>
+</div>
+
+> 출처: [Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html)
+
+#### Attention에 적용하기
+
+이제 이 두 도구를 attention에 그대로 얹어 봅시다. Attention 연산 $\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right) V$ 안에서 각 연산이 tiling과 어울리는 정도는 다릅니다.
 
 - **곱셈** (QK, ...V): 자연스럽게 tiling 적용 가능
 - **Masking**: 마찬가지로 tiling 가능
 - **Softmax**: 전체 분포를 봐야 하므로 tiling이 까다로움 — **핵심 기술적 챌린지**
 
-모든 연산이 같은 방식으로 tiling된다면 자연스럽게 **fusion 적용이 가능**합니다. 하지만 이러한 tiling과 fusion은 PyTorch 수준에서는 표현이 불가능하며, **Kernel Programming이 꼭 필요**합니다.
+앞서 본 attention 그림에 이 통찰을 그대로 얹어 보면 다음과 같이 정리됩니다.
 
-<div class="flex justify-center mt-4">
-  <img src="/images/06/slide27_1.png" class="h-40" />
-</div>
+<AttentionTilingDiagram
+  showFusionBracket
+  showTilingBrackets
+  showTiles
+  showSoftmaxQuestion
+/>
+
+곱셈·masking 영역은 직관적으로 tiling이 들어가지만, **중간에 끼어 있는 softmax**가 진짜 골치 아픈 부분입니다. softmax는 본질적으로 *전체 N개 값을 다 보고 다시 rebalance*하는 연산이라, "어떻게 잘 쪼개서 부분적으로 계산할 것인가"가 곧 Flash Attention의 핵심 기술적 챌린지입니다 (다음 절의 *Online Softmax*에서 다룹니다).
+
+#### 정리
+
+모든 연산이 **같은 방식**으로 tiling된다면 자연스럽게 fusion까지 함께 적용할 수 있습니다. Flash Attention의 핵심도 결국 이 두 가지 — tiling과 fusion — 의 결합입니다. 다만 이런 tiling과 fusion은 **PyTorch op 단위에서는 표현할 방법이 없어서**, 더 저수준에서 알고리즘을 직접 구현하고 그것을 다시 **PyTorch op으로 wrap해 노출**시켜야 합니다. 다음 절의 **Kernel Programming**이 바로 그 도구입니다.
 
 ### Softmax의 도전: Online Softmax
 
