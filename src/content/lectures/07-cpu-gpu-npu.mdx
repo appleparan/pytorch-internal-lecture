@@ -5,6 +5,7 @@ lecture: 7
 ---
 
 import Mermaid from '../../components/Mermaid.astro';
+import ThemeImage from '../../components/ThemeImage.astro';
 
 
 # Week 7: CPU / GPU / NPU
@@ -14,40 +15,46 @@ import Mermaid from '../../components/Mermaid.astro';
 
 ## 소개
 
-이번 강의에서는 CPU, GPU, NPU가 아키텍처 수준에서 어떻게 다른지를 살펴봅니다. 단순히 "GPU가 병렬 처리에 좋다"는 수준을 넘어, 프로세서 설계 철학의 차이를 이해하는 것이 목표입니다. Latency hiding이라는 공통 문제를 CPU, GPU, NPU가 각각 어떤 방식으로 접근하는지를 추적하면, 왜 NPU가 GPU와 다른 프로그래밍 모델을 요구하는지 자연스럽게 이해할 수 있습니다.
+지금까지의 강의는 주로 **소프트웨어적인 측면**(PyTorch, 컴파일러, 모델 최적화 등)을 다뤘습니다. 이번 시간은 시리즈 전체에서 처음으로 **하드웨어**에 초점을 맞추는 강의이며, 다음 주에는 그동안 다룬 내용들을 실무와 연결지으며 시리즈를 마무리할 예정입니다.
+
+오늘의 주제는 **CPU, GPU, NPU가 어떻게 다른가**입니다. 단순히 "GPU가 병렬 처리에 좋다"는 수준을 넘어, 프로세서 설계 철학의 차이를 이해하는 것이 목표입니다. Latency hiding이라는 공통 문제를 CPU, GPU, NPU가 각각 어떤 방식으로 접근하는지를 추적하면, 왜 NPU가 GPU와 다른 프로그래밍 모델을 요구하는지 자연스럽게 이해할 수 있습니다.
+
+디테일로 들어가기 전에 한 가지 짚어둘 점이 있습니다. 프로세서의 세계는 생각보다 훨씬 다양합니다. 같은 종류의 프로세서 안에서도 여러 접근법이 공존하고, ISCA·MICRO·HPCA 같은 컴퓨터 아키텍처 학회에서는 매년 새로운 제안들이 쏟아져 나옵니다. 따라서 이 강의에서 다루는 CPU/GPU/NPU의 구분은 절대적인 것이 아니라, 설계 철학을 이해하기 위한 **하나의 큰 틀**로 받아들이는 것이 좋습니다.
 
 강의 흐름은 다음과 같습니다. 먼저 프로세서의 기본 구조와 설계 철학을 짚고, Latency와 Throughput 개념을 정리합니다. 이어서 Instruction-level pipelining부터 시작하여 Loop-level pipelining(OOO Processor와 VLIW), 그리고 Thread-level pipelining(Multi-core, GPU, NPU)까지 점진적으로 확장해 나갑니다.
 
 
 ## Processor Stack: 개발자에서 Datapath까지
 
-프로세서의 동작을 이해하려면, 개발자가 작성한 코드가 실제 하드웨어에서 실행되기까지 거치는 계층 구조를 먼저 파악해야 합니다.
+프로세서의 동작을 이해하려면, 개발자가 작성한 코드가 실제 하드웨어에서 실행되기까지 거치는 계층 구조를 먼저 파악해야 합니다. 컴퓨터라는 큰 세계는 맨 밑의 트랜지스터부터 개발자가 바라보는 프로그래밍 언어까지 한 번에 직접 연결되어 있는 것이 아니라, 그 사이에 **여러 단계의 추상화 레이어**를 거치도록 구성되어 있습니다.
 
-<Mermaid scale={0.75}>
-{`graph TD
-    A["개발자"] --> B["Programming Language"]
-    B --> C["Compiler"]
-    C --> D["Instruction Set Architecture"]
-    D --> E["Control Logic"]
-    E --> F["Datapath"]
-
-    style A fill:#f97316,stroke:#f97316,color:#fff
-    style D fill:#3b82f6,stroke:#3b82f6,color:#fff
-    style E fill:#6366f1,stroke:#6366f1,color:#fff
-    style F fill:#6366f1,stroke:#6366f1,color:#fff`}
-</Mermaid>
+<ThemeImage
+  lightSrc="/images/07/processor_design_abstraction_light.svg"
+  darkSrc="/images/07/processor_design_abstraction_dark.svg"
+  alt="Processor design abstraction layers"
+  class="h-36 mx-auto"
+/>
 
 이 스택에서 Programming Language와 Compiler는 **소프트웨어 영역**에 해당하고, ISA(Instruction Set Architecture)와 Control Logic, Datapath는 **하드웨어 영역**에 해당합니다. 특히 Control Logic과 Datapath를 합쳐서 **Microarchitecture**라고 부릅니다.
 
 ### 프로세서 설계의 핵심 질문
 
-성능은 궁극적으로 하드웨어(Datapath)에서 결정됩니다. 그러나 하드웨어의 모든 디테일을 개발자에게 노출할 수는 없습니다. 따라서 프로세서 설계의 핵심 질문은 **"어느 단계에서 추상화하여 개발자가 이해할 수 있게 만드는가?"**입니다.
+다양한 프로세서와 접근 방식이 존재하지만, 그 모든 것을 관통하는 핵심 질문은 하나입니다 — **"맨 밑에 있는 하드웨어가 개발자에게 어떻게 노출되는가?"**
 
-이 질문에 대한 접근 방식은 크게 세 가지로 나뉩니다:
+성능은 궁극적으로 맨 밑에 있는 하드웨어(Datapath)에서 결정됩니다. 그러나 트랜지스터 단위는 너무 낮은 수준이고, Datapath의 모든 디테일을 그대로 개발자에게 노출할 수도 없습니다. 결국 어딘가에서는 체계적으로 추상화가 이루어져 개발자가 이해할 수 있는 형태로 정리되어야 하는데, **그 추상화가 어느 단계에서 이루어지는가**가 프로세서 디자인에서 가장 중요한 질문 중 하나입니다.
 
-1. **Microarchitecture 최적화** — 하드웨어가 알아서 처리하는 방식입니다. 개발자는 하드웨어의 디테일을 알 필요 없이, Microarchitecture 수준의 최적화에 의존합니다.
-2. **Compiler 최적화** — 소프트웨어가 정적으로 처리하는 방식입니다. 컴파일러가 하드웨어의 특성을 파악하여 최적화된 코드를 생성합니다.
-3. **Programming Model 제공** — 개발자가 하드웨어의 특성을 고려하여 직접 제어할 수 있도록, 최적화 목적에 맞는 프로그래밍 모델을 제공하는 방식입니다.
+### 추상화 수준에 따른 세 가지 접근 방식
+
+이 질문에 대한 답은 크게 세 가지 접근 방식으로 나뉘며, 이들은 **두 개의 큰 관점**으로 묶어볼 수 있습니다. 위 그림의 우측에 있는 ①②③ 화살표가 각 접근 방식이 **추상화를 어느 레이어까지 끌어올리는지**를 보여줍니다.
+
+**관점 A — 개발자가 HW Detail을 알 필요가 없게.** 추상화의 무게를 하드웨어 내부 또는 컴파일러에 두어, 개발자는 단순한 ISA만 보고 코드를 작성하면 되도록 합니다.
+
+1. **Microarchitecture 수준의 최적화에 의존** *(그림의 ①: Control Logic까지 추상화)* — 하드웨어의 복잡성을 하드웨어 내부에서 모두 추상화하고, 개발자에게는 간단한 ISA만 노출합니다. 파이프라이닝, 분기 예측, 캐시 등 Microarchitecture 수준의 최적화에 성능을 맡기는 방식입니다.
+2. **Compiler 수준의 최적화에 의존** *(그림의 ②: Compiler까지 추상화)* — 하드웨어의 복잡성은 그대로 노출하되, 그것을 사용 가능한 형태로 추상화하는 일은 **컴파일러**가 수행합니다. 프로세서와 컴파일러를 짝으로 함께 설계하는 접근입니다.
+
+**관점 B — 개발자가 HW 특성을 고려하여 짤 수 있도록.** 결국 최적의 결정은 개발자가 내려야 한다는 철학에 기반합니다.
+
+3. **최적화 목적에 맞는 Programming Model 제공** *(그림의 ③: Developer까지 노출)* — Datapath의 중요한 특성을 개발자에게 직접 노출하고, 그 디테일을 잘 다룰 수 있는 **프로그래밍 모델**을 함께 제공하여 개발자가 하드웨어 특성을 고려하며 코드를 작성하도록 지원합니다.
 
 이 세 가지 접근 방식의 차이가 바로 CPU, GPU, NPU의 설계 철학 차이로 이어집니다.
 
