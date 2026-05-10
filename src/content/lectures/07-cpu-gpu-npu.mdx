@@ -39,7 +39,7 @@ import ThemeImage from '../../components/ThemeImage.astro';
 
 ### 프로세서 설계의 핵심 질문
 
-다양한 프로세서와 접근 방식이 존재하지만, 그 모든 것을 관통하는 핵심 질문은 하나입니다 — **"맨 밑에 있는 하드웨어가 개발자에게 어떻게 노출되는가?"**
+다양한 프로세서와 접근 방식이 존재하지만, 그 모든 것을 관통하는 핵심 질문은 하나입니다. 바로 **"맨 밑에 있는 하드웨어가 개발자에게 어떻게 노출되는가?"** 입니다.
 
 성능은 궁극적으로 맨 밑에 있는 하드웨어(Datapath)에서 결정됩니다. 그러나 트랜지스터 단위는 너무 낮은 수준이고, Datapath의 모든 디테일을 그대로 개발자에게 노출할 수도 없습니다. 결국 어딘가에서는 체계적으로 추상화가 이루어져 개발자가 이해할 수 있는 형태로 정리되어야 하는데, **그 추상화가 어느 단계에서 이루어지는가**가 프로세서 디자인에서 가장 중요한 질문 중 하나입니다.
 
@@ -47,34 +47,58 @@ import ThemeImage from '../../components/ThemeImage.astro';
 
 이 질문에 대한 답은 크게 세 가지 접근 방식으로 나뉘며, 이들은 **두 개의 큰 관점**으로 묶어볼 수 있습니다. 위 그림의 우측에 있는 ①②③ 화살표가 각 접근 방식이 **추상화를 어느 레이어까지 끌어올리는지**를 보여줍니다.
 
-**관점 A — 개발자가 HW Detail을 알 필요가 없게.** 추상화의 무게를 하드웨어 내부 또는 컴파일러에 두어, 개발자는 단순한 ISA만 보고 코드를 작성하면 되도록 합니다.
+**관점 A: 개발자가 HW Detail을 알 필요가 없게.** 추상화의 무게를 하드웨어 내부 또는 컴파일러에 두어, 개발자는 단순한 ISA만 보고 코드를 작성하면 되도록 합니다.
 
-1. **Microarchitecture 수준의 최적화에 의존** *(그림의 ①: Control Logic까지 추상화)* — 하드웨어의 복잡성을 하드웨어 내부에서 모두 추상화하고, 개발자에게는 간단한 ISA만 노출합니다. 파이프라이닝, 분기 예측, 캐시 등 Microarchitecture 수준의 최적화에 성능을 맡기는 방식입니다.
-2. **Compiler 수준의 최적화에 의존** *(그림의 ②: Compiler까지 추상화)* — 하드웨어의 복잡성은 그대로 노출하되, 그것을 사용 가능한 형태로 추상화하는 일은 **컴파일러**가 수행합니다. 프로세서와 컴파일러를 짝으로 함께 설계하는 접근입니다.
+1. **Microarchitecture 수준의 최적화에 의존** *(그림의 ①: Control Logic까지 추상화)*: 하드웨어의 복잡성을 하드웨어 내부에서 모두 추상화하고, 개발자에게는 간단한 ISA만 노출합니다. 파이프라이닝, 분기 예측, 캐시 등 Microarchitecture 수준의 최적화에 성능을 맡기는 방식입니다.
+2. **Compiler 수준의 최적화에 의존** *(그림의 ②: Compiler까지 추상화)*: 하드웨어의 복잡성은 그대로 노출하되, 그것을 사용 가능한 형태로 추상화하는 일은 **컴파일러**가 수행합니다. 프로세서와 컴파일러를 짝으로 함께 설계하는 접근입니다.
 
-**관점 B — 개발자가 HW 특성을 고려하여 짤 수 있도록.** 결국 최적의 결정은 개발자가 내려야 한다는 철학에 기반합니다.
+**관점 B: 개발자가 HW 특성을 고려하여 짤 수 있도록.** 결국 최적의 결정은 개발자가 내려야 한다는 철학에 기반합니다.
 
-3. **최적화 목적에 맞는 Programming Model 제공** *(그림의 ③: Developer까지 노출)* — Datapath의 중요한 특성을 개발자에게 직접 노출하고, 그 디테일을 잘 다룰 수 있는 **프로그래밍 모델**을 함께 제공하여 개발자가 하드웨어 특성을 고려하며 코드를 작성하도록 지원합니다.
+3. **최적화 목적에 맞는 Programming Model 제공** *(그림의 ③: Developer까지 노출)*: Datapath의 중요한 특성을 개발자에게 직접 노출하고, 그 디테일을 잘 다룰 수 있는 **프로그래밍 모델**을 함께 제공하여 개발자가 하드웨어 특성을 고려하며 코드를 작성하도록 지원합니다.
 
 이 세 가지 접근 방식의 차이가 바로 CPU, GPU, NPU의 설계 철학 차이로 이어집니다.
 
 ### 무어의 법칙과 ISA/Microarchitecture의 분리
 
+그렇다면 한 가지 자연스러운 질문이 생깁니다. 왜 이렇게 추상화 레이어가 많이 생기게 되었을까요? 특히 하드웨어 단에서, 보통 프로세서를 떠올리면 ISA(Instruction Set Architecture)로 소프트웨어에 노출되는 것을 생각하지만, 그 밑에 있는 Datapath와 ISA가 왜 분리되어 있는지 짚어볼 만합니다.
+
 <img src="/images/07/slide07_1.png" />
 
-무어의 법칙에 따라 더 많은 하드웨어 컴포넌트를 하나의 칩에 집적할 수 있게 되면서, 하드웨어는 점점 복잡해졌습니다. 그러나 이 복잡한 하드웨어를 모두 소프트웨어에 노출시킬 수는 없었기 때문에, **ISA와 Microarchitecture가 분리**되는 중요한 전환이 일어났습니다. ISA는 소프트웨어가 바라보는 안정적인 인터페이스로 유지되고, Microarchitecture는 세대마다 자유롭게 변경할 수 있게 된 것입니다.
+핵심 배경에는 **무어의 법칙**이 있습니다. 무어의 법칙이 활발히 작동하던 시절에는 트랜지스터 수가 18개월마다 두 배씩 늘어났고, 그렇게 늘어난 트랜지스터로 더 많은 컴포넌트를 집적해 프로세서가 점점 더 많은 일을 처리하도록 만들 수 있었습니다. 그 결과 하드웨어, 특히 Datapath는 세대마다 점점 더 복잡해졌습니다.
+
+이 복잡해진 Datapath의 모든 디테일을 그대로 소프트웨어에 노출하는 것은 비현실적이었습니다. 노출해야 할 정보의 양이 너무 많아질 뿐 아니라, 세대가 바뀔 때마다 소프트웨어가 같이 바뀌어야 하기 때문입니다. 그래서 자연스럽게 **하드웨어 디테일 자체**와 **소프트웨어가 그것을 활용하는 방식**이라는 두 단계가 분리되기 시작했습니다.
+
+이렇게 분리된 결과, ISA는 소프트웨어가 바라보는 **안정적인 인터페이스**로 유지되고, ISA 아래의 하드웨어 디테일(즉 **Control Logic + Datapath**를 묶은 **Microarchitecture**)은 세대마다 자유롭게 변경할 수 있게 되었습니다. Microarchitecture라는 용어는 컴퓨터 아키텍처나 컴파일러 분야에서는 익숙한 개념이지만, 상위 애플리케이션 레이어에서 일하는 분들에게는 조금 생소할 수 있습니다. 그냥 **"ISA 아래에 있는 하드웨어 디테일"** 정도로 이해해도 충분합니다.
 
 
 ## Latency, Throughput, 그리고 Latency Hiding
 
-프로세서 아키텍처를 이해하는 데 있어 가장 기본이 되는 두 가지 개념은 Latency와 Throughput입니다.
+이번 강의에서 결국 비교하고 싶은 것은 **NPU가 GPU와 어떻게 다른가**입니다. 그러나 그 차이를 한 번에 설명하기보다는, 다양한 하드웨어를 **Latency Hiding**이라는 공통 측면에서 비교하면서 점진적으로 빌드업해 나가는 편이 훨씬 이해하기 쉽습니다. 그래서 본격적인 비교에 앞서, Latency Hiding을 이야기할 때 빠지지 않는 두 가지 기본 개념(Latency와 Throughput)을 먼저 정리하고 넘어갑니다.
 
 <img src="/images/07/slide09_1.png" />
 
-**Latency**는 하나의 작업을 완료하는 데 걸리는 시간이고, **Throughput**은 단위 시간당 처리되는 작업의 양입니다. 단일 작업만 처리할 때는 Latency가 Throughput에 직접적인 영향을 줍니다. 그러나 병렬로 여러 작업을 처리할 수 있다면, 개별 작업의 Latency가 길더라도 얼마나 빠르게 새로운 작업을 시작할 수 있는가가 Throughput을 결정합니다. 물론 이를 위해서는 작업 간 의존성이 없어야 동시 처리가 가능합니다.
+- **Latency**: 하나의 작업을 완료하는 데 걸리는 시간.
+- **Throughput**: 단위 시간당 처리되는 작업의 양, 즉 얼마나 빠른 속도로 작업이 처리되는가.
 
-즉, Latency와 Throughput은 항상 직접적인 연관 관계를 갖지는 않습니다. 이 간극을 활용하는 것이 바로 **Latency Hiding**이며, 이후 살펴볼 모든 아키텍처 기법의 근본적인 동기가 됩니다.
+직관적으로 보면 하나의 작업을 처리하는 데 걸리는 시간(Latency)이 짧을수록 단위 시간당 처리량(Throughput)이 늘어나는 것은 당연합니다. 단일 작업만 처리하는 경우라면 두 값은 거의 일대일로 연결되어 있죠. 그러나 항상 그렇지는 않습니다.
 
+### Latency Hiding & Parallelism
+
+<ThemeImage
+  lightSrc="/images/07/latency_hiding_light.svg"
+  darkSrc="/images/07/latency_hiding_dark.svg"
+  alt="Latency Hiding & Parallelism"
+  class="h-36 mx-auto"
+/>
+
+위 그림은 같은 길이의 작업이라도 처리 방식에 따라 Throughput이 어떻게 달라지는지를 보여줍니다.
+
+- **단일 작업 처리 (위)**: 한 번에 하나의 작업밖에 처리할 수 없는 상황입니다. 이 경우 하나의 작업을 끝내는 데 걸리는 시간(Latency)이 그대로 Throughput에 직접적인 영향을 줍니다.
+- **동시 작업 처리 (아래)**: 여러 작업을 동시에 처리할 수 있는 상황입니다. 이때는 개별 작업의 Latency 자체보다, **얼마나 빠르게 다음 작업을 새로 시작할 수 있는가**가 Throughput을 결정합니다.
+
+물론 이렇게 동시 처리가 가능하려면, 한 작업이 끝나기 전에 다른 작업을 시작할 수 있어야 합니다. 즉 **작업 간 의존성이 없어야** 합니다. 이 조건만 만족된다면, 개별 작업의 Latency가 길어도 Throughput은 충분히 높일 수 있습니다.
+
+이 간극, 즉 **Latency와 Throughput이 항상 직접적으로 연결되어 있지는 않다**는 사실을 활용하는 것이 바로 **Latency Hiding**입니다. 이제 이 Latency Hiding을 통해 Throughput을 끌어올리는 여러 마이크로아키텍처 기법들(Instruction-level / Loop-level / Thread-level pipelining)을 차례로 살펴봅니다.
 
 ## Instruction-Level Pipelining
 
@@ -245,8 +269,8 @@ Loop-level pipelining의 핵심은 루프의 iteration을 중첩하여 Latency H
 
 이를 실현하는 두 가지 방식이 있습니다:
 
-- **OOO Processor** — 하드웨어가 동적으로 파이프라이닝 효과를 만들어냅니다. 그 이론적 기반은 1960년대의 Tomasulo Algorithm입니다.
-- **VLIW Processor** — 소프트웨어(컴파일러)가 정적으로 파이프라이닝 효과를 만들어냅니다. 대표적인 알고리즘은 1992년의 Modular Scheduling입니다.
+- **OOO Processor**: 하드웨어가 동적으로 파이프라이닝 효과를 만들어냅니다. 그 이론적 기반은 1960년대의 Tomasulo Algorithm입니다.
+- **VLIW Processor**: 소프트웨어(컴파일러)가 정적으로 파이프라이닝 효과를 만들어냅니다. 대표적인 알고리즘은 1992년의 Modular Scheduling입니다.
 
 이 두 접근 방식의 대비는 이후 GPU와 NPU의 설계 철학 차이로 직접 연결됩니다.
 
@@ -349,7 +373,7 @@ GPU의 SIMT 방식이 ML에 완벽하게 적합한지에 대한 의문도 존재
 
 > *"(1) GPGPU's multithreading overhead: It is not our intention to lessen GPGPUs' huge contribution to ML's recent success... Overhead or not, there were no alternatives, until other options came along"*
 >
-> — https://www.sigarch.org/why-the-gpgpu-is-less-efficient-than-the-tpu-for-dnns
+> 출처: https://www.sigarch.org/why-the-gpgpu-is-less-efficient-than-the-tpu-for-dnns
 
 최신 GPU는 이러한 기존 한계를 다양한 방법으로 극복하고 있지만, 이 논의는 NPU가 등장하게 된 배경을 이해하는 데 중요한 맥락을 제공합니다.
 
@@ -365,7 +389,7 @@ GPU가 하드웨어적으로 Latency Hiding을 수행한다면, NPU는 소프트
 <img src="/images/07/slide50_1.png" />
 <img src="/images/07/slide50_4.png" />
 
-**OOO : VLIW = GPU : NPU** — 같은 패턴의 HW vs. SW 접근입니다. OOO Processor가 하드웨어적으로 Loop-level pipelining을 달성하는 것처럼 GPU는 하드웨어적으로 Thread-level Latency Hiding을 수행합니다. 반대로 VLIW가 소프트웨어적으로 Loop-level pipelining을 달성하는 것처럼, NPU는 소프트웨어(컴파일러)가 정적으로 전체 실행 계획을 생성합니다.
+**OOO : VLIW = GPU : NPU**, 같은 패턴의 HW vs. SW 접근입니다. OOO Processor가 하드웨어적으로 Loop-level pipelining을 달성하는 것처럼 GPU는 하드웨어적으로 Thread-level Latency Hiding을 수행합니다. 반대로 VLIW가 소프트웨어적으로 Loop-level pipelining을 달성하는 것처럼, NPU는 소프트웨어(컴파일러)가 정적으로 전체 실행 계획을 생성합니다.
 
 ### NPU Architecture: Scratchpad Memory와 DMA
 
