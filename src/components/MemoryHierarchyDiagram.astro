@@ -1,0 +1,138 @@
+---
+/**
+ * MemoryHierarchyDiagram.astro
+ *
+ * 프로세서의 메모리 계층 구조 다이어그램.
+ * Compute Unit → Interconnect → On-Chip Memory → Memory Wall → DRAM 계층을 보여줍니다.
+ *
+ * 사이트 루트의 data-theme 토글에 자동으로 대응하는 색상을 사용합니다 (rgba 중립 + 강조색).
+ *
+ * MDX 사용 예:
+ *   import MemoryHierarchyDiagram from '../../components/MemoryHierarchyDiagram.astro';
+ *
+ *   <MemoryHierarchyDiagram />
+ *   <MemoryHierarchyDiagram units={4} />
+ *   <MemoryHierarchyDiagram onChipLabel="Scratchpad" highlightOnChip />
+ */
+
+export interface Props {
+  /** Compute Unit / On-Chip Mem 박스 개수 */
+  units?: number;
+  /** On-Chip Memory 라벨 (기본 "On-Chip Mem", NPU 절에서는 "Scratchpad" 등으로 교체) */
+  onChipLabel?: string;
+  /** 위쪽 Interconnect 표시 여부 */
+  showInterconnect?: boolean;
+  /** Memory Wall 표시 여부 */
+  showMemoryWall?: boolean;
+  /** Compute Unit ↔ Interconnect 연결선에 라벨을 붙이고 싶을 때 (예: "L1 DMA") */
+  l1Label?: string;
+  /** On-Chip Mem ↔ DRAM 연결선에 라벨을 붙이고 싶을 때 (예: "L2 DMA") */
+  l2Label?: string;
+  /** On-Chip Mem 박스를 강조 색상(파랑)으로 표시 — Scratchpad 등 강조 시 */
+  highlightOnChip?: boolean;
+  class?: string;
+}
+
+const {
+  units = 3,
+  onChipLabel = 'On-Chip Mem',
+  showInterconnect = true,
+  showMemoryWall = true,
+  l1Label,
+  l2Label,
+  highlightOnChip = false,
+  class: className,
+} = Astro.props;
+
+const unitArray = Array.from({ length: units });
+---
+
+<div class:list={['mh-diagram', className]} style={`--mh-cols: ${units}`}>
+  <div class="mh-row">
+    {unitArray.map(() => <div class="mh-box">Compute Unit</div>)}
+  </div>
+
+  {l1Label && <div class="mh-edge-label">{l1Label}</div>}
+
+  {showInterconnect && <div class="mh-interconnect">Interconnect</div>}
+
+  <div class="mh-row">
+    {unitArray.map(() => (
+      <div class:list={['mh-box', highlightOnChip && 'mh-box-accent']}>
+        {onChipLabel}
+      </div>
+    ))}
+  </div>
+
+  {l2Label && <div class="mh-edge-label">{l2Label}</div>}
+
+  {showMemoryWall && <div class="mh-memory-wall">Memory Wall</div>}
+
+  <div class="mh-box mh-dram">DRAM</div>
+</div>
+
+<style>
+  .mh-diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 24px auto;
+    max-width: 520px;
+    width: 100%;
+  }
+
+  .mh-row {
+    display: grid;
+    grid-template-columns: repeat(var(--mh-cols, 3), 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+
+  .mh-box {
+    padding: 10px;
+    text-align: center;
+    border: 1px solid rgba(125, 125, 125, 0.4);
+    border-radius: 6px;
+    font-size: 0.85em;
+    background: transparent;
+  }
+
+  .mh-box-accent {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+
+  .mh-interconnect {
+    padding: 8px 16px;
+    text-align: center;
+    border: 1px solid rgba(125, 125, 125, 0.4);
+    border-radius: 20px;
+    font-size: 0.85em;
+    background: rgba(125, 125, 125, 0.08);
+    width: 100%;
+  }
+
+  .mh-memory-wall {
+    padding: 8px 16px;
+    text-align: center;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px dashed rgba(239, 68, 68, 0.6);
+    color: rgb(239, 68, 68);
+    width: 100%;
+  }
+
+  .mh-dram {
+    width: 100%;
+    padding: 12px;
+  }
+
+  .mh-edge-label {
+    font-size: 0.75em;
+    opacity: 0.7;
+    font-style: italic;
+  }
+</style>
