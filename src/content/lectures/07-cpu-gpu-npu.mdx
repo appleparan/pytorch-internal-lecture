@@ -508,39 +508,140 @@ OOO Processor는 명령어가 들어올 때마다 코드에 적힌 Architectural
 
 ### Intel Core Architecture의 OOO Engine
 
+지금까지 이야기한 OOO 동작이 실제 상용 프로세서에서는 어떻게 생겼는지, **Intel Core 아키텍처**의 다이어그램으로 한번 확인해 보겠습니다.
+
 <img src="/images/07/slide26_1.png" />
 
-Intel Core Architecture의 OOO Engine에서 핵심 역할을 하는 것은 **Reorder Buffer**입니다. 이것은 Register Renaming과 동적 Data-Flow Graph의 태깅 및 유지를 담당하는 장치입니다.
+이 그림은 앞 절에서 개념적으로 설명한 **"동적으로 Data-Flow Graph를 만들어서 실행하는 엔진"** 의 실제 구현 단면입니다. 그림 안에서 핵심 역할을 하는 장치는 **Reorder Buffer (ROB)** 입니다. 이름은 "재정렬 버퍼"이지만 실제로 하는 일은 다음과 같습니다.
+
+- **Register Renaming** — Architectural Register를 그 시점의 비어 있는 Physical Register로 매핑
+- **동적 Data-Flow Graph 태깅** — 명령어 윈도우 안의 명령어들이 어떤 값을 기다리고, 어디로 결과를 보내는지 매 cycle 갱신
+- **In-order Retire** — 내부적으로는 out-of-order로 실행되더라도, 결과를 외부로 commit할 때는 원래 프로그램 순서대로 정리
+
+요약하면, 앞 절에서 "Reservation Table + Renaming Table + Instruction Window"로 추상화해 설명한 자료구조들이 실제 Intel Core 안에서는 **Reorder Buffer**라는 하나의 장치로 통합되어 동작한다고 이해하면 됩니다.
 
 ### VLIW: 소프트웨어적 접근
 
-OOO Processor는 동적으로 Data-Flow Graph를 생성하고 관리해야 하므로 매우 복잡한 하드웨어가 필요합니다. Branch Prediction이 실패하면 Rollback이 필요하고, 명령어 윈도우를 키울수록 복구 과정은 더 복잡해집니다. 이러한 문제에 대한 대안으로 등장한 것이 **VLIW(Very Long Instruction Word)** 아키텍처입니다.
+#### 다시 보는 OOO의 Loop Pipeline — 그리고 그 비용
 
-<img src="/images/07/slide29_1.png" />
-<img src="/images/07/slide29_2.png" />
-<img src="/images/07/slide29_3.png" />
+VLIW로 넘어가기 전에, 앞 절에서 본 **OOO의 Loop Pipeline 동작**을 한 번만 더 떠올려 봅시다. OOO Processor는 루프를 파이프라인된 형태로 수행하기 위해, 하드웨어 안에서 매 cycle 다음과 같은 일을 동시에 해내고 있었습니다.
 
-VLIW의 핵심 아이디어는 단순합니다. 하드웨어가 동적으로 만들어내는 효과를, **소프트웨어(컴파일러)가 정적으로 미리 만들어 놓는 것**입니다. 소프트웨어적으로 루프를 파이프라인된 형태로 미리 구성하면, 하드웨어는 소프트웨어가 만들어 놓은 파이프라인을 그대로 반복 수행하기만 하면 됩니다. 이렇게 하면 하드웨어가 훨씬 단순해지고, 실행 효율성도 향상될 수 있습니다.
+- **Speculative Trace 펼치기** — Branch Predictor로 분기 결과를 예측해, 아직 도래하지 않은 다음 iteration의 명령어들까지 미리 fetch하고 펼쳐 둡니다.
+- **Register Renaming** — Architectural Register를 비어 있는 Physical Register로 매핑해 iteration 간 False Dependency를 제거합니다.
+- **동적 Data-Flow Graph 유지** — Reservation Station / Renaming Table / Reorder Buffer를 통해, 명령어 윈도우 위에서 그래프를 매 cycle 갱신합니다.
+
+<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', margin: '16px 0' }}>
+  <ThemeImage
+    lightSrc="/images/07/loop_pipeline_light.svg"
+    darkSrc="/images/07/loop_pipeline_dark.svg"
+    alt="OOO Loop Pipeline"
+    class="h-36 mx-auto"
+  />
+  <div style={{ fontSize: '0.9em', fontStyle: 'italic', opacity: 0.75, textAlign: 'center' }}>OOO: 하드웨어가 매 cycle 동적으로 만들어내는 Loop Pipeline</div>
+</div>
+
+이 모든 일을 하드웨어가 직접, 그리고 동적으로 해내야 한다는 점은 곧 **상당한 설계 복잡도**를 의미합니다. 게다가 Branch Prediction이 틀린 순간에는 그동안 진행한 작업을 되돌리는 **Rollback** 이 필요해집니다. 더 많은 병렬성을 짜내려고 명령어 윈도우를 크게 잡을수록, 한 번 예측이 빗나갔을 때 되돌려야 하는 양이 커지고 복구 로직 자체도 함께 복잡해집니다. 결국 OOO 방식으로 Loop Pipeline 효과를 얻는 일은, **그것을 가능하게 하는 하드웨어 자체가 매우 복잡할 수밖에 없는** 길입니다.
+
+#### VLIW의 발상
+
+VLIW는 여기에 정반대 방향의 답을 내놓습니다. **OOO와 똑같은 결과 — 즉 루프 iteration들을 펼친 데이터 플로우 그래프를 매 cycle 병렬 실행하는 모습 — 을, 하드웨어가 동적으로 만들어내는 대신 소프트웨어(컴파일러)가 미리 정적으로 만들어 두는 것**입니다. 컴파일러가 Loop Pipeline 모양을 컴파일 타임에 결정해 두면, 하드웨어는 그 계획대로 매 cycle 정해진 일만 하면 되므로 Branch Prediction, Rollback, Reorder Buffer 같은 복잡한 동적 장치를 사실상 버릴 수 있습니다. 이 갈래의 대표 아키텍처가 **VLIW(Very Long Instruction Word)** 입니다.
+
+<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', margin: '16px 0' }}>
+  <ThemeImage
+    lightSrc="/images/07/loop_vliw_light.svg"
+    darkSrc="/images/07/loop_vliw_dark.svg"
+    alt="VLIW Loop Pipeline"
+    class="h-36 mx-auto"
+  />
+  <div style={{ fontSize: '0.9em', fontStyle: 'italic', opacity: 0.75, textAlign: 'center' }}>VLIW: 컴파일 타임에 미리 결정된 Loop Pipeline을 하드웨어가 그대로 반복</div>
+</div>
+
+생긴 모습은 OOO 때 본 그림과 닮아 있지만, 이 파이프라인을 **누가 만들어 내느냐**가 결정적으로 다릅니다. OOO에서는 매 cycle 하드웨어가 동적으로 그려내던 그림을, VLIW에서는 컴파일러가 미리 그려서 ISA 차원에서 하드웨어에 던져 줍니다. 하드웨어는 그 모양을 그대로 반복 실행하면 되기 때문에, 하드웨어가 훨씬 단순해지고 실행 효율성도 더 좋을 수 있습니다.
+
+이 **하드웨어 동적 vs 소프트웨어 정적**의 대비는 강의 초반에 본 「프로세서 설계의 핵심 질문」(① Microarchitecture 최적화 ↔ ② Compiler 최적화)의 대비와 정확히 같은 패턴이고, 뒤에서 다룰 **GPU vs NPU**의 설계 철학 차이와도 매우 닮아 있습니다. 즉 OOO와 VLIW 비교는 단지 옛날 ISA 이야기가 아니라, 이번 강의 후반부의 핵심 대비를 미리 짚어 보는 작은 예행 연습이기도 합니다.
+
+### VLIW 아키텍처의 구조
+
+VLIW의 발상이 실제 하드웨어 도면 위에 어떻게 그려지는지 보겠습니다.
 
 <img src="/images/07/slide30_1.png" />
 
-VLIW 아키텍처에서는 여러 Functional Unit이 병렬로 처리 가능한 구조를 갖추고 있으며, **명시적인(Explicit) 병렬 프로그래밍**을 수행합니다. 각 사이클마다 하드웨어가 어떤 일을 해야 하는지를 명시적으로 표현하기 때문에, 하드웨어 제어 명령어가 매우 길어져서 "Very Long Instruction Word"라는 이름이 붙었습니다.
+그림에서 가장 눈에 띄는 점은, **여러 Functional Unit(연산 유닛)이 병렬로 늘어서 있고** 그 옆에 값을 저장·읽을 수 있는 레지스터 파일이 함께 배치되어 있다는 점입니다. 이런 외형 자체는 사실 OOO Processor의 실행부와도 꽤 닮아 있습니다. 결정적인 차이는 **이 유닛들에게 매 cycle 무엇을 시킬지를 누가, 어떻게 표현하느냐**에 있습니다.
 
-### Vertical Encoding vs. Horizontal Encoding
+#### Register File Partitioning
+
+VLIW에서 한 가지 미묘한 어려움이 있습니다. Functional Unit 개수가 늘어날수록, 그 모두가 하나의 큰 레지스터 파일에 동시에 물리는 것이 점점 어려워진다는 점입니다. 레지스터 파일에는 동시에 읽고 쓸 수 있는 **포트(port) 개수**가 정해져 있는데, 유닛이 많아질수록 필요한 포트 수가 폭발적으로 늘고, 포트가 많아질수록 레지스터 파일의 회로 자체가 급격히 복잡해집니다.
+
+그래서 VLIW에서는 보통 **레지스터 파일을 여러 개로 파티션**해서 각 파티션에 일부 Functional Unit만 묶어 두는 형태로 설계합니다. 한 파티션 안에서는 익숙한 레지스터 read/write로 통신하지만, **서로 다른 파티션 간에는 레지스터 파일을 직접 공유할 수 없고 별도의 Interconnect를 거쳐 데이터를 옮겨야** 합니다. 이는 컴파일러가 명령어를 배치할 때 "이 값은 어느 파티션에서 살아야 하나"까지 함께 결정해야 한다는 것을 의미하고, VLIW 컴파일러를 어렵게 만드는 요인 중 하나입니다.
+
+#### Explicit Parallel Programming과 "Very Long Instruction Word"
+
+이 구조 위에서 코드를 짤 때, VLIW는 시퀀셜한 명령어 한 줄에 한 가지 일을 시키는 식이 아니라, **한 번에 여러 Functional Unit이 무엇을 할지를 명시적으로(Explicit) 한꺼번에 표현**합니다. 즉 "한 cycle = 여러 명령어 묶음"이고, 각 묶음 안에는 해당 cycle에 각 유닛이 수행할 동작이 그대로 들어 있습니다.
+
+예를 들어 한 cycle에 3개의 Functional Unit이 동시에 동작한다면, 명령어 한 묶음 안에 3개의 Sub-instruction이 함께 묶여 있고, 다음 cycle에는 또 다른 3개가 묶음으로 표현되는 식입니다. 이렇게 묶음 단위로 진행되는 명령어 흐름이 곧 앞에서 본 **VLIW Loop Pipeline 그림과 같은 모양**을 만들어 냅니다.
+
+이렇게 한 번에 하드웨어 전체를 제어하기 위한 명령어가 매우 길어지기 때문에, 이 아키텍처에 **Very Long Instruction Word(VLIW)** 라는 이름이 붙은 것입니다. 다음 절에서는 이 "한 명령어로 여러 유닛을 동시에 제어하는" 표현 방식이 RISC/CISC와 어떻게 다른지를 인코딩 관점에서 정리해 봅니다.
+
+### Very Long Instruction Word (VLIW): Horizontal Encoding
 
 <img src="/images/07/slide31_1.png" />
 
-VLIW의 명령어 인코딩 방식은 기존 RISC/CISC와 근본적으로 다릅니다.
+이 절의 제목인 "Very Long Instruction Word"는 이름 그대로, **한 cycle에 하드웨어 전체에게 무엇을 시킬지가 한 줄에 길게 적혀 있는 명령어 형식**을 가리킵니다. 이 형식을 인코딩 관점에서 보면, 앞서 Instruction-Level Pipelining 절에서 다뤘던 **Vertical Encoding의 정반대 방향**에 위치합니다. 그래서 이 방식을 흔히 **Horizontal Encoding**이라고 부릅니다.
 
 | | **Vertical Encoding** (RISC/CISC) | **Horizontal Encoding** (VLIW) |
 |---|---|---|
-| **특징** | 비트들이 인코딩되어 숨겨져 있음 | HW 구조에 맞춰 명령어가 펼쳐져 있음 |
-| **동작** | 디코딩 → HW 제어 신호로 펼쳐짐 | SW가 HW의 각 부분이 어떤 작업을 수행할지 명시적으로 지정 |
+| **명령어가 담은 정보** | 어떤 동작을 할지가 비트 단위로 **인코딩되어 압축**되어 있음 | 하드웨어의 각 유닛이 그 cycle에 무엇을 할지 **펼쳐서** 그대로 적혀 있음 |
+| **하드웨어 매핑** | 디코딩 단계를 거쳐야 비로소 어떤 유닛이 어떤 일을 할지가 결정됨 | 명령어 자체가 **Datapath 구조와 1:1로 대응** |
+| **누가 결정하나** | 하드웨어가 디코딩하면서 신호를 분기 (① 접근) | 소프트웨어(컴파일러)가 명시적으로 미리 결정 (② 접근) |
 
-<img src="/images/07/slide32_1.png" />
-<img src="/images/07/slide32_2.png" />
+쉽게 말해 Vertical Encoding은 "무엇을 할지 짧게 적어 두면, 디코더가 알아서 풀어서 하드웨어 곳곳에 보내겠다"는 방식이고, Horizontal Encoding은 "**하드웨어 각 부분이 매 cycle 무엇을 할지를 소프트웨어가 직접 표 형식으로 늘어놓겠다**"는 방식입니다. VLIW의 명령어가 Very "Long"인 이유가 바로 이것입니다.
 
-이 두 방식은 계층적으로 결합될 수도 있습니다. 상위 레벨은 Horizontal Encoding으로 전체 구조를 지정하고, 각 단위에서는 Vertical Encoding을 사용하는 방식입니다.
+#### Vertical vs. Horizontal Microcode
+
+두 방식의 차이는 **microinstruction에서 datapath로 신호가 흘러가는 모양**을 보면 가장 분명히 드러납니다.
+
+<div style={{ margin: '24px 0' }}>
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'stretch' }}>
+    <div style={{ display: 'grid', gridTemplateRows: 'auto 200px 1fr', alignItems: 'center', gap: '10px', padding: '12px', border: '1px solid rgba(125, 125, 125, 0.25)', borderTopLeftRadius: '8px', borderTopRightRadius: '8px', textAlign: 'center' }}>
+      <div style={{ fontWeight: 'bold' }}>Vertical Microcode</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+        <img src="/images/07/slide32_1.png" alt="Vertical Microcode" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+      </div>
+      <div style={{ fontSize: '0.85em', lineHeight: '1.5' }}>
+        microinstruction이 <strong>여러 Decoder</strong>를 거쳐 Data Unit의 신호로 펼쳐짐
+      </div>
+    </div>
+    <div style={{ display: 'grid', gridTemplateRows: 'auto 200px 1fr', alignItems: 'center', gap: '10px', padding: '12px', border: '1px solid rgba(125, 125, 125, 0.25)', borderTopLeftRadius: '8px', borderTopRightRadius: '8px', textAlign: 'center' }}>
+      <div style={{ fontWeight: 'bold' }}>Horizontal Microcode</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+        <img src="/images/07/slide32_2.png" alt="Horizontal Microcode" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+      </div>
+      <div style={{ fontSize: '0.85em', lineHeight: '1.5' }}>
+        microinstruction의 각 비트 묶음이 <strong>Decoder 없이 곧장 Data Unit</strong>의 각 부분으로 연결
+      </div>
+    </div>
+  </div>
+  <div style={{ marginTop: '-1px', padding: '12px', border: '1px solid rgba(125, 125, 125, 0.25)', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', textAlign: 'center', fontSize: '0.9em', background: 'rgba(125, 125, 125, 0.06)' }}>
+    <strong>✓ 두 방식 모두 Can Be Hierarchical</strong> — 인코딩 방식은 둘 중 하나만 쓰이지 않고 <strong>계층적으로</strong> 결합될 수 있습니다.
+  </div>
+</div>
+
+왼쪽 Vertical은 명령어를 받아 **Decoder가 하드웨어 제어 신호로 펼쳐 주는** 형태이고, 오른쪽 Horizontal은 명령어 비트가 **곧장 Data Unit의 각 부분에 직결**되는 형태입니다.
+
+##### 두 방식은 서로 배타적이지 않다 — 계층적 결합
+
+흥미로운 점은, 이 둘이 **완전히 분리된 선택지가 아니라** 하나의 시스템 안에서 **계층적으로(hierarchical)** 같이 쓰일 수 있다는 것입니다. 흔히 쓰이는 절충은 다음과 같습니다.
+
+- **상위 레벨**에서는 **Horizontal Encoding**으로 "어떤 유닛이 어떤 묶음에 참여하는지" 전체 구조를 명시적으로 펼쳐 둔다
+- **각 묶음 안의 개별 유닛**에 들어가는 명령어는 **Vertical Encoding**으로 짧게 인코딩하고, 그 단위에서는 디코더가 다시 하드웨어 제어 신호로 풀어낸다
+
+이 절충 덕분에 명령어 길이가 무한정 길어지는 것을 막으면서도, "여러 유닛을 한 cycle에 동시에 제어한다"는 VLIW의 핵심 성질은 유지할 수 있습니다.
+
+##### 진짜 결정적 차이 — HW 디테일을 어디까지 SW에 노출하는가
+
+계층적 결합이 가능하다는 사실보다 더 본질적인 차이가 있습니다. **Horizontal Encoding은 하드웨어의 디테일 자체를 그대로 소프트웨어에 노출**한다는 점입니다. 명령어의 각 비트가 어느 유닛에 직결되는지가 ISA 차원에서 보이기 때문에, 그 코드를 만드는 **컴파일러나 프로그래머가 하드웨어 구조를 깊이 이해하고 있어야** 합니다. 어떤 유닛이 매 cycle 무엇을 할지를 명시적으로 코딩해 줘야 하는 것입니다.
+
+반면 Vertical Encoding은 짧은 명령어 뒤에 디코더가 모든 디테일을 흡수하므로, 소프트웨어는 하드웨어 구조를 몰라도 코드를 작성할 수 있습니다. 강의 초반에 본 「프로세서 설계의 핵심 질문」으로 다시 돌아가면, **Vertical = ① Microarchitecture 최적화 의존**, **Horizontal = ② Compiler/Programmer 최적화 의존** 이라는 매핑이 정확히 여기에서 성립합니다. 즉 인코딩 방식의 선택은 단순한 비트 배치 문제가 아니라, **하드웨어와 소프트웨어 사이의 책임을 어디에서 끊을 것인가** 라는 설계 철학의 선택입니다.
 
 ### Modular Scheduling: SW Pipelining의 핵심
 
