@@ -1,6 +1,6 @@
 ---
 title: "PyTorch의 기술적인 배경"
-date: "2024-10-05"
+date: "2024-12-04"
 lecture: 1
 ---
 
@@ -46,9 +46,9 @@ ML Framework의 발전은 이전의 훌륭한 연구들과 산업적 성과가 �
 **ML Framework의 배경 기술:**
 - Heterogeneous computing with GPU - Graphics에서 GPGPU로의 발전
     - Graphics: OpenGL (1992), DirectX (1995)
-    - GPGPU: HLSL (2002), CUDA (2007), OpenCL (2009), HSA (2011)
+    - GPGPU: HLSL (2002), CUDA (2007), OpenCL (2008), HSA (2012)
 - Supercomputing - BLAS, MPI 등 고성능 컴퓨팅 기술
-    - Fast multiplication - BLAS (1979), cuBLAS (2017), cuTLASS (2019)
+    - Fast multiplication - BLAS (1979), cuBLAS (2007), CUTLASS (2018)
     - Distributed programming - MPI (1992)
 - ML compiler
     - XLA (Google), TensorRT (Nvidia), TVM (OctoAI), Glow (Meta), etc
@@ -81,7 +81,7 @@ ML Framework의 핵심은 단순히 모델을 기술하는 것뿐 아니라 GPU�
 2000년대 초에는 GPU 프로그래밍에 큰 변화를 가져온 **Shader Programming**이 등장했습니다. 이전에는 GPU가 fixed function만 수행할 수 있었지만, 이제 개발자가 GPU를 프로그래밍 가능한 디바이스로 활용할 수 있게 되었습니다.
 
 - **Nvidia GeForce 3 (2001)** - 최초로 Shader Programming을 지원한 GPU로, 하드웨어적으로 셰이더 기능을 도입했습니다.
-- **DirectX 8과 HLSL** - Microsoft는 DirectX 8에서 High-Level Shading Language(HLSL)를 정의하여 개발자들이 고급 언어로 GPU를 프로그래밍할 수 있도록 지원했습니다.
+- **DirectX 9와 HLSL** - Microsoft는 DirectX 9(2002)에서 High-Level Shading Language(HLSL)를 정의하여 개발자들이 고급 언어로 GPU를 프로그래밍할 수 있도록 지원했습니다.
 
 이 시기를 기점으로 GPU는 단순한 그래픽스 연산 디바이스에서 범용 연산에 적합한 프로그래머블한 디바이스로 진화했습니다.
 
@@ -94,7 +94,7 @@ ML Framework의 핵심은 단순히 모델을 기술하는 것뿐 아니라 GPU�
 
 이후 다른 플랫폼들도 등장했습니다:
 - **OpenCL (2008)** - Apple이 주도
-- **HSA (2011)** - AMD/ARM이 주도
+- **HSA (2012)** - AMD/ARM이 주도
 
 그러나 OpenCL과 HSA는 상용화에서 한계를 보였고, **CUDA가 사실상 표준**으로 자리잡았습니다. 오늘날 PyTorch와 같은 ML Framework 내부에서도 CUDA 기반의 API가 광범위하게 사용되고 있으며, 많은 후발 주자들이 이를 기반으로 비슷한 구조를 구축하고 있습니다.
 
@@ -132,7 +132,7 @@ ML Framework의 핵심은 단순히 모델을 기술하는 것뿐 아니라 GPU�
 **표준 라이브러리 BLAS**
 - **BLAS** (Basic Linear Algebra Subprograms, 1979) - 다양한 linear algebra 문제에 적용할 수 있는 low-level API로, Matrix multiplication을 위한 **GEMM**(General Matrix Multiply)을 포함합니다.
 - 각 HW vendor들은 자사 하드웨어에 최적화된 BLAS 구현을 출시합니다:
-  - Nvidia: **cuBLAS** (2017, closed-source), **CUTLASS** (2018, 오픈소스) - cuBLAS는 클로즈드 소스로 제공되지만, CUTLASS는 오픈소스 라이브러리로 누구나 접근 가능합니다.
+  - Nvidia: **cuBLAS** (2007, closed-source), **CUTLASS** (2018, 오픈소스) - cuBLAS는 클로즈드 소스로 제공되지만, CUTLASS는 오픈소스 라이브러리로 누구나 접근 가능합니다.
 
 
 ## ML Compiler
@@ -217,7 +217,7 @@ API 호출 시 graph를 **점진적으로 생성**합니다. Graph가 완성되�
 - Back propagation을 위한 backward graph 생성
 - 성능 향상을 위한 최적화 수행 (예: op fusion)
 
-Eager mode와 graph mode를 명확히 구분할 수 있지만, 실제로는 두 가지가 동시에 작동하는 경우가 많습니다. 예를 들어, backward propagation을 실행하기 위해 forward graph를 eager mode로 돌리게 되면 사실 두 가지를 동시에 하고 있다고 볼 수 있습니다. Forward 단계에서는 eager mode로 계산이 진행되지만, autograd를 켜면 backward 단계에서는 gradient 계산을 위한 graph가 생성됩니다. backward 계산은 forward 계산과는 다르기 때문에, backward graph 모드가 필요합니다. 이처럼 forward에서는 eager mode를, backward에서는 graph mode가 작동합니다. Graph mode란, 계산을 위한 그래프를 만들기 위한 힌트를 제공하는 API를 사용하는 과정이라고 할 수 있으며, 그 힌트를 바탕으로 실제 계산을 수행하는 것이 그래프 모드의 핵심입니다.
+Eager mode와 graph mode를 명확히 구분할 수 있지만, 실제로는 두 가지가 동시에 작동하는 경우가 많습니다. 대표적인 예가 autograd입니다. Forward 단계에서는 각 연산이 eager mode로 즉시 실행되지만, autograd를 켜면 실행과 동시에 backward 계산을 위한 graph가 기록됩니다. Backward 계산은 forward 계산과 다르기 때문에 별도의 backward graph가 필요하며, backward propagation은 이 그래프를 따라 수행됩니다. 즉 forward에서는 eager mode가, backward에서는 graph mode가 작동하는 셈입니다.
 
 ### Graph mode를 접근하는 방법
 
@@ -228,7 +228,7 @@ Eager mode와 graph mode를 명확히 구분할 수 있지만, 실제로는 두 
 - 개발자는 eager mode를 가정하고 model을 작성
 - 개발자가 작성한 eager mode 기반 model로부터 graph를 추출
 
-TF2와 PyTorch는 Eager, Graph 모두 가능하고, JAX는 Graph만 가능합니다.
+TF2와 PyTorch는 Eager, Graph 모두 가능합니다. JAX도 기본적으로는 eager로 실행되지만, `jax.jit`으로 감싼 함수는 트레이싱을 거쳐 그래프로 컴파일됩니다.
 
 
 ## TF1 vs. PyTorch 코드 비교
@@ -237,14 +237,14 @@ TF2와 PyTorch는 Eager, Graph 모두 가능하고, JAX는 Graph만 가능합니
 
 ```python
 a = tf.constant([[3, 3]])
-b = tf.constant([[2, 2]])
+b = tf.constant([[2], [2]])
 c = tf.matmul(a, b)
 
-with tf.Session() as s:
-    print(c.eval())
+with tf.Session() as sess:
+    print(sess.run(c))
 ```
 
-TensorFlow 1.x에서는 `tf.constant`와 `tf.matmul` 같은 연산자들이 실제 계산을 수행하지 않고, 계산 과정을 그래프로 만듭니다. `c`를 평가하기 전까지는 실제 값을 알 수 없으며, `Session`을 생성한 뒤 `eval()`을 호출해야 비로소 계산 결과를 얻을 수 있습니다.
+TensorFlow 1.x에서는 `tf.constant`와 `tf.matmul` 같은 연산자들이 실제 계산을 수행하지 않고, 계산 과정을 그래프로 만듭니다. `c`를 평가하기 전까지는 실제 값을 알 수 없으며, `Session`을 생성한 뒤 `sess.run(c)`(또는 `c.eval()`)를 호출해야 비로소 계산 결과를 얻을 수 있습니다.
 
 ### PyTorch
 
@@ -265,23 +265,28 @@ PyTorch의 eager mode에서는 각 줄의 연산이 즉시 수행되며, `y`는 
 ### TF2
 
 ```python
-g = tf.Graph()
-with g.as_default():
-    c = tf.constant(3)
-    assert c.graph is g
+@tf.function
+def foo(x, y):
+    a = tf.sin(x)
+    b = tf.cos(y)
+    return a + b
+
+x = tf.random.uniform((3, 4))
+y = tf.random.uniform((3, 4))
+
+foo(x, y)
 ```
 
-TF2는 TF1의 흔적이 남아있어, 그래프를 명시적으로 construct한 다음 context로 묶어서 처리합니다. 이 context 안에서 eager 모드로 모델을 기술하면 그래프가 캡처되는 구조입니다.
+TF2는 기본이 eager 모드이며, `@tf.function` 데코레이터를 붙인 함수를 처음 호출하는 시점에 함수 내부의 연산들이 트레이싱되어 그래프로 캡처됩니다. 개발자는 eager 스타일로 코드를 작성하고, 프레임워크가 그래프 추출을 담당하는 define-by-run 구조입니다.
 
 ### PyTorch 1 & 2
 
 ```python
-def Foo(x, y):
+def foo(x, y):
     a = torch.sin(x)
     b = torch.cos(y)
     return a + b
 
-foo = Foo
 x = torch.rand(3, 4)
 y = torch.rand(3, 4)
 
@@ -337,7 +342,7 @@ PyTorch 2.0은 PyTorch 1.0의 특성을 거의 모두 계승(inherit)하면서, 
 - Integration with **compute libraries / ML compiler** - PyTorch 1.0부터 Eager mode에서는 컴퓨팅 라이브러리를 사용하고, PyTorch 2.0에서는 Graph mode에서 ML 컴파일러와의 통합을 매우 중요하게 다루고 있음
 - Three language layers: **Python → C++ → kernel language** (예: CUDA, Triton) - 단순한 2개 언어가 아니라 제3 랭귀지 또는 멀티 랭귀지 솔루션. 스크립팅은 Python으로 이루어지지만, 하위 레벨에서는 성능 최적화를 위해 C++로 전환되며, GPU/TPU/NPU 등의 하드웨어에서는 커널 레벨의 최적화 성능을 제공
 - **Define-by-run** with graph capturing via TorchDynamo - Eager mode 중심으로 Graph mode를 부드럽게 지원
-- Support both **training and inference** - PyTorch 2.0에서 가장 크게 변화한 부분
+- Support both **training and inference** - Graph mode(컴파일) 경로가 inference뿐 아니라 training까지 지원하게 된 것이 PyTorch 2.0에서 가장 크게 변화한 부분
 
 ### Backend Integration Points
 
@@ -382,8 +387,8 @@ PyTorch 2.0은 PyTorch 1.0의 특성을 거의 모두 계승(inherit)하면서, 
 > **Q: CUDA와 Triton은 어떻게 다른가요?**
 
 - **라이선스**: CUDA는 proprietary, Triton은 오픈소스
-- **설계 목적**: CUDA는 픽셀 단위의 fine-grained 스레드 처리, Triton은 코스 그레인한 데이터 청크 단위 처리
-- **프로그래밍 모델**: CUDA는 SPIR-V 기반, Triton은 Python 데코레이터 형태의 API 제공
+- **설계 목적**: CUDA는 스레드 단위의 fine-grained 처리, Triton은 코스 그레인한 데이터 블록 단위 처리
+- **프로그래밍 모델**: CUDA는 PTX/SASS 기반, Triton은 Python 데코레이터 형태의 API 제공
 - **최적화 방식**: Triton은 컴파일러가 복잡한 최적화를 처리하는 전략 채택
 
 Triton은 단순한 Python API가 아닌, Python 신택스를 사용한 도메인 특화 언어(DSL)로 보는 것이 더 정확합니다. 원래 C 바인딩도 있었으나 현재는 Python 바인딩이 주로 사용됩니다. PyTorch 2.0에서 기본으로 채택한 커널 프로그래밍 언어로 이해할 수 있으며, "PyTorch용 compute shader"라고 부를 수도 있습니다.
