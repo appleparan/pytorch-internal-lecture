@@ -33,7 +33,7 @@ PyTorch + NPU 온라인 모임 #4 | 2025-01-08
 <ThemeImage
   darkSrc="/images/04/training-loop-dark.svg"
   lightSrc="/images/04/training-loop-light.svg"
-  alt="Trace Cache diagram"
+  alt="Training loop diagram"
   class="h-80 mx-auto mt-4"
 />
 
@@ -61,9 +61,9 @@ Reverse-mode automatic differentiation은 역전파(backpropagation)를 구현�
 
 $$\frac{dy}{dx} = \underbrace{f'(g(x))}_{\text{Outside's Function Derivative}} \cdot \underbrace{g'(x)}_{\text{Inside's Function Derivative}}$$
 
-**(ii)** $y = f(t)$이고 $x = g(t)$일 때:
+**(ii)** $y = f(t)$이고 $x = g(t)$일 때 (parametric form):
 
-$$\frac{dy}{dx} = \frac{dy}{dt} \cdot \frac{dt}{dx}$$
+$$\frac{dy}{dx} = \frac{dy/dt}{dx/dt}$$
 
 
 ### 예제: Autodiff 계산
@@ -306,11 +306,11 @@ variable_list MulBackward0::apply(variable_list&& grads) {
 z = y ** 2
 ```
 
-Step 2와 동일한 과정이 반복됩니다. $z = y^2 = 16$이 계산되면서, Autograd는 $y$와 $z$도 gradient가 필요하다는 것을 인지합니다. 앞서 설명한 `compute_requires_grad`의 if문 안으로 들어가 `PowBackward` grad function을 bookkeeping해 둡니다. `PowBackward`에 들어가는 입력은 $y$이며, 미분식 $2y$를 반환합니다. 이 스텝까지 완료되면 forward 계산이 모두 끝나고 backward graph 준비가 완료된 상태입니다:
+Step 2와 동일한 과정이 반복됩니다. $z = y^2 = 16$이 계산되면서, Autograd는 $y$와 $z$도 gradient가 필요하다는 것을 인지합니다. 앞서 설명한 `compute_requires_grad`의 if문 안으로 들어가 `PowBackward0` grad function을 bookkeeping해 둡니다. `PowBackward0`에 들어가는 입력은 $y$이며, 미분식 $2y$를 반환합니다. 이 스텝까지 완료되면 forward 계산이 모두 끝나고 backward graph 준비가 완료된 상태입니다:
 
 <Mermaid wide>
 {`graph LR
-    x["x: 2"] --> mul["MulBackward0: ×2"] --> y["y: 4"] --> pow["PowBackward: 2y"] --> z["z: 16"]`}
+    x["x: 2"] --> mul["MulBackward0: ×2"] --> y["y: 4"] --> pow["PowBackward0: 2y"] --> z["z: 16"]`}
 </Mermaid>
 
 
@@ -320,9 +320,9 @@ Step 2와 동일한 과정이 반복됩니다. $z = y^2 = 16$이 계산되면서
 z.backward()
 ```
 
-**Step 4.1 - Backward 시작**: Forward에서 기록해 둔 과정을 거꾸로 복귀합니다. 출력 자신에 대한 편미분은 항상 1이므로, 상수 $\frac{dz}{dz} = 1$부터 시작합니다. 이 값이 `PowBackward`로 전달되면, $y^2$의 미분 함수인 $2y$가 적용됩니다. 이때 $2y$는 위에서 들어오는 입력과는 상관없이 $y$ 값에만 의존하며, $y = 4$이므로 $1 \times 2 \times 4 = 8$이 됩니다.
+**Step 4.1 - Backward 시작**: Forward에서 기록해 둔 과정을 거꾸로 복귀합니다. 출력 자신에 대한 편미분은 항상 1이므로, 상수 $\frac{dz}{dz} = 1$부터 시작합니다. 이 값이 `PowBackward0`로 전달되면, $y^2$의 미분 함수인 $2y$가 적용됩니다. 이때 $2y$는 위에서 들어오는 입력과는 상관없이 $y$ 값에만 의존하며, $y = 4$이므로 $1 \times 2 \times 4 = 8$이 됩니다.
 
-**Step 4.2 - Gradient 전파**: 다음 단계에서 $y$에 대한 $x$의 편미분은 $2$입니다. 위에서 온 민감도(gradient)가 계속 누적되면서 곱해지는 과정이므로, 이전 단계에서 내려온 민감도 $8$에 편미분 함수인 $2$를 곱하면 $8 \times 2 = 16$이 됩니다. 이 $16$이 최종적으로 `x.grad`에 저장됩니다.
+**Step 4.2 - Gradient 전파**: 다음 단계에서 $x$에 대한 $y$의 편미분 $\frac{dy}{dx}$는 $2$입니다. 위에서 온 민감도(gradient)가 계속 누적되면서 곱해지는 과정이므로, 이전 단계에서 내려온 민감도 $8$에 편미분 $2$를 곱하면 $8 \times 2 = 16$이 됩니다. 이 $16$이 최종적으로 `x.grad`에 저장됩니다.
 
 따라서 $\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx} = 8 \times 2 = 16$입니다. 실제 신경망에서는 이보다 훨씬 복잡하지만, 근본적으로 이 과정이 반복적으로 일어난다고 생각하면 됩니다.
 
@@ -330,7 +330,7 @@ z.backward()
 
 <Mermaid wide>
 {`graph RL
-    start["dz/dz = 1"] --> pow["PowBackward: 2y → 1 × 8 = 8"] --> mul["MulBackward0: ×2 → 8 × 2 = 16"] --> result["x.grad = 16"]`}
+    start["dz/dz = 1"] --> pow["PowBackward0: 2y → 1 × 8 = 8"] --> mul["MulBackward0: ×2 → 8 × 2 = 16"] --> result["x.grad = 16"]`}
 </Mermaid>
 
 검증: $z = (2x)^2 = 4x^2$이므로, $\frac{dz}{dx} = 8x = 8 \times 2 = 16$ ✓
@@ -446,7 +446,7 @@ def backward(self, ge_scalar, tangents_1):
 
 **[1] `outputs = compiled_model(images)`**
 
-`torch.compile(model)` 호출 시점에 Dynamo가 모델을 tracing하여 **FX Graph**를 생성하고, 이 FX Graph가 **AOTAutograd**에 의해 compiled forward와 compiled backward를 모두 포함하는 `torch.autograd.Function` 객체로 변환됩니다. `compiled_model(images)`를 호출하면 이 객체의 **forward 부분만 실제로 실행**되어 `outputs`가 계산됩니다. 이와 동시에 `outputs`의 `grad_fn`으로 **compiled backward**가 등록되며, backward 부분 자체는 이 시점에서는 호출되지 않고 나중을 위해 보관됩니다.
+`compiled_model(images)`를 처음 호출하는 시점에 Dynamo가 모델을 tracing하여 **FX Graph**를 생성하고, 이 FX Graph가 **AOTAutograd**에 의해 compiled forward와 compiled backward를 모두 포함하는 `torch.autograd.Function` 객체로 변환됩니다 (`torch.compile(model)` 자체는 앞의 표에서 본 것처럼 준비 단계일 뿐입니다). 이후 이 객체의 **forward 부분만 실제로 실행**되어 `outputs`가 계산됩니다. 이와 동시에 `outputs`의 `grad_fn`으로 **compiled backward**가 등록되며, backward 부분 자체는 이 시점에서는 호출되지 않고 나중을 위해 보관됩니다.
 
 **[2] `loss = F.cross_entropy(outputs, labels)`**
 
@@ -530,7 +530,7 @@ def backward(self, ge_scalar, tangents_1):
 <td class="pb-4">
 
 **→ 해결 2.** FX Graph를 먼저 **normalization**한 이후에 tracing
-- Autograd의 큰 기능 중 하나로 제공되는 **FX Graph normalization** 기능을 그대로 활용
+- AOTAutograd가 제공하는 **FX Graph normalization** 기능을 그대로 활용
 - Eager mode에서 암묵적으로 처리되던 복잡한 연산을 **명시적**으로 드러내고 단순한 op들로 분해하여 op 수와 복잡도를 모두 낮춤
 - 구체적으로 두 가지 기법을 조합: **Functionalization**(mutation/aliasing 제거), **Decomposition**(복잡한 op을 저수준 op으로 분해)
 - 정규화된 그래프만 보면 eager mode와 유사한 단순성을 갖게 되어, 해결 1에서 말한 C++ dispatcher tracing을 깔끔하게 수행할 수 있음
@@ -617,7 +617,7 @@ aot_dispatch_autograd(flat_fn)
         return outs, backward_out
     # C: Normalization 수행. eager mode의 복잡성을 제거
     joint_fn_to_trace = create_functionalize_fn(joint_fn_to_trace, ...)
-    joint_fn_to_trace = aot_dispatch_subclass(joint_fn_trace, ...)
+    joint_fn_to_trace = aot_dispatch_subclass(joint_fn_to_trace, ...)
     # D, E, F: 실제 tracing 수행 + Decomposition + FxGraph 생성
     #   D: joint_fn_to_trace에 대한 실제 tracing이 일어남
     #   E: Decomposition (Torch IR → ATen IR → Core ATen IR → Prims IR)
@@ -686,14 +686,14 @@ def joint_fw_bw(fw_inputs, grad_outs):
     return fw_out, grad_inps
 ```
 
-`f()`를 수행한 뒤 곧바로 `torch.autograd.grad()`를 호출하여 backward까지 같이 수행하는 **하나의 함수**로 묶어 둡니다. 겉보기에는 forward를 한 번 부른 것처럼 보이지만, 그 안에서 backward가 forward의 연장선처럼 자연스럽게 이어져 실행됩니다.
+`f()`를 수행한 뒤 곧바로 `torch.autograd.grad()`를 호출하여 backward까지 같이 수행하는 **하나의 함수**로 묶어 둡니다. (위 코드는 원문 슬라이드의 pseudocode를 그대로 옮긴 것으로, 실제 `torch.autograd.grad`의 인자 이름은 `inputs=`, `grad_outputs=`입니다.) 겉보기에는 forward를 한 번 부른 것처럼 보이지만, 그 안에서 backward가 forward의 연장선처럼 자연스럽게 이어져 실행됩니다.
 
 </div>
 <div>
 
 **[D] joint 함수를 trace하여 Joint Graph 생성**
 
-`joint_fw_bw`를 Autograd를 켜지 않고 그대로 C++ dispatcher 수준에서 trace하면, forward와 backward가 모두 포함된 **joint graph**가 한 번에 만들어집니다.
+`joint_fw_bw`를 (내부의 `torch.autograd.grad` 호출이 동작하는 상태 그대로) C++ dispatcher 수준에서 trace하면, autograd가 만들어내는 backward 계산 경로까지 함께 기록되어 forward와 backward가 모두 포함된 **joint graph**가 한 번에 만들어집니다.
 
 **Joint Function의 Input 구성**
 
@@ -720,7 +720,6 @@ to give us the forwards pass and the backwards pass.
 >
 > 위 설명은 강연 transcript에 기반한 풀이이며, 원문 [How does torch.compile work with autograd?](https://dev-discuss.pytorch.org/t/how-does-torch-compile-work-with-autograd/1621/14)과 대조하면 다음 몇 가지를 추가로 알아두면 좋습니다:
 >
-> - **Joint 함수의 tracing**: 원문에는 "autograd를 켜지 않고 tracing한다"는 표현은 없고, `joint_fw_bw` 내부에서 `torch.autograd.grad(...)`를 **그대로 호출**한 상태로 함수 전체를 trace합니다. 즉 trace 과정에서 autograd가 동작하여 backward 계산 경로가 함께 graph에 기록됩니다. (본문 표현은 강연자의 부연으로 이해해 주세요.)
 > - **`grad_outs`가 필요한 이유 (원문)**: "backward computation depends on incoming gradients", 즉 backward 계산이 본질적으로 외부에서 들어오는 gradient 신호에 의존하기 때문이라는 일반적 서술이며, "loss function이 FX Graph 바깥이라서"라는 구체화는 강연자의 해석입니다.
 > - **Partitioning의 성격**: 원문은 forward/backward partition이 "**not strictly disjoint**"라고 명시합니다. 메모리 효율을 위해 backward pass가 forward graph의 일부를 **재계산**(recomputation)할 수 있으며, 어느 부분을 저장하고 어느 부분을 재계산할지는 partitioning 단계의 최적화 결정입니다. (이 주제는 뒤의 "Activation Checkpointing" 절에서 다시 다룹니다.)
 
@@ -794,7 +793,7 @@ AOTAutograd 관점에서 중요한 것은, 앞서 강조한 **joint graph** 덕�
 
 ### [I 단계] Compiled Model = torch.autograd.Function
 
-이제 AOTAutograd 수행 순서의 마지막 단계입니다. G 단계에서 forward/backward로 분리하고 H 단계에서 각각 backend compile한 결과물을 하나로 묶어 **`torch.autograd.Function`** 객체로 wrap해서 돌려주는 것이 바로 I 단계입니다. 최종 결과물은 compiled `forward()`와 compiled `backward()`가 한 객체 안에 나란히 들어 있는 형태가 됩니다.
+이제 AOTAutograd 수행 순서의 마지막 단계입니다. G 단계에서 forward/backward로 분리하고 H 단계에서 각각 backend compile한 결과물을 하나로 묶어 **`torch.autograd.Function`** 객체로 wrap해서 돌려주는 것이 바로 I 단계입니다. 최종 결과물은 compiled `forward()`와 compiled `backward()`가 한 객체 안에 나란히 들어 있는 형태가 됩니다. 아래는 그 형태를 이해하기 위한 공식 문서의 hand-written 예제입니다 (AOTAutograd의 실제 출력물은 앞서 본 "AOTAutograd가 생성한 `torch.autograd.Function`" 예시를 참고하세요):
 
 ```python
 class MyCube(torch.autograd.Function):
@@ -888,7 +887,7 @@ A. 혼동이 생길 수 있는데, training loop 다이어그램을 떠올리면
 
 **Q4. 모델뿐 아니라 loss 계산과 optimizer까지 포함해서 **한꺼번에** trace하고 최적화하는 방법도 가능할까요?**
 
-A. 좋은 질문입니다. 개념적으로는 "What Happens When Training with torch.compile()?" 절에서 봤던 전체 학습 루프(왼쪽 코드)를 통째로 하나의 함수로 정의한 뒤 compile하면 되겠지만, 현실적으로는 두 가지 난점이 있습니다. ① Loss 계산이나 optimizer 쪽 코드에서 **graph break**가 발생할 가능성이 커서 하나의 trace로 깔끔하게 묶기 어렵습니다. ② 이를 해결하기 위해 PyTorch 팀에서는 [**Compiled Autograd**](https://pytorch.org/tutorials/intermediate/compiled_autograd_tutorial.html) 같은 새로운 시도가 진행 중입니다. 다만 loss 계산 자체가 전체 training 시간에서 차지하는 비중이 크지 않기 때문에, "다 합쳐 하나로 trace하면 얼마나 더 빨라질지"는 해봐야 알 수 있는 부분이라고 생각합니다.
+A. 좋은 질문입니다. 개념적으로는 "What Happens When Training with torch.compile()?" 절에서 봤던 전체 학습 루프(왼쪽 코드)를 통째로 하나의 함수로 정의한 뒤 compile하면 되겠지만, 현실적으로는 난점이 있습니다. Loss 계산이나 optimizer 쪽 코드에서 **graph break**가 발생할 가능성이 커서 하나의 trace로 깔끔하게 묶기 어렵기 때문입니다. 이를 해결하기 위해 PyTorch 팀에서는 [**Compiled Autograd**](https://pytorch.org/tutorials/intermediate/compiled_autograd_tutorial.html) 같은 새로운 시도를 진행 중입니다. 다만 loss 계산 자체가 전체 training 시간에서 차지하는 비중이 크지 않기 때문에, "다 합쳐 하나로 trace하면 얼마나 더 빨라질지"는 해봐야 알 수 있는 부분이라고 생각합니다.
 
 **Q5. `torch.compile` 과정에서 Dynamo가 fake tensor로 FX graph만 만들어내는 것인지, 아니면 실제 하드웨어에서 돌아갈 코드까지 생성하는 것인지 헷갈립니다.**
 
