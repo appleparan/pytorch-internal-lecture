@@ -1,6 +1,6 @@
 ---
 title: "PyTorch Eager Mode"
-date: "2024-10-12"
+date: "2024-12-11"
 lecture: 2
 ---
 
@@ -235,7 +235,7 @@ Dispatcher는 dispatch key set에서 우선순위가 가장 높은 key를 선택
 이 **dispatch → kernel → redispatch의 반복**이 call stack의 depth가 깊어지는 가장 중요한 이유입니다.
 예를 들어 Autograd kernel이 backward graph를 세팅한 뒤, 
 다음 dispatch key(예: CUDA)로 redispatch하면 Dispatcher가 다시 해당 device backend kernel을 선택합니다. 
-이 **Dispatcher ↔ Kernel 간의 순환**이 call stack이 깊어지는 가장 핵심적인 이유입니다. 
+이 **Dispatcher ↔ Kernel 간의 순환** 덕분에 autograd, backend 등 여러 kernel이 하나의 op 호출에 차례로 개입할 수 있습니다. 
 최종적으로 device backend kernel이 Device Runtime을 통해 실제 연산을 수행합니다.
 
 
@@ -264,23 +264,23 @@ Call stack에서 자동 생성된 코드가 차지하는 비중이 큽니다. �
 
 자동 생성되는 파일들과 이를 만들어 내는 도구, 그 도구의 입력이 무엇인지를 정리하면 다음과 같습니다. `gen.py`, `gen_variable_type.py`, `gen_python_functions.py` 같은 코드 생성 도구들이 `native_functions.yaml`과 `derivatives.yaml`을 입력으로 받아 다양한 파일을 생성합니다.
 
-**`build/aten/src/aten`** ← `gen.py` (input: `native_functions.yaml`)
-- `Ops/{operator}.h` - op별 C++ frontend 선언
-- `Core/TensorBody.h` - `at::Tensor` 클래스의 메서드 선언
+**`build/aten/src/ATen`** ← `gen.py` (input: `native_functions.yaml`)
+- `ops/{operator}.h` - op별 C++ frontend 선언
+- `core/TensorBody.h` - `at::Tensor` 클래스의 메서드 선언
 - `Operators.cpp` - op별 `call`/`redispatch` 함수 구현
 - `Register{backend}.cpp` - backend별 kernel 등록 코드. PyTorch가 초기화될 때 이 파일들에 의해 각 backend의 kernel이 Dispatcher에 등록됩니다. `{backend}`에는 `CUDA`, `CPU`, `XPU` 등 다양한 종류가 들어갈 수 있습니다.
 
-**`torch/include/torch/csrc/autograd/generated`** ← `gen_variable_type.py` (input: `derivatives.yaml`)
+**`torch/include/torch/csrc/autograd/generated`** ← `tools/autograd`의 생성 스크립트들 (`gen_autograd.py`가 orchestration; input: `derivatives.yaml`, `native_functions.yaml`)
 - `Functions.h`, `python_functions.h`, `python_return_types.h`
 - `variable_factories.h`, `VariableType.h`, `ViewFuncs.h`
 
 **`torch/csrc/autograd/generated`**
-- `VariableType.cpp` ← `gen_variable_type.py` (input: `derivatives.yaml`)
-- `Functions.cpp` ← `gen_variable_type.py` (input: `derivatives.yaml`)
-- `Python_functions.cpp` ← `gen_variable_type.py` (input: `derivatives.yaml`)
-- `Python_torch_functions.cpp` ← `gen_python_functions.py` (input: `native_functions.yaml`)
+- `VariableType.cpp` ← `gen_variable_type.py` (input: `derivatives.yaml`, `native_functions.yaml`)
+- `Functions.cpp` ← `gen_autograd_functions.py` (input: `derivatives.yaml`)
+- `python_functions.cpp` ← `gen_autograd_functions.py` (input: `derivatives.yaml`)
+- `python_torch_functions.cpp` ← `gen_python_functions.py` (input: `native_functions.yaml`)
 
-##### 핵심 입력 파일
+#### 핵심 입력 파일
 - **`native_functions.yaml`** - PyTorch가 기본으로 제공하는 op들의 스펙을 기술한 파일입니다. 각 op의 이름, 인자, 반환 타입, 지원하는 backend별 구현 함수 등이 정의되어 있으며, ATen op 정의 및 등록의 기반이 됩니다. PyTorch internal의 가장 핵심적인 패턴을 형성하는 역할을 하며, ATen을 위한 기술(description)이라고 볼 수 있습니다.
 - **`derivatives.yaml`** - 각 op의 autograd 미분 규칙을 정의한 파일입니다.
 
@@ -467,7 +467,7 @@ Python에서 C++로 넘어온 뒤, 이제 matmul operator의 kernel을 dispatch�
 
 ## mm의 autograd kernel을 dispatch
 
-Dispatch logic이 한 번 더 수행되어, mm 작업을 처리하는 kernel을 선택합니다. 여기서 autograd 역할을 하는 kernel이 호출되는 것을 볼 수 있습니다 (#15). 해당 구현체는 자동 생성된 코드로, 빌드하면 `build` 디렉토리 안의 `VariableType_3.cpp`에 들어 있습니다. 숫자 `3`은 코드가 매우 길어 한 파일에 담기 어려워 임의로 분할된 결과입니다. 이 dispatch logic은 앞서 본 matmul dispatch와 거의 동일한 방식으로 반복적으로 일어납니다.
+Dispatch logic이 한 번 더 수행되어, mm 작업을 처리하는 kernel을 선택합니다. 여기서 autograd 역할을 하는 kernel이 호출되는 것을 볼 수 있습니다 (#15). 해당 구현체는 자동 생성된 코드로, 빌드하면 `torch/csrc/autograd/generated/VariableType_3.cpp`에 들어 있습니다. 숫자 `3`은 코드가 매우 길어 한 파일에 담기 어려워 임의로 분할된 결과입니다. 이 dispatch logic은 앞서 본 matmul dispatch와 거의 동일한 방식으로 반복적으로 일어납니다.
 
 ```cpp
 #15 torch::autograd::VariableType:: at .../VariableType_3.cpp:13456  ← ★ Autograd kernel
@@ -485,7 +485,7 @@ GPU에서 연산을 실행하면 CUDA kernel이 사용되고, 학습을 위해 �
 
 Autograd kernel은 실제 backward 계산을 수행하지 않습니다. 대신 **forward 계산을 하면서 동적 계산 그래프를 업데이트**하는 역할을 합니다. 구체적으로는:
 
-- `is_input_require_grad` 같은 조건을 판별하여, 필요한 경우 backward 계산을 위한 그래프 노드를 추가
+- `compute_requires_grad()` 같은 조건을 판별하여, 필요한 경우 backward 계산을 위한 그래프 노드를 추가
 - Forward 함수 실행 전후에 sanity check 수행
 - 실제 연산은 dispatch table을 통해 다음 key(예: CUDA)로 **redispatch**하여 수행
 
@@ -552,7 +552,7 @@ Tensor add_Tensor(const Tensor & self, const Tensor & other, Scalar alpha) {
 #14-15 (from autograd VariableType)
 ```
 
-##### 핵심 개념
+### 핵심 개념
 - **Redispatch**: Autograd kernel이 실행된 후, 다음 dispatch key로 재전달
 - **RegisterCUDA.cpp**: `native_functions.yaml`에서 생성된 CUDA backend 등록 코드
 
@@ -595,15 +595,14 @@ Call stack의 최상위에서 실제로 cuBLAS로 진입하는 과정이 발생�
 
 `#4`의 `structured_mm_out_cuda::impl`이 CUDA mm의 structured kernel 구현체입니다. 이 함수가 호출되기까지의 과정을 코드로 따라가면 다음과 같습니다:
 
-**1단계: TORCH_IMPL_FUNC 매크로**. structured kernel의 진입점
+**1단계: TORCH_IMPL_FUNC 매크로**. structured kernel의 진입점. `mm`은 bias가 없는 `addmm`의 특수한 경우이므로, `beta=0`으로 `addmm_out_cuda_impl`에 위임합니다.
 
 ```cpp
 // aten/src/ATen/native/cuda/Blas.cpp
-TORCH_IMPL_FUNC(addmm_out_cuda)(const Tensor& self, const Tensor& mat1,
-    const Tensor& mat2, const Scalar& beta, const Scalar& alpha,
+TORCH_IMPL_FUNC(mm_out_cuda)(const Tensor& self, const Tensor& mat2,
     const Tensor& result) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    addmm_out_cuda_impl(const_cast<Tensor&>(result), self, mat1, mat2, beta, alpha);
+    addmm_out_cuda_impl(const_cast<Tensor&>(result), result, self, mat2, 0, 1);
 }
 ```
 
@@ -628,7 +627,7 @@ Tensor& addmm_out_cuda_impl(Tensor& result, const Tensor& self,
 }
 ```
 
-**3단계: cuBLAS GEMM 호출**. 최종적으로 GPU에서 행렬곱 수행
+**3단계: cuBLAS GEMM 호출**. 최종적으로 GPU에서 행렬곱을 수행합니다. `addmm_out_cuda_impl`은 조건에 따라 일반 cuBLAS 경로인 `at::cuda::blas::gemm`(위 call stack의 `#0`이 이 경로) 또는 아래와 같은 cublasLt 기반의 `gemm_and_bias`를 호출합니다.
 
 ```cpp
 at::cuda::blas::gemm_and_bias<scalar_t>(
@@ -673,7 +672,7 @@ Operator에 대해서는 앞서 충분히 다뤘으므로, 이제 operator의 �
     TI --> MD["metadata"]
     TI --> AG["AutogradMeta"]
     AG -->|grad| G["at::Tensor (gradient)"]
-    S -->|shared ptr| SI["c10::StorageImpl"]`}
+    S -->|intrusive_ptr| SI["c10::StorageImpl"]`}
 </Mermaid>
 
 참고: [PyTorch internals (Edward Z. Yang)](http://blog.ezyang.com/2019/05/pytorch-internals/)
@@ -684,7 +683,7 @@ PyTorch 내부에서 대부분의 구현은 C++로 되어 있습니다. Python�
 - **`c10::TensorImpl`** - 실제 구현체로, 핵심 정보를 가짐:
   - **`c10::Storage`**: 실제 data가 저장되는 공간. 
     - 예를 들어 GPU에 메모리가 할당되면, 그 메모리 덩어리가 이 `StorageImpl`과 1:1로 매핑됨.
-    - `shared_ptr`로 관리되므로 여러 tensor가 같은 storage를 공유할 수 있으며, 이것이 view의 핵심 
+    - `intrusive_ptr`로 관리되므로 여러 tensor가 같은 storage를 공유할 수 있으며, 이것이 view의 핵심 
     - view를 생성하면 새 storage가 아닌 기존 storage를 공유하면서 metadata만 다른 tensor가 만들어짐
   - **`metadata`** - sizes, strides, storage offset, dtype, device. Stride를 통해 `tensor[i][j]`를 `data_ptr[i * stride[0] + j * stride[1]]`로 접근
   - **`AutogradMeta`** - gradient, `grad_fn` 등 autograd 관련 bookkeeping 정보를 tensor 단위로 저장. `requires_grad=False`이면 null로 최적화됨
@@ -699,7 +698,7 @@ Tensor의 lifecycle은 **생성**, **소멸**, **복사**의 세 가지 과정�
 
 **생성 - 기존 tensor로부터 파생되는 경우:**
 
-기존 tensor로부터 파생될 때는 두 가지로 나뉩니다. 별도의 storage를 갖는 경우와, 기존 tensor의 storage를 공유하는 경우입니다. Storage를 공유하는 것이 바로 view이며, 이때 새 storage가 생성되지 않고 `shared_ptr`로 reference만 공유하여 reference count가 증가합니다.
+기존 tensor로부터 파생될 때는 두 가지로 나뉩니다. 별도의 storage를 갖는 경우와, 기존 tensor의 storage를 공유하는 경우입니다. Storage를 공유하는 것이 바로 view이며, 이때 새 storage가 생성되지 않고 `intrusive_ptr`로 reference만 공유하여 reference count가 증가합니다.
 
 <div class="grid grid-cols-2 gap-4 mt-2">
 <div>
@@ -716,7 +715,7 @@ Tensor의 lifecycle은 **생성**, **소멸**, **복사**의 세 가지 과정�
 - `aten/src/ATen/native/TensorShape.cpp`에 구현된 함수를 통해 view 생성
 - `at::native::alias_with_sizes_and_strides()` 등
 - 명시적으로 `clone()`을 호출하지 않는 한 대부분 이 경우에 해당
-- `at::Tensor`는 새로 만들지만 `c10::Storage`는 `shared_ptr`로 공유
+- `at::Tensor`는 새로 만들지만 `c10::Storage`는 `intrusive_ptr`로 공유
 
 </div>
 </div>
@@ -733,7 +732,7 @@ Tensor가 소멸된다고 해서 storage까지 바로 소멸되지는 않습니�
 - `THPVariable_subclass_dealloc`이 entry point
 
 **`c10::Storage`의 소멸:**
-- `shared_ptr`의 reference count가 감소하지만, 다른 tensor(view 등)가 공유 중이면 바로 소멸되지 않음
+- `intrusive_ptr`의 reference count가 감소하지만, 다른 tensor(view 등)가 공유 중이면 바로 소멸되지 않음
 - Reference count가 **0이 되는 시점**에 비로소 `StorageImpl`과 실제 device memory가 정리됨
 
 #### Tensor를 가지고 할 수 있는 일들
@@ -744,8 +743,10 @@ Tensor로 할 수 있는 일들은 모두 operator(op)에 해당하며, op의 �
 |---|---|---|
 | operator 수행 결과를 tensor에 직접 반영 → in-place operator | | `add_()`, `transpose_()` |
 | operator 수행 결과로 새로운 tensor가 생성 | 실제 연산이 일어나는 경우 → 새로운 storage가 생김 | `matmul()`, `add()`, 산술 연산 |
-| | 기존 data의 재배치만 일어나는 경우 - view만 생기는 경우 | `reshape()`, `transpose()` |
-| | 기존 data의 재배치만 일어나는 경우 - 새로운 storage가 생기는 경우 | `clone()`, `contiguous()` |
+| | 기존 data의 재배치만 일어나는 경우 - view만 생기는 경우 | `view()`, `transpose()` |
+| | 기존 data의 재배치만 일어나는 경우 - 새로운 storage가 생기는 경우 | `clone()`, non-contiguous tensor의 `contiguous()` |
+
+단, 경계에 있는 op들도 있습니다. `reshape()`은 가능하면 view를 반환하지만 view로 표현할 수 없는 경우(예: non-contiguous tensor) copy를 만들고, `contiguous()`는 이미 contiguous한 tensor에 대해서는 복사 없이 자기 자신을 그대로 반환합니다.
 
 <div class="grid grid-cols-2 gap-4 mt-2">
 <div>
@@ -791,12 +792,11 @@ tensor([[110., 126., 134., 154.]])
 
 **새로운 storage 생성 (재배치)**
 ```python
->>> g = f.clone()
->>> print(g)
-tensor([[110., 126., 134., 154.]])
->>> h = g.contiguous()
->>> print(h)
-tensor([[110., 126., 134., 154.]])
+>>> g = d.clone()      # 새 storage에 복제
+>>> t = d.t()          # non-contiguous view
+>>> h = t.contiguous() # 새 storage에 재배치
+>>> t.is_contiguous(), h.is_contiguous()
+(False, True)
 ```
 
 </div>
@@ -826,7 +826,7 @@ at::Tensor my_add_cuda(const at::Tensor& ta, const at::Tensor& tb) {
 }
 ```
 
-**차원의 변경**: 차원의 합계는 같지만 각 차원의 크기가 다른 경우. Storage data는 변경되지 않고 metadata(size, stride)만 변경됩니다.
+**차원의 변경**: 원소의 개수(각 차원 크기의 곱)는 같지만 각 차원의 크기가 다른 경우. Storage data는 변경되지 않고 metadata(size, stride)만 변경됩니다.
 
 | Operator | 설명 | 예시 |
 |---|---|---|
@@ -841,7 +841,7 @@ at::Tensor my_add_cuda(const at::Tensor& ta, const at::Tensor& tb) {
 |---|---|---|
 | `flatten()` | 지정 범위의 차원을 하나로 합침 | `y = x.flatten(1, 2)` |
 | `squeeze()` | 크기가 1인 차원을 제거 | `y = x.squeeze(0)` |
-| `reshape()` | 원소 수가 같은 새 shape으로 변환 | `y = x.reshape(2, 12)` |
+| `reshape()` | 원소 수가 같은 새 shape으로 변환 (view가 불가능한 경우에는 copy) | `y = x.reshape(2, 12)` |
 
 **차원의 확장**: 없는 차원을 추가하거나 크기가 1인 차원을 확장하는 경우 (예: `(3, 4)` → `(1, 3, 4)`). Storage는 공유하고 metadata만 변경됩니다.
 
@@ -1148,7 +1148,7 @@ Device specific한 부분은 `T backend_`(`VirtualGuardImpl`)를 통해 결국 *
 
 - **다양한 getter들**: `device()`, `device_type()`, `device_index()`, `flag()`, `was_marked_for_recording()`, `eventId()`
 - **`record(stream)`**: 주어진 stream에 record command를 삽입. record command가 처리되어야 이 event를 기다리는 stream이 재시작할 수 있음
-  - stream과 event의 **device type, index는 같아야 함**
+  - stream과 event의 **device type은 같아야 함** (event의 device index는 최초 record 시점에 stream의 index를 따라 설정됨)
   - `c10::Event::record` → `c10::impl::InlineEvent<c10::impl::VirtualGuardImpl>::record` → `c10::impl::VirtualGuardImpl::record` → `c10::impl::DeviceGuardImplInterface::record` (virtual)
     - XPU 구현: `c10::xpu::impl::XPUGuardImpl::record` → stream의 `sycl::queue`에 `ext_oneapi_submit_barrier`를 호출해 event에 record를 호출하기 이전의 command를 모두 처리한 후 `sycl::event`를 선언함
     - CUDA 구현: `c10::cuda::impl::CUDAGuardImpl::record` → 주어진 stream의 device로 `setDevice`하고 `cudaEventRecord`를 호출하고 원래 device로 `setDevice`함
@@ -1262,7 +1262,7 @@ void setDevice(Device d) const override {
 **Device memory를 관리하는 structure**입니다. 대부분의 중요한 함수들이 **virtual**로 정의되어 있습니다:
 
 - `virtual DataPtr allocate(size_t n)`
-- `virtual clone(const void* data, std::size_t n)`
+- `DataPtr clone(const void* data, std::size_t n)` - non-virtual, `allocate`와 `copy_data`를 조합해 구현
 - `virtual bool is_simple_data_ptr(const DataPtr& data_ptr)`
 - `virtual DeleterFnPtr raw_deleter()`
 - `virtual void copy_data(void* dest, const void* src, std::size_t count)`
@@ -1333,7 +1333,7 @@ python -m pip install --no-build-isolation -v -e .
 
 참고: [pytorch/setup.py](https://github.com/pytorch/pytorch/blob/main/setup.py)
 
-##### 일반 설정 환경변수
+#### 일반 설정 환경변수
 
 | 변수 | 설명 |
 |------|------|
@@ -1347,7 +1347,7 @@ python -m pip install --no-build-isolation -v -e .
 | `CMAKE_FRESH` | cmake 캐시를 무시하고 새로 구성 |
 | `VERBOSE` | 빌드 출력의 상세 수준 제어 |
 
-##### 기능 토글 환경변수
+#### 기능 토글 환경변수
 
 | 변수 | 설명 |
 |------|------|
@@ -1367,7 +1367,7 @@ python -m pip install --no-build-isolation -v -e .
 | `USE_FLASH_ATTENTION` | Flash Attention 빌드 활성화/비활성화 |
 | `USE_MEM_EFF_ATTENTION` | Memory Efficient Attention 빌드 활성화/비활성화 |
 
-##### 버전 및 아키텍처 관련
+#### 버전 및 아키텍처 관련
 
 | 변수 | 설명 |
 |------|------|
@@ -1377,7 +1377,7 @@ python -m pip install --no-build-isolation -v -e .
 | `TORCH_XPU_ARCH_LIST` | 빌드할 XPU 아키텍처 지정 |
 | `PYTORCH_ROCM_ARCH` | 빌드할 AMD GPU 타겟 지정 |
 
-##### 외부 라이브러리 관련
+#### 외부 라이브러리 관련
 
 | 변수 | 설명 |
 |------|------|
@@ -1391,13 +1391,13 @@ python -m pip install --no-build-isolation -v -e .
 
 Python package를 설치하면 **shared object**와 **Python module**들이 함께 설치됩니다.
 
-##### Shared objects
+#### Shared objects
 
 ```
 libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
 ```
 
-##### Python modules
+#### Python modules
 
 `_awaits` `_custom_op` `_decomp` `_dispatch` **`_dynamo`** `_export`
 `_functorch` `_higher_order_ops` **`_inductor`** `_lazy` `_library`
@@ -1478,7 +1478,7 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
   c10 --> c10_core["core"]
   c10 --> c10_device["cuda, xpu, ..."]
 
-  gen --> build["build/aten/src/aten"]
+  gen --> build["build/aten/src/ATen"]
   gen --> torch["torch"]
 
   torch --> torch_include["include/torch/csrc/\nautograd/generated"]
@@ -1527,9 +1527,9 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
 
 ### Directory Structure: Generated Files
 
-**`build/aten/src/aten/`** : `gen.py` (input: **`native_functions.yaml`**)
-- `Ops/{operator}.h`
-- `Core/TensorBody.h`
+**`build/aten/src/ATen/`** : `gen.py` (input: **`native_functions.yaml`**)
+- `ops/{operator}.h`
+- `core/TensorBody.h`
 - `Operators.cpp`
 - `Register{backend}.cpp`
 
@@ -1543,6 +1543,6 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
 
 **`torch/csrc/autograd/generated/`**
 - `VariableType.cpp` (`gen_variable_type.py`)
-- `Functions.cpp` (`gen_variable_type.py`)
-- `Python_functions.cpp` (`gen_variable_type.py`)
-- `Python_torch_functions.cpp` - `gen_python_functions.py` (input: **`native_functions.yaml`**)
+- `Functions.cpp` (`gen_autograd_functions.py`)
+- `python_functions.cpp` (`gen_autograd_functions.py`)
+- `python_torch_functions.cpp` - `gen_python_functions.py` (input: **`native_functions.yaml`**)
