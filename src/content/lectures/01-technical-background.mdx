@@ -30,9 +30,9 @@ ML Framework은 AI Ecosystem에서 다음과 같은 역할을 합니다:
 
 이처럼 ML Framework에는 **다양한 기술적인 background가 혼재**되어 있습니다.
 
-PyTorch, TensorFlow, JAX 등의 ML Framework은 단순히 모델을 기술하는 것뿐 아니라 GPU와 같은 AI 가속기를 효과적으로 활용하는 것이 핵심입니다. 프로그래밍 언어적 성격으로 모델을 직접 작성하고 제공하며, 컴파일러 역할로 단순히 AI 가속기에 매핑하는 것이 아니라 트랜스포메이션 과정을 통해 하드웨어 타겟에 최적화합니다.
+PyTorch, TensorFlow, JAX 등의 ML Framework은 모델을 기술하는 것에서 나아가 GPU와 같은 AI 가속기를 효과적으로 활용하는 것이 핵심입니다. 프로그래밍 언어적 성격으로 모델을 직접 작성하고 제공하며, 컴파일러 역할로 AI 가속기에 그대로 매핑하는 대신 트랜스포메이션 과정을 통해 하드웨어 타겟에 최적화합니다.
 
-ML Framework의 발전은 이전의 훌륭한 연구들과 산업적 성과가 축적되어 만들어진 결과물입니다. 그 역사와 과정을 살펴보면, 굉장히 중요한 기술적 흐름들이 있었고, 결국 이런 흐름들이 합쳐져서 우리가 지금 쓰고 있는 ML Framework이 되었습니다.
+ML Framework의 발전은 이전의 훌륭한 연구들과 산업적 성과가 축적되어 만들어진 결과물입니다. 그 역사와 과정을 살펴보면 여러 기술적 흐름들이 있었고, 결국 이런 흐름들이 합쳐져서 우리가 지금 쓰고 있는 ML Framework이 되었습니다.
 
 > **Q: PyTorch의 경우, ML 컴파일러의 이름이 있을까요?**
 >
@@ -67,7 +67,7 @@ ML Framework의 발전은 이전의 훌륭한 연구들과 산업적 성과가 �
 
 Heterogeneous Computing은 CPU와 GPU를 함께 활용하여 더 빠르게 계산할 수 있도록 해주는 시스템입니다. 일반적으로 CPU가 수행하던 계산 중 일부를 GPU에게 offloading하여 성능을 향상시키는 방식입니다.
 
-ML Framework의 핵심은 단순히 모델을 기술하는 것뿐 아니라 GPU와 같은 AI 가속기를 효과적으로 활용하는 것이기 때문에, CPU와 AI 가속기를 잘 결합하여 사용하는 Heterogeneous Computing은 매우 중요한 배경 기술입니다.
+ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하므로, CPU와 AI 가속기를 결합하여 사용하는 Heterogeneous Computing이 그 바탕이 되는 배경 기술입니다.
 
 ### Graphics에서의 시작
 
@@ -108,7 +108,7 @@ ML Framework의 핵심은 단순히 모델을 기술하는 것뿐 아니라 GPU�
 슈퍼컴퓨팅은 많은 수의 컴퓨터를 네트워크로 연결해 **하나의 큰 계산을 분산 처리**하는 방식으로 작동합니다. 구글의 데이터센터나 클라우드 기술도 유사한 구조를 가지고 있지만, 본질적인 차이가 존재합니다:
 
 - **인터넷 서비스**는 독립적이고 간단한 계산을 대량으로 처리하는 데 중점을 둡니다.
-- **슈퍼컴퓨팅**은 하나의 거대한 계산을 여러 컴퓨터에서 나누어 처리하며, 모든 작업이 연결되어 있습니다. 따라서 작업 중 하나라도 오류가 발생하면 전체 계산이 망가질 수 있어 **"Fault"의 처리가 매우 중요**합니다.
+- **슈퍼컴퓨팅**은 하나의 거대한 계산을 여러 컴퓨터에서 나누어 처리하며, 모든 작업이 연결되어 있습니다. 따라서 작업 중 하나라도 오류가 발생하면 전체 계산이 망가질 수 있어 **"Fault"를 어떻게 처리하느냐가 관건**입니다.
 
 머신러닝의 경우에도 인퍼런스는 독립적인 작업이 많지만, 대규모 분산 학습에서는 하나의 작업이 매우 크기 때문에 fault 처리가 더욱 중요해집니다.
 
@@ -158,7 +158,7 @@ ML Framework으로 개발자들이 표현한 model은 대부분 "동적"입니�
 | Nvidia GPU | TensorFlow, PyTorch | TensorRT |
 | Rebellions NPU | TensorFlow, PyTorch | RBLN Compiler |
 
-**PyTorch 2.0의 등장으로 이 흐름은 더욱 가속화될 것**입니다.
+PyTorch 2.0의 등장도 이러한 흐름 위에 있습니다.
 
 ### PyTorch에서의 ML Compiler
 
@@ -176,9 +176,9 @@ Data science는 통계, 컴퓨터 과학, 수학 등의 도구를 활용하여 �
 
 ### Data Scientist가 선호하는 도구의 특성
 
-Data scientist들은 단순히 특정 프로그래밍 언어를 사용하는 것보다는, 이미 존재하는 데이터를 손쉽게 가공하고 필요한 정보를 얻어내는 데 더 관심을 둡니다. 특히 복잡한 수학 함수를 직접 구현하기보다는, 잘 만들어진 도구나 라이브러리를 활용하는 것을 선호합니다. 또한 긴 코드를 작성하고 실행하기보다는, 데이터를 즉시 처리하고 결과를 확인하면서 인터랙티브하게 작업하는 방식을 중요하게 생각합니다:
-- **Predefined math functions** - 미리 정의된 수학 함수들
-- **Interactive mode** - 데이터를 즉시 처리하고 결과를 확인하는 대화형 작업 방식
+Data scientist들은 특정 프로그래밍 언어 자체보다는, 이미 존재하는 데이터를 손쉽게 가공하고 필요한 정보를 얻어내는 데 더 관심을 둡니다. 그래서 다음과 같은 특성을 갖춘 도구를 선호합니다:
+- **Predefined math functions** - 복잡한 수학 함수를 직접 구현하는 대신 활용할 수 있는, 미리 정의된 수학 함수들
+- **Interactive mode** - 긴 코드를 작성하고 실행하는 대신, 데이터를 즉시 처리하고 결과를 확인하는 대화형 작업 방식
 - **Visualization** - 시각화 도구
 
 ### NumPy의 등장과 Python의 부상
@@ -187,7 +187,7 @@ SAS (1966), SPSS (1968), Matlab (1970s), R (1993) 등이 선구적인 역할을 
 
 **ML도 사용성 측면에서 같은 추세**를 보이고 있습니다. NumPy는 TensorFlow와 PyTorch의 API 설계와도 밀접한 관련이 있으며, 특히 텐서 연산 처리 방식에서 공통점이 많습니다.
 
-흥미로운 점은, NumPy가 PyTorch의 개발에 영향을 준 뒤, 최근에는 NumPy 창시자의 회사가 PyTorch 2.0에 많은 기여를 하고 있다는 것입니다. 이제 PyTorch는 NumPy 코드를 네이티브로 지원하며, NumPy 코드를 수정 없이 작성하면 Dynamo와 Inductor를 통해 바이트코드로 동적 변환 후 CUDA 코드로 컴파일하여 GPU에서 실행할 수 있습니다. 이 기술은 현재 PyTorch의 upstream에 포함되어 있으며, 앞으로 많은 사람들이 NumPy를 GPU에서 가속 처리하며 효율적으로 활용할 수 있을 것으로 기대됩니다.
+흥미로운 점은, NumPy가 PyTorch의 개발에 영향을 준 뒤, 최근에는 NumPy 창시자의 회사가 PyTorch 2.0에 많은 기여를 하고 있다는 것입니다. 이제 PyTorch는 NumPy 코드를 네이티브로 지원하며, NumPy 코드를 수정 없이 작성하면 Dynamo와 Inductor를 통해 바이트코드로 동적 변환 후 CUDA 코드로 컴파일하여 GPU에서 실행할 수 있습니다. 이 기술은 현재 PyTorch의 upstream에 포함되어 있습니다.
 
 
 ## Two (or More) Language Problems
@@ -260,7 +260,7 @@ PyTorch의 eager mode에서는 각 줄의 연산이 즉시 수행되며, `y`는 
 
 ## Graph Capture: TF2와 PyTorch 비교
 
-그래프 모드에서는 어떻게 그래프를 뽑아낼 것인가가 매우 중요합니다. TF1은 프로그래머들에게 명시적으로 그래프를 그려달라고 요청했지만, TF2나 PyTorch는 eager 모드로 모델을 만들어주면 거기서 자체적으로 그래프를 뽑아내는 방식을 사용합니다.
+그래프 모드에서는 어떻게 그래프를 뽑아낼 것인가가 핵심 문제입니다. TF1은 프로그래머들에게 명시적으로 그래프를 그려달라고 요청했지만, TF2나 PyTorch는 eager 모드로 모델을 만들어주면 거기서 자체적으로 그래프를 뽑아내는 방식을 사용합니다.
 
 ### TF2
 
@@ -304,7 +304,7 @@ PyTorch 1과 2는 모두 100% eager 모드를 지원합니다. PyTorch 1에서�
 
 ## This is not new
 
-Eager mode에서 graph를 추출하는 기법은 역사적으로 깊은 배경을 가지고 있습니다:
+Eager mode에서 graph를 추출하는 기법에는 오랜 역사가 있습니다:
 
 - **Trace scheduling** for VLIW compiler (1981)
 - **Out-Of-Order Execution** in Pentium Pro (1995)
@@ -339,7 +339,7 @@ PyTorch 2.0은 PyTorch 1.0의 특성을 거의 모두 계승(inherit)하면서, 
 - **NumPy-like experience** - 텐서 구조, 사전 정의된 수학 함수, 대화형 환경, Jupyter Notebook 호환성
 - **Heterogeneous computing** as an underneath foundation - 다양한 하드웨어에서 효율적으로 동작
 - **MPI-like** distributed programming model - 분산 프로그래밍 기본 지원
-- Integration with **compute libraries / ML compiler** - PyTorch 1.0부터 Eager mode에서는 컴퓨팅 라이브러리를 사용하고, PyTorch 2.0에서는 Graph mode에서 ML 컴파일러와의 통합을 매우 중요하게 다루고 있음
+- Integration with **compute libraries / ML compiler** - PyTorch 1.0부터 Eager mode에서는 컴퓨팅 라이브러리를 사용하고, PyTorch 2.0에서는 Graph mode에서 ML 컴파일러와의 통합을 핵심 과제로 다루고 있음
 - Three language layers: **Python → C++ → kernel language** (예: CUDA, Triton) - 단순한 2개 언어가 아니라 제3 랭귀지 또는 멀티 랭귀지 솔루션. 스크립팅은 Python으로 이루어지지만, 하위 레벨에서는 성능 최적화를 위해 C++로 전환되며, GPU/TPU/NPU 등의 하드웨어에서는 커널 레벨의 최적화 성능을 제공
 - **Define-by-run** with graph capturing via TorchDynamo - Eager mode 중심으로 Graph mode를 부드럽게 지원
 - Support both **training and inference** - Graph mode(컴파일) 경로가 inference뿐 아니라 training까지 지원하게 된 것이 PyTorch 2.0에서 가장 크게 변화한 부분

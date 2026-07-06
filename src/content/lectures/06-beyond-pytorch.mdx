@@ -22,13 +22,13 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
 3. **Kernel Programming** - CUDA, CUTLASS, OpenAI Triton
 4. **Serving 최적화 Framework** - vLLM과 기타 상용 프레임워크
 
-### 오늘의 핵심 질문
+### 오늘의 질문
 
 이번 강의는 "Beyond PyTorch"라는 제목 그대로, PyTorch 외에 무엇을 더 준비해야 하는지를 다룹니다. 특히 **리벨리온을 비롯해 이번 강의에 참여하고 계신 다른 AI 반도체 회사들** 관점에서, 그리고 그중에서도 **추론(inference)에 특화된 AI 반도체** 관점에서, 개발 환경으로 PyTorch만 지원하면 충분한가, 아니면 무엇을 더 갖춰야 하는가를 함께 고민해 보려고 합니다.
 
 성능이 가장 중요한 이슈라고 본다면, 자연스럽게 다음 세 가지 질문이 따라옵니다.
 
-1. 성능 측면에서 LLM 추론의 핵심 **문제**는 무엇인가?
+1. 성능 측면에서 LLM 추론의 가장 큰 **문제**는 무엇인가?
 2. 그 문제들을 어떻게 **해결**할 수 있는가?
 3. 그 해결책을 개발자가 잘 구현하기 위해 **PyTorch만으로 충분한가**, 아니면 보조적인 다른 개발 환경이 필요한가?
 
@@ -91,7 +91,7 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
 
 ### Self Attention과 Scaled Dot-Product
 
-LLM에서 가장 중요한 연산을 하나 꼽으라면 단연 **Self-Attention**, 그중에서도 실제로 그것을 계산하는 핵심 연산인 **Scaled Dot-Product**입니다. 왼쪽 그림처럼 한 문장이 주어졌을 때, 단어들 사이의 관계를 통해 "이 문장 안에서 이 단어가 어떤 의미를 갖는가"를 더 명확하게 뽑아내는 과정이 곧 self-attention이라고 생각할 수 있습니다.
+LLM에서 가장 중요한 연산을 하나 꼽으라면 단연 **Self-Attention**, 그중에서도 실제로 그것을 계산하는 연산인 **Scaled Dot-Product**입니다. 왼쪽 그림처럼 한 문장이 주어졌을 때, 단어들 사이의 관계를 통해 "이 문장 안에서 이 단어가 어떤 의미를 갖는가"를 더 명확하게 뽑아내는 과정이 곧 self-attention이라고 생각할 수 있습니다.
 
 이 과정은 잘 알려져 있듯이 **K(Key), Q(Query), V(Value)** 세 가지 값으로 이루어집니다. **Attention**은 단어들 사이의 연관성의 크기이고, query–key 내적으로 그 크기를 구한 뒤 value를 곱해 누적하면(=scaled dot-product), 특정 단어에 self-attention이 반영된 **새로운 표현(embedding)** 이 만들어집니다.
 
@@ -102,7 +102,7 @@ LLM에서 가장 중요한 연산을 하나 꼽으라면 단연 **Self-Attention
 - **병렬 처리가 자연스러운 부분** - 입력 embedding으로부터의 K·Q·V 계산, 그리고 단어별로 독립적인 하위(아래쪽) 연산
 - **병렬 처리가 까다로운 부분** - 전체 분포를 봐야 하는 **softmax**, 그리고 그 결과와 V를 곱한 뒤 모든 단어에 대해 합산하는 **summation**
 
-이 "위쪽이 병렬화하기 까다롭다"는 점은 이후 Flash Attention 같은 GPU-aware 알고리듬이 풀어야 하는 핵심 문제로 다시 등장합니다.
+이 "위쪽이 병렬화하기 까다롭다"는 점은 이후 Flash Attention 같은 GPU-aware 알고리듬이 풀어야 하는 문제로 다시 등장합니다.
 
 <div class="flex flex-col gap-8 mt-6">
   <div class="text-center">
@@ -162,7 +162,7 @@ Self-Attention의 또 다른 중요한 특징은 **Causal이냐, Non-Causal이�
 
 ### Prefill과 Decode
 
-**Decoder-Only LLM**이 결국 하는 일은 단순합니다. 주어진 단어들로부터 **다음 단어를 예측하는 작업을 끝없이 반복**하는 것이죠 (Autoregressive). 이를 위해 먼저 **Pretraining** 단계에서 "$N$개의 단어가 주어졌을 때 그다음 단어가 무엇인가"를 엄청나게 많이 반복 학습해 **Trained Weights**를 만듭니다. 학습이 끝나고 나면 같은 weight를 가지고 추론(decoding) 단계에서는 프롬프트가 들어왔을 때 그에 대한 답을 차례로 뱉어내는데, 이 과정은 다시 **Prefill**(프롬프트를 처리하는 단계)과 **Decode**(문장이 끝날 때까지 단어를 반복 생성하는 단계)로 나뉩니다.
+**Decoder-Only LLM**이 결국 하는 일은 한 가지입니다. 주어진 단어들로부터 **다음 단어를 예측하는 작업을 끝없이 반복**하는 것이죠 (Autoregressive). 이를 위해 먼저 **Pretraining** 단계에서 "$N$개의 단어가 주어졌을 때 그다음 단어가 무엇인가"를 엄청나게 많이 반복 학습해 **Trained Weights**를 만듭니다. 학습이 끝나고 나면 같은 weight를 가지고 추론(decoding) 단계에서는 프롬프트가 들어왔을 때 그에 대한 답을 차례로 뱉어내는데, 이 과정은 다시 **Prefill**(프롬프트를 처리하는 단계)과 **Decode**(문장이 끝날 때까지 단어를 반복 생성하는 단계)로 나뉩니다.
 
 <Mermaid wide>
 {`graph LR
@@ -230,7 +230,7 @@ Prefill과 Decode의 가장 중요한 차이는 **여러 토큰을 처리하는 
 
 > 출처: [LLM Inference Unveiled: Survey and Roofline Model Insights](https://arxiv.org/abs/2402.16363)
 
-이 그림이 보여주는 건 의외로 단순합니다. 컴퓨터를 **(1) 메모리에서 데이터를 읽고 쓰는 비용** + **(2) 가져온 데이터로 실제 연산을 수행하는 비용** 두 가지로만 나눠 모델링했을 때, 지금 내가 어느 쪽에 묶여 있는가, **Memory Bound인지 Compute Bound인지**를 판별해 주는 그래프입니다.
+컴퓨터를 **(1) 메모리에서 데이터를 읽고 쓰는 비용** + **(2) 가져온 데이터로 실제 연산을 수행하는 비용** 두 가지로만 나눠 모델링했을 때, 지금 내가 어느 쪽에 묶여 있는가, **Memory Bound인지 Compute Bound인지**를 판별해 주는 그래프입니다.
 
 - **왼쪽 영역 (Memory Bound)** - 연산기는 아직 여유가 있는데, 데이터를 들여오고 내보내는 속도가 따라오지 못해 칩이 자기 풀스펙 연산력을 다 못 쓰는 상황
 - **오른쪽 영역 (Compute Bound)** - 연산기 자체가 이미 꽉 차 있어, 아무리 Arithmetic Intensity가 더 높아져도 더는 빨라지지 않는 상황
@@ -253,7 +253,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 이런 현상이 LLM 추론에서만의 특수한 이슈가 아니라는 점도 짚을 만합니다. 요즘 프로세서를 설계할 때도 **메모리 쪽이 가장 자주 병목이 되는 영역**이고, 메모리 퍼포먼스가 전체 시스템 성능을 사실상 좌우한다고 보는 것이 일반적인 관점입니다.
 
-이건 최근 몇 년 사이의 트렌드가 아니라 **아주 오래전부터** 알려져 온 현상입니다. 아래 인용한 논문은 **1995년**에 나온 것으로, **"Memory Wall"** 이라는 용어를 처음 쓰거나 적어도 널리 알린 출발점이 된 논문입니다. 그때 이미 *"프로세서의 성능은 연산을 얼마나 빨리 처리하느냐가 아니라, 데이터를 얼마나 빨리 들고 오고 내보낼 수 있느냐로 결정된다"* 는 이야기가 자리 잡고 있었던 셈입니다.
+이건 최근 몇 년 사이의 트렌드가 아니라 **아주 오래전부터** 알려져 온 현상입니다. 아래 인용한 논문은 **1995년**에 나온 것으로, **"Memory Wall"** 이라는 용어를 처음 쓰거나 적어도 널리 알린 출발점이 된 논문입니다. 그때 이미 *"프로세서의 성능은 연산을 얼마나 빨리 처리하느냐가 아니라, 데이터를 얼마나 빨리 들고 오고 내보낼 수 있느냐로 결정된다"* 는 이야기가 나오고 있었던 셈입니다.
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide13_1.png" alt="Memory Wall: 프로세서 연산 성능과 메모리 대역폭 향상 속도의 격차를 보여주는 그래프" class="h-64" />
@@ -280,9 +280,9 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 가장 단순한 형태가 **Static / Dynamic Batching**입니다. 여러 request를 묶어서 모든 layer를 **lock-step**으로 동시에 진행합니다. 메모리 효율은 individual request 처리보다 분명히 올라가지만, **각 request가 얼마나 빨리/느리게 끝날지 미리 알 수 없다**는 게 문제입니다. 한 배치의 모든 request가 같은 lock-step으로 가야 하므로, **가장 느린 애가 끝날 때까지 모두 기다려야** 하고, 빈 자리가 생겨 원하는 만큼 성능이 안 나옵니다.
 
-이를 해결하기 위해 등장한 것이 **Continuous Batching**입니다. 핵심 아이디어는 **각 layer 단계마다 동적으로 끼어들어**, 같은 순서에 있는 토큰들을 그때그때 묶어 병렬로 처리하는 것입니다. 시퀀스 길이가 서로 달라도 빈 슬롯을 찾아 빡빡하게 채울 수 있어서, lock-step 방식의 낭비를 거의 없앱니다.
+이를 해결하기 위해 등장한 것이 **Continuous Batching**입니다. 아이디어는 **각 layer 단계마다 동적으로 끼어들어**, 같은 순서에 있는 토큰들을 그때그때 묶어 병렬로 처리하는 것입니다. 시퀀스 길이가 서로 달라도 빈 슬롯을 찾아 빡빡하게 채울 수 있어서, lock-step 방식의 낭비를 거의 없앱니다.
 
-대표적인 출발점은 **서울대 전병곤 교수님의 [Orca 논문](https://www.usenix.org/conference/osdi22/presentation/yu)** 이고, 이 기술을 기반으로 설립된 회사가 **Friendli AI**입니다. 현재 Continuous Batching은 LLM 서빙에서 **거의 필수에 가까운 핵심 기술**로 자리 잡았습니다.
+대표적인 출발점은 **서울대 전병곤 교수님의 [Orca 논문](https://www.usenix.org/conference/osdi22/presentation/yu)** 이고, 이 기술을 기반으로 설립된 회사가 **Friendli AI**입니다. 현재 Continuous Batching은 LLM 서빙에서 **사실상 필수 기술**이 되었습니다.
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide17_1.png" alt="Dynamic Batching과 Continuous Batching의 배치 슬롯 활용 비교" class="h-60" />
@@ -294,7 +294,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 앞서 Decode는 "한 토큰이 끝나야 다음 토큰을 시작할 수 있다 → 병렬화 불가"라고 했습니다. **Speculative Decoding**은 이 제약을 우회하기 위해 등장한 기법입니다.
 
-핵심 인사이트는 이렇습니다. 큰 모델과 작은 모델이 있다고 할 때, 작은 모델이 큰 모델만큼 정확하지는 않더라도 **그렇게 크게 뒤떨어지지는 않는다**고 가정해 봅시다. 그렇다면 다음과 같이 두 단계로 일을 나눌 수 있습니다.
+큰 모델과 작은 모델이 있다고 할 때, 작은 모델이 큰 모델만큼 정확하지는 않더라도 **그렇게 크게 뒤떨어지지는 않는다**고 가정해 봅시다. 그렇다면 다음과 같이 두 단계로 일을 나눌 수 있습니다.
 
 1. **작은 모델(Draft Model)** 로 여러 토큰의 초안을 빠르게 생성한다.
 2. **큰 모델(Main Model)** 로 그 초안이 맞는지 **검증**만 한다.
@@ -331,7 +331,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 ### Flash Attention
 
-이 비용 문제를 다루기 위한 대표적인 제안이 **Flash Attention**입니다. 먼저 분명히 해 둘 것이 있는데, **Flash Attention은 Attention의 $O(N^2)$ 복잡도를 근본적으로 줄이는 기법은 아닙니다**. 자승 항 자체는 그대로 남고, 다만 그것을 **훨씬 더 효율적으로 처리**할 수 있게 만들어 줍니다. 핵심 도구는 **Tiling**과 **Fusion** 두 가지입니다.
+이 비용 문제를 다루기 위한 대표적인 제안이 **Flash Attention**입니다. 먼저 분명히 해 둘 것이 있는데, **Flash Attention은 Attention의 $O(N^2)$ 복잡도를 근본적으로 줄이는 기법은 아닙니다**. 자승 항 자체는 그대로 남고, 다만 그것을 **훨씬 더 효율적으로 처리**할 수 있게 만들어 줍니다. 여기에 쓰이는 도구는 **Tiling**과 **Fusion** 두 가지입니다.
 
 기존 Attention 구현의 가장 큰 비효율은 계산 도중에 **외부 메모리(DRAM)로부터 데이터를 반복해서 들고 오고, 내보내고, 다시 들고 오는** 과정에서 발생합니다. Attention은 여러 단계의 연산(QK 곱, softmax, V 곱, 합산)으로 이뤄져 있는데, 단계마다 중간 결과를 DRAM에 한 번 썼다가 다음 단계에서 다시 읽는 일이 반복되면 그 자체가 큰 오버헤드가 됩니다.
 
@@ -354,14 +354,14 @@ Flash Attention은 이를 **타일 단위로 쪼개서**(tiling), 한 타일을 
 
 **Paged Attention**도 비슷한 결의 문제(긴 시퀀스를 다룰 때의 비효율)를 다른 각도에서 풀어 줍니다. 이번에는 **연산이 아니라 KV cache의 메모리 할당** 자체가 문제의 출발점입니다.
 
-KV cache를 그냥 잡아두려면 기본적으로 **max sequence length 기준으로 한 번에 다 할당**해 둬야 합니다. 그런데 실제 들어오는 request들은 시퀀스 길이가 제각각이어서, max에 한참 못 미치는 짧은 request들에서는 **잡아만 놓고 안 쓰는 메모리 공간**이 잔뜩 생깁니다. 이런 "낭비된 슬롯들" 때문에 같은 GPU 메모리(HBM)에서 **동시에 처리할 수 있는 request 수가 줄어들어** 처리량이 바운드되는 게 핵심 증상입니다.
+KV cache를 그냥 잡아두려면 기본적으로 **max sequence length 기준으로 한 번에 다 할당**해 둬야 합니다. 그런데 실제 들어오는 request들은 시퀀스 길이가 제각각이어서, max에 한참 못 미치는 짧은 request들에서는 **잡아만 놓고 안 쓰는 메모리 공간**이 잔뜩 생깁니다. 이런 "낭비된 슬롯들" 때문에 같은 GPU 메모리(HBM)에서 **동시에 처리할 수 있는 request 수가 줄어들어** 처리량이 바운드됩니다.
 
 Paged Attention은 OS의 virtual memory · paging과 거의 같은 발상으로 이 문제를 풉니다.
 
 - **Logical cache block** - 충분히 많은 request × 충분히 긴 시퀀스를 다 담을 수 있다고 *논리적으로만* 가정한 큰 주소 공간
 - **Physical cache block** - GPU DRAM(HBM) 위의 실제 한정된 메모리
 
-둘을 **decouple**해두고, **실제로 채워진 만큼만 physical에 할당**(on-demand allocation)합니다. 그 결과 max를 가정한 over-provisioning 없이도 긴 시퀀스를 안전하게 다룰 수 있고, 빈 슬롯 낭비가 사라져 동시에 처리할 수 있는 request 수도 늘어납니다. Flash Attention과 함께 **긴 시퀀스의 attention을 효율적으로 처리**하는 대표적인 기법으로 자리 잡았습니다.
+둘을 **decouple**해두고, **실제로 채워진 만큼만 physical에 할당**(on-demand allocation)합니다. 그 결과 max를 가정한 over-provisioning 없이도 긴 시퀀스를 안전하게 다룰 수 있고, 빈 슬롯 낭비가 사라져 동시에 처리할 수 있는 request 수도 늘어납니다. Flash Attention과 함께 **긴 시퀀스의 attention을 효율적으로 처리**하는 대표적인 기법으로 널리 쓰입니다.
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide21_1.png" alt="Paged Attention: KV cache의 logical cache block과 physical cache block을 decouple해 on-demand로 할당하는 구조" class="h-56" />
@@ -387,13 +387,13 @@ Paged Attention은 OS의 virtual memory · paging과 거의 같은 발상으로 
 
 이 한계를 넘으려면 결국 **PyTorch op보다 한 단계 낮은 저수준 API**로 커널을 직접 작성하고, 그것을 **Custom Op**으로 wrap해서 PyTorch 레벨에 다시 노출시켜야 합니다. 이게 바로 다음 절들에서 다룰 **Kernel Programming**의 출발점입니다.
 
-Flash Attention이 가정하는 GPU 모델은 단순합니다.
+Flash Attention이 가정하는 GPU 모델은 세 가지 요소로 이루어져 있습니다.
 
 - **Grid** - 대규모로 병렬 처리할 수 있는 연산기들의 집합
 - **DRAM** - 외부 메모리. 용량은 크지만 대역폭이 상대적으로 낮음
 - **Shared Memory** - 블록별로 할당되는 **온칩 메모리**. 용량은 작지만 대역폭이 훨씬 높음
 
-핵심 통찰은 같은 데이터라도 **DRAM에 두고 계산하는 것보다, 한 번 Shared Memory에 올려놓고 그 안에서 계산하는 편이 훨씬 빠르다**는 점입니다. Flash Attention은 입력과 유지해야 하는 데이터가 DRAM에 있더라도 그것을 **타일 단위로 쪼개 Shared Memory에 올려놓고**, 실제 곱·합 연산은 Shared Memory의 높은 대역폭으로 수행합니다. 결국 질문은 이렇게 정리됩니다. **이런 아키텍처적 특성을 어떻게 알고리즘과 코드에 직접 반영해 줄 것인가?**
+요점은 같은 데이터라도 **DRAM에 두고 계산하는 것보다, 한 번 Shared Memory에 올려놓고 그 안에서 계산하는 편이 훨씬 빠르다**는 점입니다. Flash Attention은 입력과 유지해야 하는 데이터가 DRAM에 있더라도 그것을 **타일 단위로 쪼개 Shared Memory에 올려놓고**, 실제 곱·합 연산은 Shared Memory의 높은 대역폭으로 수행합니다. 결국 질문은 이렇게 정리됩니다. **이런 아키텍처적 특성을 어떻게 알고리즘과 코드에 직접 반영해 줄 것인가?**
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide24_1.png" alt="Flash Attention이 가정하는 GPU 모델: Grid 연산기, DRAM, 온칩 Shared Memory 구조" class="h-44" />
@@ -407,7 +407,7 @@ Flash Attention이 가정하는 GPU 모델은 단순합니다.
 
 ### Flash Attention = (Chunked Prefill +) Tiling + Fusion for Attention
 
-Flash Attention은 앞 절에서 본 비효율을 풀기 위해 **두 가지 핵심 기법**을 적용합니다.
+Flash Attention은 앞 절에서 본 비효율을 풀기 위해 **두 가지 기법**을 적용합니다.
 
 - **Tiling** - 큰 계산을 작게 쪼개서, 그때그때 필요한 부분만 들고 와서 처리할 수 있게 만들어주는 방법
 - **Fusion** - 한 계산에 필요한 모든 데이터를 한 번 메모리(Shared Memory)에 올려놓은 뒤, **DRAM에 다시 접근하지 않은 채** 가능한 한 많은 연산을 끝내고, 마지막에 결과만 한 번에 내보내는 방식
@@ -448,7 +448,7 @@ Flash Attention은 앞 절에서 본 비효율을 풀기 위해 **두 가지 핵
 
 - **곱셈** (QK, ...V): 자연스럽게 tiling 적용 가능
 - **Masking**: 마찬가지로 tiling 가능
-- **Softmax**: 전체 분포를 봐야 하므로 tiling이 까다로움 - **핵심 기술적 챌린지**
+- **Softmax**: 전체 분포를 봐야 하므로 tiling이 까다로움 - **기술적 챌린지**
 
 앞서 본 attention 그림에 이 통찰을 그대로 얹어 보면 다음과 같이 정리됩니다.
 
@@ -488,7 +488,7 @@ $$y_i = \frac{e^{x_i}}{\sum_j e^{x_j}}$$
 
 여기서 또 하나의 문제가 있습니다. **수치 안정성(numerical stability)** 입니다. softmax는 $e^{x}$가 들어가기 때문에 $x$가 조금만 커져도 값이 폭발적으로 커집니다. float 표현에는 한계 구간이 있어서, 이 한계를 한 번 넘어 saturate되면 그 시점에서 정확도를 영구적으로 잃어버립니다.
 
-회피하는 방법은 의외로 단순합니다. **모든 입력에서 최댓값 $\max(x)$를 빼주는 것**입니다. 분자와 분모에 같은 항이 빠지므로 결과는 변하지 않으면서, 지수의 입력은 항상 $\le 0$으로 묶여 `exp` 결과가 $(0, 1]$ 범위에 머물게 됩니다.
+회피하는 방법은 생각보다 간단합니다. **모든 입력에서 최댓값 $\max(x)$를 빼주는 것**입니다. 분자와 분모에 같은 항이 빠지므로 결과는 변하지 않으면서, 지수의 입력은 항상 $\le 0$으로 묶여 `exp` 결과가 $(0, 1]$ 범위에 머물게 됩니다.
 
 <div class="text-center py-4" style="font-size:1.5rem">
 $$y_i = \frac{e^{x_i - \max(x)}}{\sum_j e^{x_j - \max(x)}}$$
@@ -523,7 +523,7 @@ $$y_i = \frac{e^{x_i - \max(x)}}{\sum_j e^{x_j - \max(x)}}$$
 
 여기서 FlashAttention이 답하는 질문은 이렇게 정리됩니다. *"safe softmax와 거의 같은 효과를, single pass로, 그리고 tiling·fusion된 형태로 구할 수 있을까?"* 이를 풀어주는 도구가 **online algorithm**입니다.
 
-**Online algorithm**이란 모든 데이터를 한 번에 보고 처리하는 게 아니라, **그때그때 들어오는 값만으로 점진적으로 계산을 보정해 나가는** 알고리즘 패러다임을 말합니다. 핵심 아이디어는 단순합니다.
+**Online algorithm**이란 모든 데이터를 한 번에 보고 처리하는 게 아니라, **그때그때 들어오는 값만으로 점진적으로 계산을 보정해 나가는** 알고리즘 패러다임을 말합니다. 아이디어는 다음 두 가지입니다.
 
 - 진짜 $\max(x)$를 미리 구하지 않는다. 대신 **지금까지 본 값 중 최댓값** $m_i$만 유지한다.
 - 새 값이 들어와 $m_i$가 업데이트되면, **이전 max로 스케일해 두었던 누적 분모**를 새 max에 맞게 다시 보정한다.
@@ -725,7 +725,7 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
   <div class="rounded border border-slate-600 bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">x86 CPU</div>
 </div>
 
-즉 같은 Triton 코드가 **NVIDIA·AMD·Intel·AWS·Qualcomm·Azure·ARM·x86** 위에서 모두 돌 수 있다는 뜻이고, 이는 Triton이 **오픈소스 + 하드웨어 중립 커널 프로그래밍 모델**로 자리 잡고 있음을 보여줍니다.
+즉 같은 Triton 코드가 **NVIDIA·AMD·Intel·AWS·Qualcomm·Azure·ARM·x86** 위에서 모두 돌 수 있다는 뜻이고, 이는 Triton이 **오픈소스 + 하드웨어 중립 커널 프로그래밍 모델**을 지향하고 있음을 보여줍니다.
 
 
 ## Serving 최적화 Framework
@@ -740,12 +740,12 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 
 ### vLLM: LLM Serving의 업계 표준
 
-이런 흐름의 대표 주자가 바로 **vLLM**입니다. vLLM은 앞서 다룬 **PagedAttention**을 만든 PhD 학생들이 시작한 프로젝트로 출발했고, 오픈소스 생태계에서 빠르게 자리를 잡으면서 지금은 거의 **업계 표준(industry standard)** 처럼 쓰이고 있습니다.
+이런 흐름의 대표 주자가 바로 **vLLM**입니다. vLLM은 앞서 다룬 **PagedAttention**을 만든 PhD 학생들이 시작한 프로젝트로 출발했고, 오픈소스 생태계에서 빠르게 성장하면서 지금은 거의 **업계 표준(industry standard)** 처럼 쓰이고 있습니다.
 
-### vLLM에 반영된 핵심 최적화 기법
+### vLLM에 반영된 주요 최적화 기법
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide42_1.png" alt="vLLM에 반영된 핵심 최적화 기법 개요" class="h-72" />
+  <img src="/images/06/slide42_1.png" alt="vLLM에 반영된 주요 최적화 기법 개요" class="h-72" />
 </div>
 
 앞서 다룬 중요한 최적화 기술들은 대부분 vLLM에 반영되어 있습니다.
@@ -767,7 +767,7 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 
 구조적으로 보면 아래에 **하드웨어**가 있고, 그 위에 **PyTorch가 추상화 레이어** 역할을 하며, 그 위에 다시 **vLLM**이 올라갑니다. 즉 vLLM 입장에서 하드웨어 다양성에 대한 대응은 **PyTorch 레이어를 통해 위임**하는 셈입니다.
 
-이 점은 **AI 반도체 회사**, 특히 **추론에 최적화된 NPU**를 만드는 입장에서 굉장히 중요합니다. **PyTorch만 잘 지원해두면 vLLM에서도 자연스럽게 우리 하드웨어가 활용**될 수 있다는 뜻이기 때문입니다. 결국 우리 같은 회사 관점에서는 **PyTorch 지원 + vLLM 활용 가능성**, 이 두 축을 모두 잘 갖춰두는 것이 핵심 전략이 됩니다.
+이 점은 **AI 반도체 회사**, 특히 **추론에 최적화된 NPU**를 만드는 입장에서 굉장히 중요합니다. **PyTorch만 잘 지원해두면 vLLM에서도 자연스럽게 우리 하드웨어가 활용**될 수 있다는 뜻이기 때문입니다. 결국 우리 같은 회사 관점에서는 **PyTorch 지원 + vLLM 활용 가능성**, 이 두 축을 모두 잘 갖춰두는 것이 중요합니다.
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide44_1.png" alt="vLLM의 계층 구조: 하드웨어 위에 PyTorch가 추상화 레이어로 놓이고 그 위에 vLLM이 올라가는 구성" class="h-64" />
