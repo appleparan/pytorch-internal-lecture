@@ -262,7 +262,7 @@ Call stack에서 자동 생성된 코드가 차지하는 비중이 큽니다. �
 
 ### 자동 생성 파일의 구조
 
-자동 생성되는 파일들과 이를 만들어 내는 도구, 그 도구의 입력이 무엇인지를 정리하면 다음과 같습니다. `gen.py`, `gen_variable_type.py`, `gen_python_functions.py` 같은 코드 생성 도구들이 `native_functions.yaml`과 `derivatives.yaml`을 입력으로 받아 아래와 같은 파일들을 생성합니다.
+자동 생성되는 파일들과 이를 만들어 내는 도구, 그 도구의 입력이 무엇인지를 정리하면 다음과 같습니다. `gen.py`, `gen_variable_type.py`, `gen_python_functions.py` 같은 코드 생성 도구들이 `native_functions.yaml`과 `derivatives.yaml`을 입력으로 받아 아래와 같은 다양한 파일들을 생성합니다.
 
 **`build/aten/src/ATen`** ← `gen.py` (input: `native_functions.yaml`)
 - `ops/{operator}.h` - op별 C++ frontend 선언
@@ -281,7 +281,7 @@ Call stack에서 자동 생성된 코드가 차지하는 비중이 큽니다. �
 - `python_torch_functions.cpp` ← `gen_python_functions.py` (input: `native_functions.yaml`)
 
 #### 핵심 입력 파일
-- **`native_functions.yaml`** - PyTorch가 기본으로 제공하는 op들의 스펙을 기술한 파일입니다. 각 op의 이름, 인자, 반환 타입, 지원하는 backend별 구현 함수 등이 정의되어 있으며, ATen op 정의 및 등록의 기반이 됩니다. ATen을 위한 기술(description)이라고 볼 수 있습니다.
+- **`native_functions.yaml`** - PyTorch가 기본으로 제공하는 op들의 스펙을 기술한 파일입니다. 각 op의 이름, 인자, 반환 타입, 지원하는 backend별 구현 함수 등이 정의되어 있으며, ATen op 정의 및 등록의 기반이 됩니다. PyTorch internal의 가장 핵심적인 패턴을 형성하는 역할을 하며, ATen을 위한 기술(description)이라고 볼 수 있습니다.
 - **`derivatives.yaml`** - 각 op의 autograd 미분 규칙을 정의한 파일입니다.
 
 이 입력 파일들을 코드 생성 도구가 가공하여 위에 나열된 다양한 C++ 파일들을 생성합니다. 생성된 코드는 빌드 타임에 사람이 직접 작성한 코드와 함께 컴파일되며, PyTorch 프로세스가 시작될 때 초기화 과정에서 생성된 backend들이 Dispatcher에 **registration**됩니다. 이 registration이 완료되어야 Dispatcher가 런타임에 올바른 kernel을 찾아 호출할 수 있습니다.
