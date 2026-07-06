@@ -490,6 +490,12 @@ a:hover {
   gap: 0;
 }
 
+.index-note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 1.5rem 0 0;
+}
+
 .lecture-item {
   display: flex;
   align-items: baseline;
