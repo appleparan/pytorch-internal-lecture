@@ -390,6 +390,7 @@ Graph mode에서는 **fake tensor**를 이용하여 forward를 빠르게 에뮬�
 | **Backward graph 구성** | Forward를 진행하는 동안 각 Op의 `grad_fn`이 출력 텐서에 붙으며 backward graph가 **점진적으로** 만들어짐 | FX Graph가 완성된 시점에 AOTAutograd가 개입하여 forward/backward joint graph를 **ahead-of-time**으로 생성 |
 | **Loss 계산** | `F.cross_entropy(outputs, labels)` - Autograd가 loss의 `grad_fn`을 이어 붙임 | 동일하게 수행. Compiled forward의 `grad_fn`이 loss의 backward chain에 연결됨 |
 | **Backward 실행** | `loss.backward()` 호출 시 Autograd engine이 미리 등록된 backward graph를 따라가며 gradient를 계산. 호출할 때마다 준비 과정이 반복됨 | `loss.backward()` 호출 시 compiled backward가 **하나의 큰 Op**으로서 실행됨. Backend compiler로 이미 최적화된 코드가 수행됨 |
+| **사용자 코드 차이** | 기존 방식 그대로 | `torch.compile(model)` 한 줄 추가 정도 |
 
 겉에서 볼 때는 두 코드의 차이가 거의 없습니다. 오른쪽 코드만 봐서는 위 표의 복잡한 과정들이 일어난다는 것이 **obvious하지 않지만**, `torch.compile()`이 모델을 컴파일해 두었기 때문에 그냥 `model`을 쓰는 대신 `compiled_model`을 쓰는 것만으로 내부에서 알아서 최적화된 방식으로 forward와 backward가 처리됩니다. 그 "알아서 잘 되도록 하기 위해서 일어나는 과정"이 바로 AOTAutograd입니다.
 
@@ -441,6 +442,8 @@ def backward(self, ge_scalar, tangents_1):
 
 오른쪽 코드에서 `forward()`와 `backward()`가 한 `torch.autograd.Function` 객체 안에 함께 들어 있다는 점에 주목하세요. 이것이 PyTorch 1.0 Autograd에서 언급했던 **custom differentiable function** 기능을 그대로 활용한 결과이며, compiled model은 "forward와 backward를 모두 가진 하나의 custom Op"처럼 동작합니다. 참고로 `forward`가 `ge_scalar`를 추가로 반환하는 것은 partitioner가 backward 계산의 일부(`ge` 비교)를 forward 쪽으로 옮겼기 때문이며, `backward`는 이 값을 받아 재계산 없이 그대로 사용합니다.
 
+이제 `[1]` → `[2]` → `[3]` 순서대로 어떤 일이 일어나는지 하나씩 짚어 봅니다.
+
 **[1] `outputs = compiled_model(images)`**
 
 `compiled_model(images)`를 처음 호출하는 시점에 Dynamo가 모델을 tracing하여 **FX Graph**를 생성하고, 이 FX Graph가 **AOTAutograd**에 의해 compiled forward와 compiled backward를 모두 포함하는 `torch.autograd.Function` 객체로 변환됩니다 (`torch.compile(model)` 자체는 앞의 표에서 본 것처럼 준비 단계일 뿐입니다). 이후 이 객체의 **forward 부분만 실제로 실행**되어 `outputs`가 계산됩니다. 이와 동시에 `outputs`의 `grad_fn`으로 **compiled backward**가 등록되며, backward 부분 자체는 이 시점에서는 호출되지 않고 나중을 위해 보관됩니다.
@@ -480,7 +483,7 @@ def backward(self, ge_scalar, tangents_1):
 
 **`torch.compile` 실행 시 동작 흐름**: Autograd가 활성화된 상태(즉 `requires_grad=True`인 tensor가 포함된 상태)에서 `torch.compile`을 호출하면 위의 1~4번 과정이 순차적으로 일어나 최종적으로 compiled forward와 compiled backward를 모두 가진 `torch.autograd.Function`이 반환됩니다. 이후 training loop에서 이 객체를 호출하면, 이미 컴파일된 형태의 forward와 backward가 그대로 실행되므로 **가속된 training**이 가능해집니다.
 
-이 일련의 과정이 곧 AOTAutograd가 수행하는 "magic"이며, 다음 절부터 그 안에서 구체적으로 어떤 일들이 일어나는지 다룹니다.
+사용자에게 `torch.compile()`은 모델을 빠르게 만들어 주는 한 줄로 보이지만, 그 뒤에서 AOTAutograd가 FX Graph를 받아 joint graph 생성 → forward/backward 분리 → 각각 컴파일 → `torch.autograd.Function`으로 포장하는 일련의 "magic"을 수행하고 있는 것입니다. 다음 절부터 이 magic 안에서 구체적으로 어떤 일들이 일어나는지 하나씩 들여다봅니다.
 
 
 ### Graph Mode Backward의 도전 과제
@@ -537,10 +540,14 @@ def backward(self, ge_scalar, tangents_1):
 </tbody>
 </table>
 
+**정리하면**, AOTAutograd는 (1) backward tracing을 Python이 아닌 **C++ dispatcher 수준**에서 수행하여 "Autograd engine은 C++, Dynamo는 Python"이라는 층위 차이를 극복하고, (2) **FX Graph normalization**(functionalization + decomposition)을 적용하여 eager mode의 dispatcher가 암묵적으로 해 주던 복잡성 처리를 graph mode에서도 명시적으로 수행합니다. 이 두 축을 통해 graph mode에서도 eager mode와 본질적으로 같은 방식의 backward 구성을 가능하게 합니다.
+
 <img src="/images/04/slide22_1.png" alt="AOTAutograd의 C++ dispatcher 수준 tracing과 FX Graph normalization 개요 다이어그램" class="h-72 mx-auto" />
 
 
 ### AOTAutograd Architecture
+
+AOTAutograd 전체 구조를 한눈에 보여주는 그림입니다.
 
 <img src="/images/04/slide25_1.png" alt="AOTAutograd 전체 아키텍처 다이어그램" class="h-64 mx-auto" />
 
@@ -816,7 +823,7 @@ class MyCube(torch.autograd.Function):
 
 **`torch.autograd.Function`은 PyTorch 2.0에서 새로 만들어진 개념이 아닙니다.** 앞서 "PyTorch 1.0: Autograd" 절의 세 번째 특징으로 다뤘던 **custom differentiable function** 기능이 바로 이것으로, 사용자가 직접 만든 custom op에 대해 자신만의 미분 규칙을 기술해 붙일 수 있도록 PyTorch 1.0부터 존재해 온 장치입니다. AOTAutograd는 이 기존 메커니즘을 그대로 재활용합니다.
 
-Dynamo가 FX Graph로 캡처한 덩어리를 eager mode 관점에서 바라보면 **하나의 custom Op**으로 생각할 수 있습니다. 그렇다면 이 custom Op에는 custom 미분 함수가 필요한데, 사람이 수많은 op을 포함하는 FX Graph에 대한 미분 함수를 손으로 작성하기는 사실상 불가능합니다. **AOTAutograd가 바로 그 미분 함수를 자동으로 만들어 주는 역할**을 하고, 생성된 compiled forward/backward를 `torch.autograd.Function`으로 포장하여 "미분 가능한 하나의 custom Op"으로 돌려주는 것입니다. 지금까지 여러 각도에서 설명한 AOTAutograd 내부의 복잡한 과정들이 모두 이 custom 미분 함수를 자동 생성하기 위한 작업이었다고 볼 수 있습니다.
+Dynamo가 FX Graph로 캡처한 덩어리를 eager mode 관점에서 바라보면 **하나의 거대한 custom Op**으로 생각할 수 있습니다. 그렇다면 이 custom Op에는 custom 미분 함수가 필요한데, 사람이 수많은 op을 포함하는 FX Graph에 대한 미분 함수를 손으로 작성하기는 사실상 불가능합니다. **AOTAutograd가 바로 그 미분 함수를 자동으로 만들어 주는 역할**을 하고, 생성된 compiled forward/backward를 `torch.autograd.Function`으로 포장하여 "미분 가능한 하나의 custom Op"으로 돌려주는 것입니다. 지금까지 여러 각도에서 설명한 AOTAutograd 내부의 복잡한 과정들이 모두 이 custom 미분 함수를 자동 생성하기 위한 작업이었다고 볼 수 있습니다.
 
 **`torch.autograd.Function`이 통합하는 두 가지 개념 (PyTorch 공식 문서)**:
 
