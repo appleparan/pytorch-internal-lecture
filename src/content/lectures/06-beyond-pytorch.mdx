@@ -10,7 +10,7 @@ import AttentionTilingDiagram from '../../components/AttentionTilingDiagram.astr
 
 # Week 6: Beyond PyTorch: Custom Kernel과 vLLM
 
-모두연 PyTorch + NPU 온라인 모임 #6 | 2025-02-05
+PyTorch + NPU 온라인 모임 #6 | 2025-02-05
 
 
 ## 소개
@@ -106,12 +106,12 @@ LLM에서 가장 중요한 연산을 하나 꼽으라면 단연 **Self-Attention
 
 <div class="flex flex-col gap-8 mt-6">
   <div class="text-center">
-    <img src="/images/06/slide06_1.png" class="h-72 mx-auto" />
+    <img src="/images/06/slide06_1.png" alt="문장 속 'it' 단어가 다른 단어들과 갖는 self-attention 연관성 시각화" class="h-72 mx-auto" />
     <div class="text-sm mt-2">모든 단어의 kv값과, "it"의 query만 사용</div>
   </div>
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
     <div class="text-center">
-      <img src="/images/06/slide06_2.png" class="h-80 mx-auto" />
+      <img src="/images/06/slide06_2.png" alt="Scaled Dot-Product 계산 흐름: query-key 내적, softmax 정규화, value 가중합으로 새 embedding 생성" class="h-80 mx-auto" />
       <div class="text-sm mt-2">그림 속 $x_1$이 "it"에 해당한다고 가정한 Scaled Dot-Product 계산 흐름</div>
     </div>
     <div class="flex flex-col gap-2">
@@ -149,12 +149,12 @@ Self-Attention의 또 다른 중요한 특징은 **Causal이냐, Non-Causal이�
 
 <div class="grid grid-cols-2 gap-8 mt-4">
 <div class="text-center">
-  <img src="/images/06/slide07_1.png" class="h-64 mx-auto" />
+  <img src="/images/06/slide07_1.png" alt="Non-Causal Attention: 앞뒤 모든 단어를 고려하는 양방향 attention 구조" class="h-64 mx-auto" />
   <p class="mt-2 font-bold">Non-Causal Attention</p>
   <p class="text-sm text-gray-400">앞/뒤 모든 단어를 고려 (양방향)</p>
 </div>
 <div class="text-center">
-  <img src="/images/06/slide07_2.png" class="h-64 mx-auto" />
+  <img src="/images/06/slide07_2.png" alt="Causal Attention: 이전 단어만 고려하는 단방향 attention 구조" class="h-64 mx-auto" />
   <p class="mt-2 font-bold">Causal Attention</p>
   <p class="text-sm text-gray-400">이전 단어만 고려 (단방향)</p>
 </div>
@@ -180,7 +180,7 @@ Prefill과 Decode는 **하나의 큰 모델의 두 단계**로 볼 수도 있지
 
 앞에서 LLM 이야기, 그리고 Prefill·Decode 이야기를 길게 한 진짜 이유는 **두 단계가 서로 다른 계산적 특성을 가진다**는 점을 짚기 위해서입니다. 실제 추론 과정을 시간축에 펼쳐 보면 다음과 같이 생겼습니다.
 
-<img src="/images/06/slide09_1.png" class="h-56 mx-auto" />
+<img src="/images/06/slide09_1.png" alt="LLM 추론 타임라인: 모델 로딩 후 첫 토큰까지의 Prefill과 토큰을 반복 생성하는 Decode 단계" class="h-56 mx-auto" />
 
 > 출처: [https://intel.github.io/intel-npu-acceleration-library/llm_performance.html](https://intel.github.io/intel-npu-acceleration-library/llm_performance.html)
 
@@ -203,7 +203,7 @@ Prefill과 Decode의 가장 중요한 차이는 **여러 토큰을 처리하는 
 
 여기서 헷갈리기 쉬운 부분이 있는데, "동시에 처리해도 된다"는 건 **토큰 간에 영향이 없다**는 뜻이 아닙니다. attention을 통해 왼쪽 토큰이 오른쪽 토큰에 영향을 주는 것은 그대로지만, 어떤 한 토큰의 **다음 토큰을 만들어내기 위한 최종 출력**이 옆 토큰을 처리하는 데 필요한 입력이 아니기 때문에, 모든 토큰을 첫 레이어부터 차근차근 병렬로 진행할 수 있는 것입니다.
 
-<img src="/images/06/prefill-vs-decode.png" class="h-56 mx-auto" />
+<img src="/images/06/prefill-vs-decode.png" alt="Prefill과 Decode의 토큰 간 attention 의존성 비교 다이어그램" class="h-56 mx-auto" />
 
 > 출처: [https://flashinfer.ai/2024/02/02/introduce-flashinfer.html](https://flashinfer.ai/2024/02/02/introduce-flashinfer.html)
 
@@ -225,7 +225,7 @@ Prefill과 Decode의 가장 중요한 차이는 **여러 토큰을 처리하는 
 사실 지금까지 Self-Attention → Causal/Non-Causal → Prefill/Decode를 차례로 빌드업해 온 것은 **이 그래프 한 장을 설명하기 위해서**라고 봐도 무방합니다. 아키텍처나 성능 분석을 하는 분들에게는 익숙한 그래프인데, 이걸 **Roofline Analysis**라고 부릅니다. "Decode 쪽 Memory Bound 영역의 사선"과 "터닝 포인트 이후 평평해지는 가로선"이 마치 **지붕(roof)** 처럼 보인다고 해서 붙은 이름입니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide12_1.png" class="h-72" />
+  <img src="/images/06/slide12_1.png" alt="LLM 추론의 Roofline 분석 그래프: Memory Bound 영역의 Decode와 Compute Bound 영역의 Prefill" class="h-72" />
 </div>
 
 > 출처: [LLM Inference Unveiled: Survey and Roofline Model Insights](https://arxiv.org/abs/2402.16363)
@@ -256,7 +256,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 이건 최근 몇 년 사이의 트렌드가 아니라 **아주 오래전부터** 알려져 온 현상입니다. 아래 인용한 논문은 **1995년**에 나온 것으로, **"Memory Wall"** 이라는 용어를 처음 쓰거나 적어도 널리 알린 출발점이 된 논문입니다. 그때 이미 *"프로세서의 성능은 연산을 얼마나 빨리 처리하느냐가 아니라, 데이터를 얼마나 빨리 들고 오고 내보낼 수 있느냐로 결정된다"* 는 이야기가 자리 잡고 있었던 셈입니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide13_1.png" class="h-64" />
+  <img src="/images/06/slide13_1.png" alt="Memory Wall: 프로세서 연산 성능과 메모리 대역폭 향상 속도의 격차를 보여주는 그래프" class="h-64" />
 </div>
 
 > 출처: [AI and Memory Wall](https://arxiv.org/abs/2403.14123)
@@ -266,7 +266,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 문제는 그 향상 속도에 비해 **하드웨어의 연산 밀도(Computing Density) 증가 속도가 훨씬 빠르다**는 점입니다. 두 곡선의 격차가 점점 벌어지고 있어, 시간이 갈수록 프로세서에서 **상대적인 메모리 성능 문제는 오히려 더 심해지는** 상황입니다. 그래서 LLM 추론을 비롯해 거의 모든 워크로드에서 **메모리 대역폭을 얼마나 효율적으로 쓰느냐**가 결정적인 성능 지표가 됩니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide15_1.png" class="h-64" />
+  <img src="/images/06/slide15_1.png" alt="하드웨어 연산 밀도(Computing Density)와 메모리 대역폭 증가 속도의 격차가 점점 벌어지는 추세 그래프" class="h-64" />
 </div>
 
 
@@ -285,7 +285,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 대표적인 출발점은 **서울대 전병곤 교수님의 [Orca 논문](https://www.usenix.org/conference/osdi22/presentation/yu)** 이고, 이 기술을 기반으로 설립된 회사가 **Friendli AI**입니다. 현재 Continuous Batching은 LLM 서빙에서 **거의 필수에 가까운 핵심 기술**로 자리 잡았습니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide17_1.png" class="h-60" />
+  <img src="/images/06/slide17_1.png" alt="Dynamic Batching과 Continuous Batching의 배치 슬롯 활용 비교" class="h-60" />
 </div>
 
 > 출처: [Continuous vs dynamic batching for AI inference](https://www.baseten.co/blog/continuous-vs-dynamic-batching-for-ai-inference/#continuous-batching-for-llm-inference-in-production)
@@ -310,10 +310,10 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 <div class="grid grid-cols-2 gap-4 mt-4">
 <div>
-  <img src="/images/06/slide18_1.png" class="h-48" />
+  <img src="/images/06/slide18_1.png" alt="Speculative Decoding: 작은 Draft 모델이 여러 토큰의 초안을 빠르게 생성하는 단계" class="h-48" />
 </div>
 <div>
-  <img src="/images/06/slide18_2.png" class="h-48" />
+  <img src="/images/06/slide18_2.png" alt="Speculative Decoding: 큰 Main 모델이 draft 토큰들을 한 번의 forward pass로 검증하는 단계" class="h-48" />
 </div>
 </div>
 
@@ -324,7 +324,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 마지막 토큰 하나를 처리하려면 그 전까지 생성된 **모든 토큰**으로부터 입력을 가져와 Attention을 다시 계산해야 합니다. 한 토큰당 비용이 $O(N)$이고, 그걸 $N$번 반복하니 전체 복잡도는 **$O(N^2)$**. 즉 시퀀스 길이 $N$이 두 배가 되면 Attention에 들어가는 **메모리와 시간이 4배**로 늘어나는 구조입니다. 컨텍스트가 길어지는 추세를 생각하면, 이 자승 항을 어떻게 다루느냐가 LLM 추론 효율의 또 다른 중요한 축이 됩니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide19_1.png" class="h-64" />
+  <img src="/images/06/slide19_1.png" alt="시퀀스 길이에 따라 O(N^2)으로 커지는 causal attention mask 행렬" class="h-64" />
 </div>
 
 > 출처: [4D masks support in Transformers](https://huggingface.co/blog/poedator/4d-masks)
@@ -339,10 +339,10 @@ Flash Attention은 이를 **타일 단위로 쪼개서**(tiling), 한 타일을 
 
 <div class="grid grid-cols-2 gap-4 mt-4">
 <div>
-  <img src="/images/06/slide20_1.png" class="h-56" />
+  <img src="/images/06/slide20_1.png" alt="기존 Attention 구현에서 단계마다 중간 결과를 DRAM에 쓰고 다시 읽는 비효율" class="h-56" />
 </div>
 <div>
-  <img src="/images/06/slide20_2.png" class="h-56" />
+  <img src="/images/06/slide20_2.png" alt="Flash Attention의 tiling 구조: 타일 단위로 on-chip SRAM에 올려 계산하고 결과만 DRAM에 내보내는 방식" class="h-56" />
 </div>
 </div>
 
@@ -364,7 +364,7 @@ Paged Attention은 OS의 virtual memory · paging과 거의 같은 발상으로 
 둘을 **decouple**해두고, **실제로 채워진 만큼만 physical에 할당**(on-demand allocation)합니다. 그 결과 max를 가정한 over-provisioning 없이도 긴 시퀀스를 안전하게 다룰 수 있고, 빈 슬롯 낭비가 사라져 동시에 처리할 수 있는 request 수도 늘어납니다. Flash Attention과 함께 **긴 시퀀스의 attention을 효율적으로 처리**하는 대표적인 기법으로 자리 잡았습니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide21_1.png" class="h-56" />
+  <img src="/images/06/slide21_1.png" alt="Paged Attention: KV cache의 logical cache block과 physical cache block을 decouple해 on-demand로 할당하는 구조" class="h-56" />
 </div>
 
 > 출처: [Efficient Memory Management for Large Language Model Serving with PagedAttention](https://arxiv.org/abs/2309.06180)
@@ -374,7 +374,7 @@ Paged Attention은 OS의 virtual memory · paging과 거의 같은 발상으로 
 이 외에도 **Quantization(양자화)** 이나 **Sparsity(희소성)** 같은 모델 압축 기술 역시 메모리 overhead를 줄이는 데 함께 활용됩니다. (이 강의에서 자세히 다루지는 않습니다.)
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide22_1.png" class="h-56" />
+  <img src="/images/06/slide22_1.png" alt="INT8 양자화와 sparsity를 활용한 모델 경량화 기법 (NVIDIA TensorRT)" class="h-56" />
 </div>
 
 > 출처: [Sparsity in INT8: Training Workflow and Best Practices for NVIDIA TensorRT Acceleration](https://developer.nvidia.com/blog/sparsity-in-int8-training-workflow-and-best-practices-for-tensorrt-acceleration/)
@@ -396,13 +396,13 @@ Flash Attention이 가정하는 GPU 모델은 단순합니다.
 핵심 통찰은 같은 데이터라도 **DRAM에 두고 계산하는 것보다, 한 번 Shared Memory에 올려놓고 그 안에서 계산하는 편이 훨씬 빠르다**는 점입니다. Flash Attention은 입력과 유지해야 하는 데이터가 DRAM에 있더라도 그것을 **타일 단위로 쪼개 Shared Memory에 올려놓고**, 실제 곱·합 연산은 Shared Memory의 높은 대역폭으로 수행합니다. 결국 질문은 이렇게 정리됩니다. **이런 아키텍처적 특성을 어떻게 알고리즘과 코드에 직접 반영해 줄 것인가?**
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide24_1.png" class="h-44" />
+  <img src="/images/06/slide24_1.png" alt="Flash Attention이 가정하는 GPU 모델: Grid 연산기, DRAM, 온칩 Shared Memory 구조" class="h-44" />
 </div>
 
 같은 맥락에서, sequence가 길어질수록 attention 자체가 얼마나 무거워지는지를 한 번에 보여주는 그림은 다음과 같습니다. $Q \times K^T$ → mask → softmax → $\times V$로 이어지는 전 과정에서 **연산량과 메모리 접근량 모두 $O(N^2)$** 으로 커집니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide27_1.png" class="h-44" />
+  <img src="/images/06/slide27_1.png" alt="Attention 계산 흐름: QK^T 곱, mask, softmax, V 곱으로 이어지며 연산량과 메모리 접근량이 O(N^2)으로 커지는 구조" class="h-44" />
 </div>
 
 ### Flash Attention = (Chunked Prefill +) Tiling + Fusion for Attention
@@ -419,7 +419,7 @@ Flash Attention은 앞 절에서 본 비효율을 풀기 위해 **두 가지 핵
 큰 행렬을 통째로 처리하는 대신, 결과 행렬을 작은 타일로 쪼개고 각 타일을 만드는 데 필요한 입력 조각만 한 번씩 Shared Memory에 올려 곱·누적합니다. 같은 데이터를 여러 번 DRAM에서 다시 읽지 않고 재사용할 수 있어, 메모리 트래픽이 크게 줄어듭니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/tiling.gif" class="h-64" />
+  <img src="/images/06/tiling.gif" alt="Tiled Matrix Multiplication 애니메이션: 결과 행렬을 타일 단위로 쪼개 입력 조각을 재사용하며 곱·누적하는 과정" class="h-64" />
 </div>
 
 > 출처: [Tiled Matrix Multiplication](https://penny-xu.github.io/blog/tiled-matrix-multiplication?curius=1144)
@@ -430,12 +430,12 @@ Flash Attention은 앞 절에서 본 비효율을 풀기 위해 **두 가지 핵
 
 <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-center mt-4">
   <div class="text-center">
-    <img src="/images/06/fusion-multi.png" class="h-44 mx-auto" />
+    <img src="/images/06/fusion-multi.png" alt="Fusion 이전: op마다 중간 결과를 DRAM에 썼다가 다시 읽는 왕복 구조" class="h-44 mx-auto" />
     <div class="text-sm mt-2">op마다 DRAM 왕복</div>
   </div>
   <div class="text-3xl text-center" style="color:#3a7bd5">→</div>
   <div class="text-center">
-    <img src="/images/06/fusion-fused.png" class="h-44 mx-auto" />
+    <img src="/images/06/fusion-fused.png" alt="Fusion 이후: 여러 op을 하나의 커널로 합쳐 최종 결과만 DRAM에 한 번 내보내는 구조" class="h-44 mx-auto" />
     <div class="text-sm mt-2">하나의 커널로 fuse</div>
   </div>
 </div>
@@ -650,11 +650,11 @@ GPU 아키텍처는 CUDA가 가정했던 깨끗한 SIMT 아키텍처에서, 다�
 
 <div class="grid grid-cols-2 gap-8 mt-4">
 <div class="text-center">
-  <img src="/images/06/slide32_1.png" class="h-36 mx-auto" />
+  <img src="/images/06/slide32_1.png" alt="CUDA가 가정한 깨끗한 SIMT GPU 아키텍처" class="h-36 mx-auto" />
   <p class="text-sm mt-2">CUDA가 가정한, 깨끗한 SIMT 아키텍쳐</p>
 </div>
 <div class="text-center">
-  <img src="/images/06/slide32_2.png" class="h-56 mx-auto" />
+  <img src="/images/06/slide32_2.png" alt="최적화 기능이 추가되면서 현저히 복잡해진 최근 GPU 아키텍처" class="h-56 mx-auto" />
   <p class="text-sm mt-2">최적화 기능이 추가되면서 현저히 복잡해진 최근 GPU</p>
 </div>
 </div>
@@ -662,13 +662,13 @@ GPU 아키텍처는 CUDA가 가정했던 깨끗한 SIMT 아키텍처에서, 다�
 **CUTLASS**는 이렇게 복잡해진 GPU의 계층적 병렬 수행을 개발자가 직접 control할 수 있도록 **C++ template**을 제공하는 라이브러리입니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide33_1.png" class="h-52" />
+  <img src="/images/06/slide33_1.png" alt="CUTLASS: GPU의 계층적 병렬 수행을 직접 제어할 수 있게 해주는 C++ template 라이브러리 구조" class="h-52" />
 </div>
 
 하지만 최적화된 CUDA Kernel을 작성하는 것은 여전히 만만치 않습니다. **GEMM 커널 하나를 GPU peak 성능에 가깝게 끌어올리는 데 어떤 기법을 거쳐야 하는지**가 다음 슬라이드 한 장에 잘 드러납니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/How_Difficult_It_Is_to_Optimize_a_GEMM_Kernel.png" class="max-w-2xl mx-auto" />
+  <img src="/images/06/How_Difficult_It_Is_to_Optimize_a_GEMM_Kernel.png" alt="GEMM 커널 하나를 GPU peak 성능까지 끌어올리기 위해 거쳐야 하는 단계별 최적화 기법들" class="max-w-2xl mx-auto" />
 </div>
 
 정리하면 다음과 같습니다.
@@ -694,14 +694,14 @@ GPU 하드웨어는 겉보기엔 단순해 보이지만, 실제로 풀 성능을
 > "OpenAI's Triton is very disruptive angle to Nvidia's closed-source software moat for machine learning."
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide35_1.png" class="h-52" />
+  <img src="/images/06/slide35_1.png" alt="OpenAI Triton: NVIDIA의 closed-source 소프트웨어 moat에 대한 오픈소스 대안 커널 프로그래밍 언어" class="h-52" />
 </div>
 
 Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programming 간에는 Semantic Gap이 크지만, Triton은 개발자가 의도를 손쉽게 표현할 수 있는 block programming model을 제공하고, GPU 최적화를 위한 세부 사항은 **컴파일러 기술**로 해결합니다.
 
 <div class="grid grid-cols-2 gap-4 mt-4">
 <div>
-  <img src="/images/06/slide36_1.png" class="h-52" />
+  <img src="/images/06/slide36_1.png" alt="Triton의 Block Programming Model과 CUDA 사이의 semantic gap을 컴파일러가 메우는 구조" class="h-52" />
 </div>
 <div class="flex flex-col justify-center text-sm">
 
@@ -733,7 +733,7 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 또 다른 축은 더 위쪽, **서빙(serving) 레이어**입니다. 앞서 본 **Continuous Batching**, **Speculative Decoding** 같은 **고수준 최적화 기법**들이 점점 더 서빙 프레임워크 내부의 기본 기능으로 흡수되고 있습니다. 즉 오늘날 LLM 추론 스택을 보면, 모델·커널 위에 **Inference Engine**과 **Inference Server**가 한 층 더 얹혀 있고, 우리가 다룬 batching·decoding·KV cache 관리 같은 기법들이 이 층에서 기본으로 동작합니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/inference-engines-and-servers-architecture.png" class="max-w-2xl mx-auto" />
+  <img src="/images/06/inference-engines-and-servers-architecture.png" alt="LLM 추론 스택에서 모델·커널 위에 얹히는 Inference Engine과 Inference Server 아키텍처" class="max-w-2xl mx-auto" />
 </div>
 
 > 출처: [Koyeb - LLM Inference Engines and Servers](https://www.koyeb.com/blog/llm-inference-engines-and-servers)
@@ -745,19 +745,19 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 ### vLLM에 반영된 핵심 최적화 기법
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide42_1.png" class="h-72" />
+  <img src="/images/06/slide42_1.png" alt="vLLM에 반영된 핵심 최적화 기법 개요" class="h-72" />
 </div>
 
 앞서 다룬 중요한 최적화 기술들은 대부분 vLLM에 반영되어 있습니다.
 
 <div class="grid grid-cols-2 gap-4 mt-4">
 <div>
-  <img src="/images/06/slide43_1.png" class="h-32" />
-  <img src="/images/06/slide43_2.png" class="h-32 mt-2" />
+  <img src="/images/06/slide43_1.png" alt="vLLM에 반영된 최적화 기법 (1/4)" class="h-32" />
+  <img src="/images/06/slide43_2.png" alt="vLLM에 반영된 최적화 기법 (2/4)" class="h-32 mt-2" />
 </div>
 <div>
-  <img src="/images/06/slide43_3.png" class="h-32" />
-  <img src="/images/06/slide43_4.png" class="h-32 mt-2" />
+  <img src="/images/06/slide43_3.png" alt="vLLM에 반영된 최적화 기법 (3/4)" class="h-32" />
+  <img src="/images/06/slide43_4.png" alt="vLLM에 반영된 최적화 기법 (4/4)" class="h-32 mt-2" />
 </div>
 </div>
 
@@ -770,7 +770,7 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 이 점은 **AI 반도체 회사**, 특히 **추론에 최적화된 NPU**를 만드는 입장에서 굉장히 중요합니다. **PyTorch만 잘 지원해두면 vLLM에서도 자연스럽게 우리 하드웨어가 활용**될 수 있다는 뜻이기 때문입니다. 결국 우리 같은 회사 관점에서는 **PyTorch 지원 + vLLM 활용 가능성**, 이 두 축을 모두 잘 갖춰두는 것이 핵심 전략이 됩니다.
 
 <div class="flex justify-center mt-4">
-  <img src="/images/06/slide44_1.png" class="h-64" />
+  <img src="/images/06/slide44_1.png" alt="vLLM의 계층 구조: 하드웨어 위에 PyTorch가 추상화 레이어로 놓이고 그 위에 vLLM이 올라가는 구성" class="h-64" />
 </div>
 
 ### 기타 상용 프레임워크
