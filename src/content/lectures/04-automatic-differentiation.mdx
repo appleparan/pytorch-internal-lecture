@@ -72,8 +72,8 @@ $$\frac{dy}{dx} = \frac{dy/dt}{dx/dt}$$
 
 $$f(x_1, x_2) = \ln(x_1) + x_1 x_2 - \sin(x_2)$$
 
-<img src="/images/04/slide06_1.png" class="h-28" />
-<img src="/images/04/slide06_3.png" class="h-40 mx-auto mt-2" />
+<img src="/images/04/slide06_1.png" alt="예제 함수 f(x1, x2) = ln(x1) + x1x2 - sin(x2)의 autodiff 계산 과정" class="h-28" />
+<img src="/images/04/slide06_3.png" alt="예제 함수의 computation graph" class="h-40 mx-auto mt-2" />
 
 이 함수의 computation graph를 구성하면, 각 중간 연산 노드에서의 gradient를 chain rule을 통해 역방향으로 전파할 수 있습니다. 자세한 내용은 [Baydin et al. (2018)](https://www.jmlr.org/papers/volume18/17-468/17-468.pdf)을 참고하세요.
 
@@ -542,14 +542,14 @@ def backward(self, ge_scalar, tangents_1):
 
 **정리하면**, AOTAutograd는 (1) backward tracing을 Python이 아닌 **C++ dispatcher 수준**에서 수행하여 "Autograd engine은 C++, Dynamo는 Python"이라는 층위 차이를 극복하고, (2) **FX Graph normalization**(functionalization + decomposition)을 적용하여 eager mode의 dispatcher가 암묵적으로 해 주던 복잡성 처리를 graph mode에서도 명시적으로 수행합니다. 이 두 축을 통해 graph mode에서도 eager mode와 본질적으로 같은 방식의 backward 구성을 가능하게 합니다.
 
-<img src="/images/04/slide22_1.png" class="h-72 mx-auto" />
+<img src="/images/04/slide22_1.png" alt="AOTAutograd의 C++ dispatcher 수준 tracing과 FX Graph normalization 개요 다이어그램" class="h-72 mx-auto" />
 
 
 ### AOTAutograd Architecture
 
 AOTAutograd가 어떻게 생겼는지 전체 구조를 한눈에 보여주는 그림을 참고해보겠습니다.
 
-<img src="/images/04/slide25_1.png" class="h-64 mx-auto" />
+<img src="/images/04/slide25_1.png" alt="AOTAutograd 전체 아키텍처 다이어그램" class="h-64 mx-auto" />
 
 > 출처: [Hotchips 2023 Tutorial: ML Inference (YouTube)](https://www.youtube.com/watch?v=i-dOWSHk3Wk)
 
@@ -728,7 +728,7 @@ to give us the forwards pass and the backwards pass.
 
 앞 절의 `joint_fw_bw`를 C++ dispatcher 수준에서 trace하면, forward와 backward가 모두 하나의 graph 안에 들어간 **joint FX Graph**가 만들어집니다. 이것이 수행 순서표의 **D 단계** 결과물입니다.
 
-<img src="/images/04/slide30_1.png" class="h-56 mx-auto" />
+<img src="/images/04/slide30_1.png" alt="Forward와 backward 연산이 하나의 그래프에 공존하는 joint FX Graph 예제" class="h-56 mx-auto" />
 
 위 그래프에서 볼 수 있듯, forward 연산과 backward 연산이 동일한 계산 그래프 안에 공존하며, forward에서 만들어진 중간 텐서가 backward 노드의 입력으로 연결되는 관계까지 전부 살아 있습니다. 이 구조 덕분에 이어지는 G 단계의 partitioning에서 "어떤 텐서는 저장하고 어떤 텐서는 재계산할지"를 판단할 수 있게 됩니다.
 
@@ -737,7 +737,7 @@ to give us the forwards pass and the backwards pass.
 
 D 단계에서 만들어진 joint graph는 아직 Torch IR 수준의 고수준 op들을 포함하고 있습니다. **E 단계**(Decomposition)에서는 이 op들을 더 낮은 수준의 작은 op들로 분해하여, backend compiler가 다루기 쉬운 형태로 내려 줍니다. 참고로 **C 단계의 Functionalization**(aliasing/mutation 제거)도 이 흐름 상에서 같이 이해해 두면 normalization 전체 그림이 잡힙니다.
 
-<img src="/images/04/slide31_1.png" class="h-72 mx-auto" />
+<img src="/images/04/slide31_1.png" alt="Torch IR에서 Prims IR까지 내려가는 Decomposition IR 계층 다이어그램" class="h-72 mx-auto" />
 
 IR 계층은 다음과 같이 단계적으로 내려갑니다:
 
@@ -754,8 +754,8 @@ E 단계까지 거쳐 정규화된 joint FX Graph를 이제 **G 단계에서 for
 입력은 [D 단계] Joint Graph Example에서 본 그래프, 즉 forward와 backward 노드가 한 그래프 안에 얽혀 있는 상태입니다. 여기에 Min-Cut을 적용하면 forward와 backward가 각각 독립된 FX Graph로 깔끔하게 분리됩니다.
 
 <div class="flex flex-col items-center gap-4 mt-4 max-w-3xl mx-auto">
-  <img src="/images/04/slide32_1.png" class="w-full h-auto" />
-  <img src="/images/04/slide32_2.png" class="w-full h-auto" />
+  <img src="/images/04/slide32_1.png" alt="Min-Cut partitioning으로 분리된 forward FX Graph" class="w-full h-auto" />
+  <img src="/images/04/slide32_2.png" alt="Min-Cut partitioning으로 분리된 backward FX Graph" class="w-full h-auto" />
 </div>
 
 이 partitioning 과정에서 한 가지 흥미로운 점은 **단순히 joint graph를 반으로 자르는 것이 아니라, 계산을 어느 쪽에 둘지까지 최적화**한다는 것입니다. 앞쪽 "What Happens When Training with torch.compile()?" 절에서 본 compiled `forward`/`backward` 코드를 다시 떠올려 보면, backward에서 쓰일 비교 결과(`ge_scalar`)가 **forward 쪽에서 미리 계산되어 반환**되고 있습니다. 이것이 슬라이드의 *"Partitioner moved backward compute to forwards!"* 주석이 가리키는 부분이며, partitioner가 메모리/연산 trade-off를 고려해 계산 위치를 옮긴 결과입니다.
@@ -770,7 +770,7 @@ Partitioning이 끝나면 forward graph와 backward graph 각각이 독립된 FX
 
 <div>
 
-<img src="/images/04/slide33_1.png" class="w-full h-auto" />
+<img src="/images/04/slide33_1.png" alt="모든 중간 activation을 저장할 때의 GPU 메모리 사용을 보여주는 다이어그램" class="w-full h-auto" />
 
 Batch size가 커질수록 forward 과정의 중간 activation도 함께 커지며, 이 값들을 전부 저장해 두면 GPU 메모리를 상당히 많이 차지합니다.
 
@@ -778,7 +778,7 @@ Batch size가 커질수록 forward 과정의 중간 activation도 함께 커지�
 
 <div>
 
-<img src="/images/04/slide33_2.png" class="w-full h-auto" />
+<img src="/images/04/slide33_2.png" alt="Segment별 입력 activation만 저장하고 backward 시 재계산하는 activation checkpointing 다이어그램" class="w-full h-auto" />
 
 Segment별로 **입력 activation만** 저장해 두고, backward를 수행할 때 segment 단위로 forward를 다시 돌려 필요한 중간값을 그때그때 재계산합니다.
 
@@ -844,7 +844,7 @@ AOTAutograd가 만들어낸 `torch.autograd.Function`이 실제 학습 루프에
 사용자가 compiled model을 호출하면 `torch.autograd.Function`의 `forward()` 부분이 실제로 실행됩니다. 이 forward 코드는 등록된 backend가 이미 컴파일해 둔 상태이므로 가속된 형태로 동작합니다.
 
 <div class="flex flex-col items-center gap-2 mt-4 max-w-3xl mx-auto">
-  <img src="/images/04/slide32_1.png" class="w-full h-auto" />
+  <img src="/images/04/slide32_1.png" alt="등록된 backend가 미리 컴파일한 forward graph" class="w-full h-auto" />
   <p class="text-sm text-center">→ 등록된 backend가 forward를 미리 컴파일</p>
 </div>
 
@@ -857,7 +857,7 @@ Forward가 실행되는 동안, 함께 묶여 있던 compiled `backward()`는 �
 이후 loss 쪽에서 `backward()`가 호출되면 Autograd engine이 등록된 `grad_fn`을 따라 내려오다가 [2]에서 걸어 둔 compiled backward에 도달하고, 이때 한 스텝으로 backward 함수가 실행됩니다. 이 backward 코드 역시 등록된 backend가 별도로 컴파일해 둔 형태이므로 가속된 실행이 이루어집니다.
 
 <div class="flex flex-col items-center gap-2 mt-4 max-w-3xl mx-auto">
-  <img src="/images/04/slide32_2.png" class="w-full h-auto" />
+  <img src="/images/04/slide32_2.png" alt="등록된 backend가 미리 컴파일한 backward graph" class="w-full h-auto" />
   <p class="text-sm text-center">→ 등록된 backend가 backward를 미리 컴파일</p>
 </div>
 

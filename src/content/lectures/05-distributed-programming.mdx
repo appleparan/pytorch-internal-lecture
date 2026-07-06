@@ -35,7 +35,7 @@ PyTorch + NPU 온라인 모임 #5 | 2025-01-15
 
 **MPI**
 
-<img src="/images/05/slide05_1.png" class="h-48 mx-auto" />
+<img src="/images/05/slide05_1.png" alt="MPI의 Distributed Memory 모델 구조도" class="h-48 mx-auto" />
 
 Distributed Memory
 
@@ -44,7 +44,7 @@ Distributed Memory
 
 **OpenMP**
 
-<img src="/images/05/slide05_2.png" class="h-48 mx-auto" />
+<img src="/images/05/slide05_2.png" alt="OpenMP의 Shared Memory 모델 구조도" class="h-48 mx-auto" />
 
 Shared Memory
 
@@ -64,7 +64,7 @@ MPI와 OpenMP는 밑에 있는 메모리 시스템에 대한 가정뿐만 아니
 
 **MPI**
 
-<img src="/images/05/slide06_1.png" class="h-48 mx-auto" />
+<img src="/images/05/slide06_1.png" alt="MPI의 독립적인 프로세스들의 묶음 구조" class="h-48 mx-auto" />
 
 독립적인 프로세스들의 묶음
 
@@ -73,7 +73,7 @@ MPI와 OpenMP는 밑에 있는 메모리 시스템에 대한 가정뿐만 아니
 
 **OpenMP**
 
-<img src="/images/05/slide06_2.png" class="h-48 mx-auto" />
+<img src="/images/05/slide06_2.png" alt="OpenMP의 Master-Worker (Fork-Join) 모델 구조" class="h-48 mx-auto" />
 
 Master-Worker (Fork-Join) 모델
 
@@ -88,7 +88,7 @@ PyTorch의 분산 학습에서 각 GPU 프로세스가 독립적으로 동일한
 
 ### MPI 프로그램 구조
 
-<img src="/images/05/slide07_1.png" class="h-80 mx-auto" />
+<img src="/images/05/slide07_1.png" alt="MPI 프로그램 구조: 각 프로세스의 initialization, 병렬 job 수행, finalize 단계" class="h-80 mx-auto" />
 
 MPI 프로그램은 대체로 위와 같이 구성됩니다. MPI를 사용할 때 많은 경우 **여러 프로세스에서 동일한 프로그램(single program)을 돌리는 방식**이 일반적이며, 특히 PyTorch로 작성된 근사 모델의 경우 대부분 이런 방식을 따릅니다. 실제로는 동일한 코드가 각각의 다른 프로세스에서 실행된다고 생각하면 됩니다.
 
@@ -254,8 +254,8 @@ c10d에는 보편적으로 쓰이는 collective communication API들이 폭넓�
 <hr style="margin: 0.5rem 0; border-top: 1px solid #94a3b8;" />
 
 <div class="grid grid-cols-2 gap-x-4">
-  <img src="/images/05/torch_distributed_scatter.png" class="h-56 mx-auto diagram-bg p-2 rounded" />
-  <img src="/images/05/torch_distributed_gather.png" class="h-56 mx-auto diagram-bg p-2 rounded" />
+  <img src="/images/05/torch_distributed_scatter.png" alt="Scatter 연산: 하나의 프로세스가 가진 데이터를 여러 프로세스에 분산" class="h-56 mx-auto diagram-bg p-2 rounded" />
+  <img src="/images/05/torch_distributed_gather.png" alt="Gather 연산: 여러 프로세스의 데이터를 하나의 프로세스로 수집" class="h-56 mx-auto diagram-bg p-2 rounded" />
 </div>
 
 **Reduce / All-Reduce**: 여러 프로세스의 데이터를 하나로 합치는 연산. 분산 학습에서 gradient를 합산할 때 All-Reduce가 핵심적으로 사용됨
@@ -268,8 +268,8 @@ c10d에는 보편적으로 쓰이는 collective communication API들이 폭넓�
 <hr style="margin: 0.5rem 0; border-top: 1px solid #94a3b8;" />
 
 <div class="grid grid-cols-2 gap-x-4">
-  <img src="/images/05/torch_distributed_reduce.png" class="h-56 mx-auto diagram-bg p-2 rounded" />
-  <img src="/images/05/torch_distributed_all_reduce.png" class="h-56 mx-auto diagram-bg p-2 rounded" />
+  <img src="/images/05/torch_distributed_reduce.png" alt="Reduce 연산: 여러 프로세스의 데이터를 연산으로 합쳐 하나의 프로세스에 저장" class="h-56 mx-auto diagram-bg p-2 rounded" />
+  <img src="/images/05/torch_distributed_all_reduce.png" alt="All-Reduce 연산: 여러 프로세스의 데이터를 합쳐 결과를 모든 프로세스에 공유" class="h-56 mx-auto diagram-bg p-2 rounded" />
 </div>
 
 **Broadcast / All-Gather**: 한쪽의 데이터를 모든 프로세스로 퍼뜨리거나 모으는 연산
@@ -282,8 +282,8 @@ c10d에는 보편적으로 쓰이는 collective communication API들이 폭넓�
 <hr style="margin: 0.5rem 0; border-top: 1px solid #94a3b8;" />
 
 <div class="grid grid-cols-2 gap-x-4">
-  <img src="/images/05/torch_distributed_broadcast.png" class="h-56 mx-auto diagram-bg p-2 rounded" />
-  <img src="/images/05/torch_distributed_all_gather.png" class="h-56 mx-auto diagram-bg p-2 rounded" />
+  <img src="/images/05/torch_distributed_broadcast.png" alt="Broadcast 연산: 한 프로세스의 데이터를 모든 프로세스에 동일하게 전달" class="h-56 mx-auto diagram-bg p-2 rounded" />
+  <img src="/images/05/torch_distributed_all_gather.png" alt="All-Gather 연산: 각 프로세스가 가진 서로 다른 데이터를 모든 프로세스에 수집" class="h-56 mx-auto diagram-bg p-2 rounded" />
 </div>
 
 #### Communication Backends
@@ -671,7 +671,7 @@ def fsdp_main(rank, world_size, args):
     ……
 ```
 
-<img src="/images/05/slide33_1.png" class="h-40 mt-4 mx-auto" />
+<img src="/images/05/slide33_1.png" alt="FSDP 동작 다이어그램 (PyTorch FSDP: Experiences on Scaling Fully Sharded Data Parallel)" class="h-40 mt-4 mx-auto" />
 
 <div class="text-xs mt-2 text-center">
 
@@ -719,7 +719,7 @@ for transformer_block in model.layers:
     )
 ```
 
-<img src="/images/05/slide35_1.png" class="h-56 mx-auto" />
+<img src="/images/05/slide35_1.png" alt="Megatron-LM의 Tensor Parallel 분할 다이어그램" class="h-56 mx-auto" />
 
 <div class="text-xs mt-2 text-center">
 

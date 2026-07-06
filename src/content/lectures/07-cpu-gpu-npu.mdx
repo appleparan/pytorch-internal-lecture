@@ -63,7 +63,7 @@ PyTorch + NPU 온라인 모임 #7 | 2025-02-12
 
 그렇다면 한 가지 자연스러운 질문이 생깁니다. 왜 이렇게 추상화 레이어가 많이 생기게 되었을까요? 특히 하드웨어 단에서, 보통 프로세서를 떠올리면 ISA(Instruction Set Architecture)로 소프트웨어에 노출되는 것을 생각하지만, 그 밑에 있는 Datapath와 ISA가 왜 분리되어 있는지 짚어볼 만합니다.
 
-<img src="/images/07/slide07_1.png" />
+<img src="/images/07/slide07_1.png" alt="무어의 법칙에 따른 Datapath 복잡도 증가와 ISA/Microarchitecture의 분리" />
 
 핵심 배경에는 **무어의 법칙**이 있습니다. 무어의 법칙이 활발히 작동하던 시절에는 트랜지스터 수가 18개월마다 두 배씩 늘어났고, 그렇게 늘어난 트랜지스터로 더 많은 컴포넌트를 집적해 프로세서가 점점 더 많은 일을 처리하도록 만들 수 있었습니다. 그 결과 하드웨어, 특히 Datapath는 세대마다 점점 더 복잡해졌습니다.
 
@@ -76,7 +76,7 @@ PyTorch + NPU 온라인 모임 #7 | 2025-02-12
 
 이번 강의에서 결국 비교하고 싶은 것은 **NPU가 GPU와 어떻게 다른가**입니다. 그러나 그 차이를 한 번에 설명하기보다는, 다양한 하드웨어를 **Latency Hiding**이라는 공통 측면에서 비교하면서 점진적으로 빌드업해 나가는 편이 훨씬 이해하기 쉽습니다. 그래서 본격적인 비교에 앞서, Latency Hiding을 이야기할 때 빠지지 않는 두 가지 기본 개념(Latency와 Throughput)을 먼저 정리하고 넘어갑니다.
 
-<img src="/images/07/slide09_1.png" />
+<img src="/images/07/slide09_1.png" alt="Latency와 Throughput의 개념 비교" />
 
 - **Latency**: 하나의 작업을 완료하는 데 걸리는 시간.
 - **Throughput**: 단위 시간당 처리되는 작업의 양, 즉 얼마나 빠른 속도로 작업이 처리되는가.
@@ -150,7 +150,7 @@ Latency Hiding의 가장 기본적인 형태는 명령어 수준의 파이프라
 
 크게 보면 명령어 인코딩 방식은 **Vertical**과 **Horizontal** 두 가지로 나눌 수 있습니다. Horizontal 방식은 뒤에서 VLIW를 다룰 때 다시 등장하므로 여기서는 먼저 Vertical 방식을 살펴봅니다.
 
-<img src="/images/07/slide14_1.png" />
+<img src="/images/07/slide14_1.png" alt="Vertical Encoding: 압축된 명령어가 디코딩을 거쳐 Datapath 제어 신호로 펼쳐지는 구조" />
 
 일반적으로 우리가 떠올리는 **RISC나 CISC 명령어 세트는 Vertical Encoding 방식**으로 인코딩되어 있습니다. 명령어의 각 비트가 실제 하드웨어에서 어떤 역할을 하는지 그대로 노출되어 있는 것이 아니라, 위쪽 (명령어) 단계에서는 정보가 **중첩된 형태로 압축**되어 있고, 디코딩 단계를 거쳐서야 그 중첩이 풀려 데이터패스의 각 유닛을 제어하는 실제 신호로 펼쳐집니다.
 
@@ -160,7 +160,7 @@ Latency Hiding의 가장 기본적인 형태는 명령어 수준의 파이프라
 
 지금까지 추상적으로 이야기한 5단계가 실제 하드웨어에서는 어떤 모습인지 한번 들여다 보겠습니다.
 
-<img src="/images/07/slide15_1.png" />
+<img src="/images/07/slide15_1.png" alt="MIPS 5-Stage Pipeline의 상세 하드웨어 구조" />
 
 그림은 앞서 말한 다섯 개의 스테이지가 실제로 분리되어 연결된 구조를 보여줍니다. **IF** 단계에서 인스트럭션 메모리로부터 명령어를 가져오면, 그 다음 단에 있는 큰 박스(**ID** 단계)에서 디코딩이 일어나며 명령어가 **여러 개의 제어 신호로 분기**됩니다. 이렇게 분기된 신호들이 가는 곳이 다양합니다.
 
@@ -177,7 +177,7 @@ Latency Hiding의 가장 기본적인 형태는 명령어 수준의 파이프라
 
 지금까지 본 파이프라이닝은 항상 이상적인 x5 Throughput을 보여주는 것처럼 묘사했지만, 실제로는 그렇지 않은 경우가 종종 있습니다. **파이프라인 버블(Bubble)** 또는 **파이프라인 스톨(Stall)** 이라고 부르는 현상이 그것입니다. 이 상황에서는 파이프라인의 어느 stage를 채우지 못해, 그 cycle을 통째로 낭비하게 됩니다.
 
-<img src="/images/07/slide16_1.png" />
+<img src="/images/07/slide16_1.png" alt="레지스터 의존성에 의한 Data Hazard와 Bypass Logic(Forwarding)" />
 
 버블이 발생하는 원인 중 대표적인 것이 **레지스터 간 의존성에 의한 Data Hazard**입니다. 앞 명령어가 아직 결과를 레지스터에 쓰지 않았는데, 뒤 명령어가 그 값을 읽어야 하는 상황이 그것입니다.
 
@@ -189,7 +189,7 @@ Latency Hiding의 가장 기본적인 형태는 명령어 수준의 파이프라
 
 Bypass Logic으로 상당수의 Data Hazard를 해결할 수 있다고 했지만, 파이프라이닝에서 **완벽하게 숨기기가 어려운 대표적인 케이스**가 하나 있습니다. 바로 **Branch(분기) 명령어**입니다.
 
-<img src="/images/07/slide17_1.png" />
+<img src="/images/07/slide17_1.png" alt="파이프라인에서 분기 결과가 늦게 결정되어 발생하는 Branch Latency 문제" />
 
 문제의 구조는 이렇습니다. 파이프라인의 첫 단계는 **IF(Instruction Fetch)** 인데, Fetch를 하려면 인스트럭션 메모리의 어느 주소에 다음 명령어가 있는지를 알아야 합니다. 그런데 Branch 명령어를 만나면 그 다음 명령어가 어디에 있는지가 **분기 조건과 분기 대상 주소가 계산되어야 비로소 결정됩니다**. 그리고 그 계산은 보통 파이프라인의 **후반 스테이지**에서 일어납니다.
 
@@ -201,7 +201,7 @@ Bypass Logic으로 상당수의 Data Hazard를 해결할 수 있다고 했지만
 
 이 Branch 문제를 해결하기 위한 기법 중 하나로, MIPS 아키텍처는 **Branch Delay Slot**이라는 다소 흥미로운 방법을 도입했습니다.
 
-<img src="/images/07/slide18_1.png" />
+<img src="/images/07/slide18_1.png" alt="MIPS의 Branch Delay Slot을 이용한 Branch Latency Hiding" />
 
 아이디어는 이렇습니다. **분기 명령어 바로 뒤에 위치한 명령어 한 개**(= Delay Slot에 들어간 명령어)는, 분기가 Taken이든 Not Taken이든 **무조건 실행되도록 ISA의 의미를 정해 버리는 것**입니다. 그러면 파이프라인이 분기 결과를 기다리며 비어 있을 cycle 슬롯을 그 명령어로 채울 수 있어, 버블이 사라집니다.
 
@@ -219,7 +219,7 @@ Bypass Logic으로 상당수의 Data Hazard를 해결할 수 있다고 했지만
 
 Branch는 생각보다 굉장히 빈번하게 일어납니다. 워드프로세서·웹브라우저처럼 일반적으로 "Integer program"이라 부르는 워크로드에서는 **6~7개 명령어 중 하나는 Branch**일 정도입니다. 이때마다 Branch Latency가 그대로 노출되어 버블이 생긴다면 성능에 큰 영향을 줍니다. 그래서 Delay Slot처럼 ISA의 의미를 바꾸는 트릭이 아니라, **하드웨어 자체에 별도 장치**를 두어 Branch Latency를 숨기는 방식이 등장합니다. 그 가장 보편적이고 유명한 장치가 바로 **Branch Prediction**입니다.
 
-<img src="/images/07/slide19_1.png" />
+<img src="/images/07/slide19_1.png" alt="Branch Prediction과 Branch Target Buffer(BTB)를 통한 Branch Latency Hiding" />
 
 #### 무엇을 예측해야 하는가?
 
@@ -513,7 +513,7 @@ OOO Processor는 명령어가 들어올 때마다 코드에 적힌 Architectural
 
 지금까지 이야기한 OOO 동작이 실제 상용 프로세서에서는 어떻게 생겼는지, **Intel Core 아키텍처**의 다이어그램으로 한번 확인해 보겠습니다.
 
-<img src="/images/07/slide26_1.png" />
+<img src="/images/07/slide26_1.png" alt="Intel Core 아키텍처의 OOO Engine 다이어그램 (RAT, Reservation Station, Reorder Buffer)" />
 
 이 그림은 앞 절에서 개념적으로 설명한 **"동적으로 Data-Flow Graph를 만들어서 실행하는 엔진"** 의 실제 구현 단면입니다. 앞 절의 추상화된 자료구조들이 각각 별도의 장치로 구현되어 함께 동작합니다.
 
@@ -567,7 +567,7 @@ VLIW는 여기에 정반대 방향의 답을 내놓습니다. **OOO와 똑같은
 
 VLIW의 발상이 실제 하드웨어 도면 위에 어떻게 그려지는지 보겠습니다.
 
-<img src="/images/07/slide30_1.png" />
+<img src="/images/07/slide30_1.png" alt="병렬 Functional Unit들과 파티션된 레지스터 파일로 구성된 VLIW 아키텍처 구조" />
 
 그림에서 가장 눈에 띄는 점은, **여러 Functional Unit(연산 유닛)이 병렬로 늘어서 있고** 그 옆에 값을 저장·읽을 수 있는 레지스터 파일이 함께 배치되어 있다는 점입니다. 이런 외형 자체는 사실 OOO Processor의 실행부와도 꽤 닮아 있습니다. 결정적인 차이는 **이 유닛들에게 매 cycle 무엇을 시킬지를 누가, 어떻게 표현하느냐**에 있습니다.
 
@@ -587,7 +587,7 @@ VLIW에서 한 가지 미묘한 어려움이 있습니다. Functional Unit 개�
 
 ### Very Long Instruction Word (VLIW): Horizontal Encoding
 
-<img src="/images/07/slide31_1.png" />
+<img src="/images/07/slide31_1.png" alt="VLIW의 Horizontal Encoding: 한 명령어에 각 유닛의 동작이 길게 펼쳐진 형식" />
 
 이 절의 제목인 "Very Long Instruction Word"는 이름 그대로, **한 cycle에 하드웨어 전체에게 무엇을 시킬지가 한 줄에 길게 적혀 있는 명령어 형식**을 가리킵니다. 이 형식을 인코딩 관점에서 보면, 앞서 Instruction-Level Pipelining 절에서 다뤘던 **Vertical Encoding의 정반대 방향**에 위치합니다. 그래서 이 방식을 흔히 **Horizontal Encoding**이라고 부릅니다.
 
@@ -650,7 +650,7 @@ VLIW에서 한 가지 미묘한 어려움이 있습니다. Functional Unit 개�
 
 지금까지 본 VLIW 기법들(Loop Pipeline, Horizontal Encoding, Functional Unit 병렬 제어)은 사실 **꽤 오래된 아이디어**입니다. 그리고 이 모든 것을 컴파일러가 실제로 만들어 내기 위해 사용하는 가장 대표적인 알고리즘이 바로 **Modulo Scheduling**(대표적인 구현이 *Iterative Modulo Scheduling*)입니다.
 
-<img src="/images/07/slide33_1.png" />
+<img src="/images/07/slide33_1.png" alt="Bob Rau의 Iterative Modulo Scheduling 알고리즘 개요" />
 
 이 알고리즘의 개념은 1980년대에 **Bob Rau**가 처음 만들었고, 그가 **HP Labs**에 있을 때 잘 정리해서 1994년 논문으로 발표했습니다.
 
@@ -663,8 +663,8 @@ VLIW에서 한 가지 미묘한 어려움이 있습니다. Functional Unit 개�
 
 이 강의에서 알고리즘 자체를 깊게 다루지는 않습니다. 대신, Bob Rau가 제안한 **여러 가지 핵심 개념들**이 어떤 모양인지를 그림으로 한 번 훑고 넘어갑니다. 아래 두 그림이 그 전체 그림을 압축해서 보여 줍니다.
 
-<img src="/images/07/slide34_1.png" />
-<img src="/images/07/slide34_2.png" />
+<img src="/images/07/slide34_1.png" alt="Modulo Scheduling의 핵심 개념: Dependence Graph와 Schedule" />
+<img src="/images/07/slide34_2.png" alt="Modulo Reservation Table과 Initiation Interval(II)을 통한 루프 파이프라인 예시 (50 iterations → 103 cycles)" />
 
 요약하면 이렇습니다. **Dependence Graph**(명령어 간 의존성)와 **Schedule**(매 cycle 어떤 명령어가 어떤 stage에 들어가는지), 그리고 그것을 **Initiation Interval(II)** 마다 모듈로 패턴으로 반복시키며 자원 충돌을 추적하는 **Modulo Reservation Table(MRT)**, 이 개념들이 한 묶음으로 작동해서, 컴파일러가 루프를 파이프라인된 형태로 배치하고 그 위에 새로운 iteration을 일정 간격으로 계속 흘려보낼 수 있게 만듭니다. 슬라이드 두 번째에 나오는 *"50 iterations → 5 cycles + 49 × 2 cycles = 103 cycles"* 같은 예시가 그 효과를 그대로 보여 주는 사례입니다.
 
@@ -674,9 +674,9 @@ VLIW에서 한 가지 미묘한 어려움이 있습니다. Functional Unit 개�
 
 최근에는 VLIW를 **Reconfigurable Processor**라고 부르기도 합니다. 이름이 바뀌는 이유는 그렇게 거창하지 않습니다. **Horizontal Encoding**의 본질을 다시 떠올려 보면, 명령어가 하드웨어의 각 부분이 매 cycle 무엇을 할지를 직접 지정하고 있죠. 이건 보기에 따라 **그 cycle에 하드웨어를 어떤 모양으로 작동하게 할지를 소프트웨어가 매번 다시 그려 주는 것**과 같습니다. 즉 매 cycle마다 하드웨어를 다른 용도로 **재구성(reconfigure)** 하는 셈인 것입니다.
 
-<img src="/images/07/slide35_1.png" />
-<img src="/images/07/slide35_2.png" />
-<img src="/images/07/slide35_3.png" />
+<img src="/images/07/slide35_1.png" alt="Reconfigurable Architecture (Extreme VLIW) 개념 그림 1" />
+<img src="/images/07/slide35_2.png" alt="Reconfigurable Architecture (Extreme VLIW) 개념 그림 2" />
+<img src="/images/07/slide35_3.png" alt="Reconfigurable Architecture (Extreme VLIW) 개념 그림 3" />
 
 이 관점을 더 극단으로 밀고 나가면 어떻게 될까요? 하드웨어가 더 잘게 분산되어 있고, 각 부분의 디테일이 소프트웨어에 더 많이 노출되어 있으며, 그 모든 부분을 매 cycle 명시적으로 제어할 수 있다면, 이건 사실상 일반 VLIW를 넘어 **하드웨어를 매 cycle 재구성하는 데 특화된 프로세서**가 됩니다. 이런 형태가 바로 **Reconfigurable Architecture**, 즉 **Extreme VLIW** 입니다.
 
@@ -734,7 +734,7 @@ Thread-level 이야기로 본격적으로 넘어가기 전에, 잠깐 시계를 
 
 **1990년대**는 CPU·프로세서 설계자들에게 정말로 흥미로운 시기였습니다. Intel 프로세서가 세대를 넘길 때마다 **클럭 속도가 눈에 띄게 빨라졌고**, 새로운 아키텍처 아이디어들이 빠르게 칩에 반영되어 프로세서가 무서운 속도로 발전하던 때입니다.
 
-<img src="/images/07/slide38_1.png" />
+<img src="/images/07/slide38_1.png" alt="1990년대 Era of Instruction Parallelism: 클럭 속도와 ILP 중심의 프로세서 발전 추세" />
 
 이 시기의 구조적 개선은 거의 전부 **명령어 수준의 중첩(Overlap)** 을 어떻게 더 잘 짜낼 것인가에 집중되어 있었습니다. 앞서 다룬 두 축이 정확히 이 시기에 정착됩니다.
 
@@ -747,7 +747,7 @@ Thread-level 이야기로 본격적으로 넘어가기 전에, 잠깐 시계를 
 
 그러나 이 흐름이 영원하지는 않았습니다. 그 한계가 가장 상징적으로 드러난 사건이 바로 **Pentium 4의 실패**입니다. Pentium 3까지의 성공 방정식을 그대로 한 번 더 적용해 보려고, **파이프라인을 더 깊게 파고, 클럭을 더 끌어올리고, OOO 엔진을 더 복잡하게** 만들면서 ILP를 극단까지 짜내려 한 것이 Pentium 4였는데, 결국 클럭을 무리하게 올린 데서 비롯된 **발열 문제로 인텔이 대대적으로 실패**한 대표 사례가 되었습니다.
 
-<img src="/images/07/slide39_1.png" />
+<img src="/images/07/slide39_1.png" alt="Dennard Scaling의 한계와 Era of Thread Parallelism으로의 전환" />
 
 이 발열 문제의 근본 원인이 바로 **Dennard Scaling의 한계**입니다. 우리는 공정 미세화 덕분에 트랜지스터 자체는 점점 작게 만들 수 있지만, **빠져나가는 전력은 트랜지스터 크기에 비례해 줄어들지 않는다**는 것이 핵심입니다. 트랜지스터 집적도가 올라가고 클럭 주파수가 함께 올라갈수록 단위 면적당 **열 밀도**가 빠르게 증가하고, 이를 더 이상 식혀 낼 수 없는 지점에 도달하면 결국 칩이 버티지 못합니다. 이런 현상이 누적되며 **"클럭을 더 끌어올리는 게임"** 자체가 2000년대에 사실상 종료됩니다.
 
@@ -774,8 +774,8 @@ Thread-level 병렬 아키텍처가 특히 **서버 시장**에서 중요해진 
 
 앞에서 말한 것처럼, **Memory Wall 문제를 가장 효과적으로 풀어낼 수 있는 방법 중 하나가 Multithreading** 입니다.
 
-<img src="/images/07/slide42_2.png" />
-<img src="/images/07/slide42_1.png" />
+<img src="/images/07/slide42_2.png" alt="Multithreading을 활용한 Memory Latency Hiding 그림 1" />
+<img src="/images/07/slide42_1.png" alt="Multithreading을 활용한 Memory Latency Hiding 그림 2" />
 
 핵심 아이디어는 간단합니다. 하나의 스레드가 메모리 접근으로 대기 중일 때, 즉시 다른 스레드를 실행하는 것입니다. 이렇게 하면 메모리 접근의 긴 Latency를 다른 유용한 작업으로 채울 수 있어, 전체 Throughput이 향상됩니다.
 
@@ -799,7 +799,7 @@ CPU가 Multi-Core로 전환하던 같은 시기인 2000년대에, 그래픽스 �
 
 GPU가 노리고 있는 그래픽스 워크로드는 본질적으로 **픽셀**이나 **삼각형(triangle)** 단위의 **엄청나게 많은(abundant / massive) 병렬성**을 가지고 있습니다. GPU는 이 풍부한 병렬성을 그대로 활용하는 데 초점을 맞추는 방향으로 진화했고, 그 결과 CPU와는 매우 다른 설계 선택을 하게 됩니다.
 
-<img src="/images/07/slide44_1.png" />
+<img src="/images/07/slide44_1.png" alt="CPU와 GPU의 설계 철학 차이: 단일 스레드 Latency 최소화 vs Throughput 극대화" />
 
 CPU와 비교해서 GPU의 특징을 정리하면 이렇습니다.
 
@@ -813,7 +813,7 @@ CPU와 비교해서 GPU의 특징을 정리하면 이렇습니다.
 
 Shader Programming에서 출발한 GPU의 진화는, **CUDA**가 정의되는 시점에서 결정적으로 완성됩니다. CUDA는 Shader 시절부터 다듬어진 GPU의 아키텍처적 개념들을 **소프트웨어가 이해할 수 있는 프로그래밍 모델로 잘 정리한 것**이라고 보면 됩니다. NVIDIA는 이 모델을 **2007년경**에 발표했고, 이때부터 GPGPU 시대가 본격적으로 열립니다.
 
-<img src="/images/07/slide45_1.png" />
+<img src="/images/07/slide45_1.png" alt="CUDA의 SIMT 실행 모델: Thread, Warp, ThreadBlock, Streaming Multiprocessor" />
 
 CUDA가 제시한 실행 모델이 바로 **SIMT (Single Instruction Multiple Threads)** 입니다. 같은 명령어를 여러 스레드가 함께 실행한다는 점에서 익숙한 **SIMD (Single Instruction Multiple Data)** 와 구조적으로 크게 다르지는 않지만, **NVIDIA GPU 특유의 메모리 Latency Hiding 메커니즘에 맞게 특화된 이름**이 SIMT라고 보면 됩니다.
 
@@ -836,7 +836,7 @@ CUDA 프로그래머가 **굉장히 많은** Thread를 작성해 두면, GPU는 
 
 지금까지 본 흐름을 한 줄로 줄이면, GPU는 **"All About Hiding Latency"** 라고 부를 수 있을 정도로 **메모리 Latency 문제 하나를 위해 만들어진 아키텍처**입니다. 그래픽스 워크로드의 풍부한 병렬성을 SIMT 모델로 노출하고, 그 위에서 Warp 단위 스케줄링과 풍부한 in-flight 스레드를 동원해 메모리 접근으로 인한 빈 cycle을 채워 넣는, 이 모든 설계 결정이 결국 **"느린 DRAM에도 불구하고 연산 유닛을 놀리지 않는다"** 라는 한 가지 목표로 수렴합니다.
 
-<img src="/images/07/slide46_1.png" />
+<img src="/images/07/slide46_1.png" alt="GPU: All About Hiding Latency - Warp 스케줄링과 풍부한 in-flight 스레드로 메모리 Latency를 숨기는 구조" />
 
 물론 한 가지 단서를 달아 둘 필요가 있습니다. 우리가 지금 이야기하는 GPU의 일반적 특성은 사실 **2000년대에서 2010년대 사이에 그래픽스 워크로드를 기준으로 정의된 모습**에 가깝습니다. 최근의 GPU는 ML 워크로드의 특성에 맞춰 빠르게 변모하고 있고, 내부 구조가 모두 공개되지는 않기 때문에 위에서 정리한 특성들이 어디까지 그대로 유지되는지는 외부에서 정확히 단정하기 어렵습니다. 특히 *"All About Hiding Latency"* 라는 측면에서는 현재 세대에서 적지 않은 부분이 다르게 설계되고 있을 가능성도 큽니다.
 
@@ -846,11 +846,11 @@ CUDA 프로그래머가 **굉장히 많은** Thread를 작성해 두면, GPU는 
 
 GPU는 처음부터 머신러닝을 염두에 두고 설계된 것이 아닙니다. 그래픽스 워크로드의 픽셀·삼각형 단위 **Massive Parallelism** 을 활용하기 위해 만들어진 구조였는데, 마침 그 특성이 **ML 워크로드와도 굉장히 잘 들어맞았던** 것이 핵심 사건입니다.
 
-<img src="/images/07/slide47_1.png" />
+<img src="/images/07/slide47_1.png" alt="NVIDIA GPU의 세대별 컴퓨팅 성능(FLOPS) 성장 추이" />
 
 ML 붐이 본격화되면서 NVIDIA는 이 우연한 적합성을 발판으로 폭발적인 성장을 거듭했고, 그 성장에 맞춰 NVIDIA GPU의 **컴퓨팅 성능(FLOPS)** 도 세대마다 빠르게 올라갔습니다. 그림에 나타난 곡선이 바로 그 흐름을 그대로 보여 줍니다.
 
-<img src="/images/07/slide48_1.png" />
+<img src="/images/07/slide48_1.png" alt="NVIDIA GPU의 컴퓨팅 성능과 메모리 Bandwidth 사이에 점점 벌어지는 격차" />
 
 다만 컴퓨팅 성능이 올라가는 만큼 **메모리 Bandwidth가 같은 속도로 따라오지는 못하고 있다**는 점은 매우 중요한 한계입니다. 메모리 인터페이스 기술 자체도(HBM 세대 교체 등) 빠르게 발전하고는 있지만, NVIDIA가 컴퓨팅 밀도를 끌어올리는 속도를 따라잡지는 못하고 있고, **그 사이의 갭은 오히려 점점 더 벌어지는 추세**입니다.
 
@@ -862,7 +862,7 @@ ML 붐이 본격화되면서 NVIDIA는 이 우연한 적합성을 발판으로 �
 
 > "이런 식으로(SIMT 모델로) 프로그래밍해 두면, 굉장히 많은 Thread가 만들어질 것이고, 그 Thread들을 잘 분배해 Throughput을 뽑아내는 일은 하드웨어가 알아서 처리한다."
 
-<img src="/images/07/slide49_1.png" />
+<img src="/images/07/slide49_1.png" alt="GPU의 Multithreading Overhead: SIMT 프로그래밍 모델 뒤에 숨겨진 하드웨어 Latency Hiding 비용" />
 
 문제는 이 방식이 정말로 **머신러닝 워크로드에 가장 잘 맞는 선택인가** 하는 것입니다. 강사 본인을 포함해 여러 사람이 이 점에 대해 의문을 가지고 있고, 학계에서도 명시적으로 논의가 이루어지고 있습니다.
 

@@ -43,7 +43,7 @@ PyTorch 2.0에서는 1.0 대비 가장 크게 변한 부분이 **그래프 모�
 
 PyTorch 2.0 이후로 eager mode의 유연성과 graph mode의 컴파일러 최적화를 결합한 형태로 발전하면서, 연구뿐만 아니라 production에서도 강력한 도구로 자리잡게 되었습니다.
 
-<img src="/images/03/slide03_1.png" class="h-72" />
+<img src="/images/03/slide03_1.png" alt="PyTorch 2.0 컴파일러 전체 아키텍처 다이어그램" class="h-72" />
 
 https://pytorch.org/get-started/pytorch-2.0/
 
@@ -203,14 +203,14 @@ Trace Cache의 동작 방식은 다음과 같습니다:
 
 아래 그림 (a)는 기존 Instruction Cache, (b)는 Trace Cache의 차이를 보여줍니다:
 
-<img src="/images/03/slide10_2.png" class="h-32" />
+<img src="/images/03/slide10_2.png" alt="Instruction Cache와 Trace Cache 비교 다이어그램" class="h-32" />
 
 - **(a) Instruction Cache**: 블록 A, B → C → D → E가 메모리 상에 비연속적으로 배치되어 있어, 점프할 때마다 다른 위치에서 fetch해야 합니다. Cache miss가 발생할 가능성이 높고 fetch 효율이 저하됩니다.
 - **(b) Trace Cache**: 동일한 블록들을 A, B, C, D, E 순서로 하나의 연속적인 trace로 묶어 저장합니다. 한 번에 fetch가 가능하여 성능이 향상됩니다.
 
 아래 그림은 이 세 장치가 어떻게 연결되어 동작하는지를 보여줍니다:
 
-<img src="/images/03/slide10_1.png" class="h-52" />
+<img src="/images/03/slide10_1.png" alt="Trace Cache, Trace Predictor, Trace Buffer의 연결 구조 다이어그램" class="h-52" />
 
 1. **Trace Predictor**가 다음에 실행될 trace를 예측하여 **Trace Cache**에서 해당 trace를 fetch → **Execution Engine**에 전달
 2. Trace Cache에 원하는 trace가 없으면(trace miss), **Instruction Cache + Branch Predictor**를 통해 instruction을 하나씩 fetch하면서 새로운 trace 후보를 **outstanding trace buffers**에 수집
@@ -230,7 +230,7 @@ Partial evaluation은 프로그램을 최적화하는 기법으로, 입력을 �
 
 프로그램 `p`에 고정된 입력 `in1`(static input)을 주어 **부분 평가(partial-evaluate)** 한 뒤, 동적 입력 `in2`(dynamic input)에 의해 영향을 받는 나머지 계산만 수행하는 **특화된 프로그램(specialized program)** 을 생성합니다. 이렇게 생성된 특화 프로그램은 원래 프로그램 `p`보다 **더 빠르게** 실행됩니다.
 
-<img src="/images/03/slide11_1.png" class="h-56" />
+<img src="/images/03/slide11_1.png" alt="Partial evaluation으로 특화된 프로그램을 생성하는 과정 다이어그램" class="h-56" />
 
 > Jones, Neil D. "An introduction to partial evaluation." ACM Computing Surveys (CSUR) 28.3 (1996): 480-503. https://dl.acm.org/doi/10.1145/243439.243447
 
@@ -287,7 +287,7 @@ Python 코드가 실행되면 CPython이 소스 코드를 bytecode로 변환하�
 
 이를 이해하기 위해 CPython의 동작 방식을 먼저 살펴봅니다.
 
-<img src="/images/03/slide14_1.png" class="h-52" />
+<img src="/images/03/slide14_1.png" alt="CPython의 소스 코드 컴파일과 bytecode 실행 과정 다이어그램" class="h-52" />
 
 CPython의 기본 동작은 다음과 같습니다:
 
@@ -308,7 +308,7 @@ Dynamo 자체가 CPython에 직접 integration 되어 있기 때문에, Python V
 - **Interpreter** - 여러 thread가 모여 하나의 Python interpreter를 구성. 공유 데이터(예: imported modules)를 관리
 - **Runtime** - VM의 global state
 
-<img src="/images/03/slide15_1.png" class="h-40" />
+<img src="/images/03/slide15_1.png" alt="Call stack이 frame object의 linked list로 표현되는 Python VM 구조 다이어그램" class="h-40" />
 
 > 참고: https://jasonleaster.github.io/2016/02/21/architecture-of-python-virtual-machine/
 
@@ -404,7 +404,7 @@ Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, 
 
 Dynamo는 `jit.script`처럼 새로운 Python interpreter를 만든 것이 아니라, **CPython 자체에 integration**하여 동작합니다. 아래 왼쪽은 Python의 기본 동작, 오른쪽은 Dynamo가 이를 어떻게 확장하는지를 보여줍니다:
 
-<img src="/images/03/slide21_1.png" class="h-64" />
+<img src="/images/03/slide21_1.png" alt="Python 기본 frame 실행과 Dynamo의 frame evaluation 확장 비교 다이어그램" class="h-64" />
 
 > 참고 1: https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/torch.compiler_dynamo_overview.html
 >
@@ -424,7 +424,7 @@ Dynamo는 `jit.script`처럼 새로운 Python interpreter를 만든 것이 아�
 
 Dynamo는 CPython 소스를 수정하는 대신, CPython이 제공하는 **frame evaluation API(PEP 523)** 를 이용해 C 확장에서 frame 실행 함수를 교체하는 방식으로 구현되어 있습니다. 덕분에 CPython 내부 코드를 수정할 필요 없이 frame 단위로 개입하여 bytecode를 분석하고 변환할 수 있습니다.
 
-<img src="/images/03/slide22_1.png" class="h-96 diagram-bg" />
+<img src="/images/03/slide22_1.png" alt="Bytecode 분석부터 guard 삽입까지 Dynamo의 내부 흐름 다이어그램" class="h-96 diagram-bg" />
 
 > 참고: https://depyf.readthedocs.io/en/latest/walk_through.html
 
