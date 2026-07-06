@@ -19,7 +19,7 @@ PyTorch 2.0에서 가장 크게 변한 부분은 그래프 모드(graph mode)의
 
 ### Lua Torch 시대
 
-PyTorch의 기원은 **Torch**에서 시작됩니다. Torch는 원래 C++ 라이브러리였으며, 이를 더 편하게 사용하기 위해 스크립트 언어를 올렸는데, 처음 선택된 것이 **Lua**였습니다. 이것이 Lua Torch입니다.
+PyTorch의 기원은 **Torch**에서 시작됩니다. Torch는 원래 C/C++로 작성된 라이브러리였으며, 이를 더 편하게 사용하기 위해 스크립트 언어를 올렸는데, 처음 선택된 것이 **Lua**였습니다. 이것이 Lua Torch입니다.
 
 ### PyTorch의 탄생
 
@@ -158,7 +158,7 @@ L9:  output(r);
 Super-scalar 아키텍처의 **Out-of-Order Execution**은 대표적인 trace 기반 최적화입니다.
 Out-of-Order engine의 목표는 instruction을 재배열하여 **Instruction-Level Parallelism(ILP)** 을 극대화하는 것인데, 이를 위해서는 스케줄링 scope이 클수록 유리합니다. 독립적인 instruction을 찾아야 하므로 pool이 클수록 좋기 때문입니다.
 
-문제는 일반적인 프로그램에서 **매 15개 instruction마다 branch가 발생**한다는 것입니다. Branch가 나타나면 실제로 어느 방향으로 뛸지 모르므로, 그 이후의 instruction을 미리 스케줄링하기 어렵습니다. 결국 5개 instruction만 보고 ILP를 찾아야 하니 효율이 낮아집니다.
+문제는 일반적인 프로그램에서 **매 5~6개 instruction마다 branch가 발생**한다는 것입니다. Branch가 나타나면 실제로 어느 방향으로 뛸지 모르므로, 그 이후의 instruction을 미리 스케줄링하기 어렵습니다. 결국 branch 사이의 5~6개 instruction만 보고 ILP를 찾아야 하니 효율이 낮아집니다.
 
 이를 해결하기 위해 **Branch Prediction**을 out-of-order engine에 결합합니다:
 
@@ -219,7 +219,7 @@ Trace Cache의 동작 방식은 다음과 같습니다:
 
 결과적으로 Trace Cache는 기존 Instruction Cache의 점프 문제를 해결하여 fetch 효율을 극대화하고, 불필요한 cache miss를 줄여 보다 연속적인 코드 실행을 가능하게 합니다.
 
-> Rotenberg, Eric, Steve Bennett, and James E. Smith. "A trace cache microarchitecture and evaluation." IEEE Transactions on Computers 48.2 (2002): 111-120. https://ieeexplore.ieee.org/abstract/document/752652
+> Rotenberg, Eric, Steve Bennett, and James E. Smith. "A trace cache microarchitecture and evaluation." IEEE Transactions on Computers 48.2 (1999): 111-120. https://ieeexplore.ieee.org/abstract/document/752652
 
 #### Partial Evaluation
 
@@ -246,8 +246,6 @@ def optimized_compute(y):
 ```
 
 이처럼 반복적으로 수행되는 복잡한 연산을 미리 계산하여 실행 성능을 높일 수 있습니다.
-
-> Jones, Neil D. "An introduction to partial evaluation." ACM Computing Surveys (CSUR) 28.3 (1996): 480-503. https://dl.acm.org/doi/10.1145/243439.243447
 
 <ThemeImage
   darkSrc="/images/03/partial-evaluation-dark.svg"
@@ -324,7 +322,7 @@ Dynamo 자체가 CPython에 직접 integration 되어 있기 때문에, Python V
 |------|------|-----------|------|------|
 | 1.0 | `jit.trace` | Dispatcher에 trace collect kernel 부착 | 구현이 간단, 실무에서 널리 사용 | 특정 입력에 의존, dynamic branch 미지원 |
 | 1.0 | `jit.script` | Python subset 전용 interpreter | 제어 흐름 분석 가능 | subset 외 코드 처리 불가, 포기하는 경우 빈번 |
-| 2.0 | **Dynamo** | CPython에 직접 통합, bytecode 수준 tracing | 전체 Python 지원, 입력 비의존적, 자동 분할 | - |
+| 2.0 | **Dynamo** | CPython에 직접 통합, bytecode 수준 tracing | 전체 Python 지원, guard로 입력 의존성 검증, 자동 분할 | graph break/재컴파일 및 guard 검사 오버헤드 |
 
 #### PyTorch 1.0: jit.trace와 jit.script
 
@@ -346,7 +344,7 @@ Eager Mode에서 배운 **Dispatcher**를 활용한 방식입니다. Dispatcher�
 
 `jit.trace`의 핵심 전제는 "tensor 연산은 dynamic input, Python 제어 흐름은 static input"이라는 가정입니다. 하지만 이는 **검증 없는 가정**일 뿐입니다.
 
-아래 코드에서 dynamic input인 `x`의 최솟값에 따라 if문의 분기가 달라집니다. 특정 입력으로 trace를 생성하면, 다른 입력에서는 잘못된 경로를 실행하게 됩니다.
+아래 코드에서 dynamic input인 `x`의 평균값에 따라 if문의 분기가 달라집니다. 특정 입력으로 trace를 생성하면, 다른 입력에서는 잘못된 경로를 실행하게 됩니다.
 
 ```python
 def function(inputs):
@@ -377,14 +375,14 @@ def function(inputs):
 Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, **CPython에 직접 통합**하여 bytecode 수준에서 end-to-end trace를 생성한다는 점입니다. 이를 통해:
 
 - Python 전체 언어를 지원 (`jit.script`의 subset 문제 해결)
-- 특정 입력에 의존하지 않는 일반화된 tracing (`jit.trace`의 입력 의존 문제 해결)
+- Guard로 입력 의존성을 검증하고, 조건이 달라지면 재컴파일하는 안전한 tracing (`jit.trace`의 검증 없는 입력 의존 문제 해결)
 - Trace 불가능한 구간을 자동으로 식별하고 분할하여 안전성 확보
 
 ### Dynamo의 동작 원리
 
 #### Concept
 
-프로그램의 실행을 끝까지 따라가면 하나의 linear한 trace가 생성됩니다. 하지만 이 긴 trace 중 일부 구간은 dynamic input에 따라 다른 동작을 할 수 있어, static한 behavior가 보장되지 않습니다. Dynamo는 이러한 **trace 불가능한 구간(breakpoint)을 식별**하여, 그 부분을 제외한 나머지를 **여러 개의 안전한 trace로 분할**합니다.
+프로그램의 실행을 끝까지 따라가면 하나의 linear한 trace가 생성됩니다. 하지만 이 긴 trace 중 일부 구간은 dynamic input에 따라 다른 동작을 할 수 있어, static한 behavior가 보장되지 않습니다. Dynamo는 이러한 **trace 불가능한 구간(graph break 지점)을 식별**하여, 그 부분을 제외한 나머지를 **여러 개의 안전한 trace로 분할**합니다.
 
 <ThemeImage
   darkSrc="/images/03/torch-dynamo-dark.svg"
@@ -393,14 +391,14 @@ Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, 
   class="h-80 mx-auto mt-4"
 />
 
-위 다이어그램에서 색칠된 부분이 trace 불가능한 breakpoint이고, 나머지 구간이 각각 하나의 trace가 됩니다. 분할된 trace들은 다음과 같은 방식으로 실행됩니다:
+위 다이어그램에서 색칠된 부분이 trace 불가능한 graph break 지점이고, 나머지 구간이 각각 하나의 trace가 됩니다. 분할된 trace들은 다음과 같은 방식으로 실행됩니다:
 
 1. Trace 진입 전, 현재 상태가 해당 trace를 수행할 수 있는 조건을 만족하는지 **Guard로 검사**
 2. 조건이 만족되면, 해당 trace에 대해 **최적화된 compiled function을 호출**
-3. Trace가 끝나면 (breakpoint까지만 실행), **tracing 불가능한 구간을 원래 방식으로 실행**
+3. Trace가 끝나면 (graph break 지점까지만 실행), **tracing 불가능한 구간을 원래 방식으로 실행**
 4. 이후 다음 trace 진입 시, 다시 Guard로 조건을 확인하고 최적화된 trace를 활용
 
-이 trace를 찾아가는 과정 자체가 **recursive**합니다. Breakpoint까지 trace를 수행하고, 최적화된 코드를 생성한 뒤, 다시 시작할 수 있는 지점을 찾아 새로운 trace 탐색을 시작합니다.
+이 trace를 찾아가는 과정 자체가 **recursive**합니다. Graph break 지점까지 trace를 수행하고, 최적화된 코드를 생성한 뒤, 다시 시작할 수 있는 지점을 찾아 새로운 trace 탐색을 시작합니다.
 
 #### CPython과의 통합
 
@@ -422,9 +420,9 @@ Dynamo는 `jit.script`처럼 새로운 Python interpreter를 만든 것이 아�
 
 1. 함수 `foo`를 만나면 frame object를 만드는 것까지는 동일
 2. 해당 함수가 이전에 tracing된 적이 없으면, frame에 붙어 있는 code object의 **bytecode를 분석**하여 tracing을 시도
-3. Function call과 return을 따라가면서 **breakpoint가 나올 때까지** 추적한 뒤, 최적화된 코드를 생성
+3. Function call과 return을 따라가면서 **graph break가 나올 때까지** 추적한 뒤, 최적화된 코드를 생성
 
-`PyFrameObject` 등은 모두 Python 수준에서 접근 가능한 객체이므로, CPython 내부 코드를 수정할 필요 없이 **overriding하고 확장**하여 구현합니다.
+Dynamo는 CPython 소스를 수정하는 대신, CPython이 제공하는 **frame evaluation API(PEP 523)** 를 이용해 C 확장에서 frame 실행 함수를 교체하는 방식으로 구현되어 있습니다. 덕분에 CPython 내부 코드를 수정할 필요 없이 frame 단위로 개입하여 bytecode를 분석하고 변환할 수 있습니다.
 
 <img src="/images/03/slide22_1.png" class="h-96 diagram-bg" />
 
@@ -525,9 +523,9 @@ PyTorch의 IR 체계는 상위에서 하위로 단계적으로 lowering되는 �
 - **Torch IR** - Python 코드 수준에서 보이는 모든 연산자(operators)가 포함된 가장 상위 레벨의 IR. PyTorch이 지원하는 2,000개가 넘는 연산자에 해당
 - **Aten IR** - Torch IR을 약 750개의 canonical한 연산자로 정리한 IR. 기존에 이미 PyTorch를 지원하고 있는 backend가 사용 (Intel CPU, NVIDIA GPU 등)
 - **Core Aten IR** - Aten에서 더 작고 표현이 간결한 subset으로 정리한 약 250여개의 operations. 반드시 저수준의 ops를 의미하는 것은 아니며, avgpool2d, convolution 등의 high-level ops도 포함
-- **Prims IR** - Core Aten과 비슷하지만, **타입 정보와 broadcasting을 명시적으로 표현**하여 백엔드로 직접 전달할 수 있도록 변환된 형태. 약 250여개의 primitives (현재 129개)
+- **Prims IR** - Core Aten과 비슷하지만, **타입 정보와 broadcasting을 명시적으로 표현**하여 백엔드로 직접 전달할 수 있도록 변환된 형태. 약 250여개의 primitives
 
-아래 그림은 Torch IR에서 Prims IR까지의 변환 과정을 보여줍니다:
+아래 코드는 이 lowering에 사용되는 decomposition table을 구성하는 예시입니다:
 
 ```python
 decomp_table = torch._decomp.get_decompositions([

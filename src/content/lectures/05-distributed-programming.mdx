@@ -187,10 +187,10 @@ Process Group은 **서로 통신하는 프로세스들의 집합**입니다. 기
         end
         subgraph C2[" "]
             direction TB
+            R3["Rank 3"]
             R4["Rank 4"]
             R5["Rank 5"]
-            R6["Rank 6"]
-            R4 ~~~ R5 ~~~ R6
+            R3 ~~~ R4 ~~~ R5
         end
     end
     classDef pgStyle fill:#64748b15,stroke:#64748b,stroke-width:1px
@@ -216,10 +216,10 @@ Process Group은 **서로 통신하는 프로세스들의 집합**입니다. 기
         end
         subgraph SG2["subgroup 2"]
             direction TB
+            R3["Rank 3"]
             R4["Rank 4"]
             R5["Rank 5"]
-            R6["Rank 6"]
-            R4 ~~~ R5 ~~~ R6
+            R3 ~~~ R4 ~~~ R5
         end
     end
     classDef pgStyle fill:#64748b15,stroke:#64748b,stroke-width:1px
@@ -294,7 +294,7 @@ c10d는 **interface만 제공**하고, 실제 통신 동작은 개별 하드웨�
 |---------|------------|------|
 | **Gloo** | CPU / GPU | CPU 분산 학습에 주로 사용 |
 | **NCCL** | GPU | NVIDIA GPU 전용, GPU 간 통신 최적화 |
-| **MPI** | CPU | 일반적인 클러스터 분산 환경 |
+| **MPI** | CPU / GPU (CUDA-aware MPI 빌드 시) | 일반적인 클러스터 분산 환경 |
 
 이러한 구조 덕분에 third-party backend를 추가하는 것도 가능합니다. [`c10d/Backend.hpp`](https://github.com/pytorch/pytorch/blob/main/torch/csrc/distributed/c10d/Backend.hpp)를 구현하면 되는데, `broadcast`, `allreduce`, `reduce`, `allgather` 등 **21개 virtual function**으로 구성되어 있습니다. 리벨리온 NPU와 같은 새로운 하드웨어도 이 인터페이스를 구현함으로써 PyTorch의 분산 프로그래밍 생태계에 통합될 수 있습니다.
 
@@ -402,6 +402,7 @@ torchrun을 실행하면 내부적으로 다음과 같은 단계를 거칩니다
 
 ```python
 if __name__ == "__main__":
+    n = 16000
     rank = int(os.environ.get("RANK"))
     if rank == 0:
         A, B = torch.ones(n, n), torch.ones(n, n)
@@ -431,6 +432,9 @@ def dist_matmul_allreduce(
         A, B, local_rank, world_size):
     torch.cuda.set_device(local_rank)
     dist.init_process_group(backend="nccl")
+    # NCCL은 CUDA tensor만 지원하므로 먼저 GPU로 이동
+    device = torch.device(f"cuda:{local_rank}")
+    A, B = A.to(device), B.to(device)
     dist.broadcast(A, 0)
     dist.broadcast(B, 0)
     local_A, local_B = distributed_data(
@@ -448,7 +452,7 @@ def dist_matmul_allreduce(
 1. **초기 설정**
     * `torch.cuda.set_device(local_rank)` - 한 노드에 여러 프로세스가 떠 있을 수 있으므로, **local rank**를 기반으로 이 프로세스가 사용할 디바이스를 명시적으로 지정합니다.
     * `dist.init_process_group(backend="nccl")` - 어떤 backend(NCCL / Gloo / MPI 등)로 통신할지 결정합니다.
-2. **데이터 로딩 및 분산** - `dist.broadcast`로 rank 0이 가진 A, B를 모든 프로세스에 전달한 뒤, `distributed_data`에서 각 rank가 담당할 부분만 잘라내 local A, local B를 준비합니다.
+2. **데이터 로딩 및 분산** - 먼저 tensor를 GPU로 옮기고(NCCL backend는 CUDA tensor만 지원), `dist.broadcast`로 rank 0이 가진 A, B를 모든 프로세스에 전달한 뒤, `distributed_data`에서 각 rank가 담당할 부분만 잘라내 local A, local B를 준비합니다. (실제로는 `scatter`로 각 rank에 필요한 조각만 보내면 메모리를 더 아낄 수 있지만, 여기서는 단순화를 위해 broadcast를 사용합니다.)
 3. **분산 행렬 연산** - `local_matmul`로 각 프로세스가 자신의 부분 곱을 계산하고, `dist.all_reduce`로 모든 rank의 결과를 합산해 최종 결과를 만듭니다.
 4. **연산 종료 및 정리** - `dist.destroy_process_group()`을 호출해 사용한 통신 자원을 반환하고, 결과를 리턴하면서 함수가 종료됩니다.
 
@@ -456,7 +460,7 @@ def dist_matmul_allreduce(
 
 ```python
 def distributed_data(A, B, lrank, world_size):
-    n = 16000
+    n = A.shape[0]
     k = n // world_size
     device = torch.device(f"cuda:{lrank}")
     # split A and B
@@ -553,7 +557,7 @@ def all_reduce(tensor, op=ReduceOp.SUM,
 
 ### 3: Process Group 생성 및 통신 채널 설정
 
-`torch.distributed.init_process_group()`은 프로세스들 간의 통신 채널을 생성하는 함수입니다. NCCL(GPU), GLOO(GPU/CPU), MPI(CPU) 등의 backend를 지정할 수 있으며, 초기화 방법(init_method), timeout, world size, rank 등의 metadata도 여기서 설정합니다.
+`torch.distributed.init_process_group()`은 프로세스들 간의 통신 채널을 생성하는 함수입니다. NCCL(GPU), GLOO(GPU/CPU), MPI(CPU, CUDA-aware 빌드 시 GPU) 등의 backend를 지정할 수 있으며, 초기화 방법(init_method), timeout, world size, rank 등의 metadata도 여기서 설정합니다.
 
 초기화 방법은 두 가지가 있습니다. TCP 주소를 직접 명시하는 방법과 공유 filesystem을 사용하는 방법입니다:
 
@@ -610,9 +614,9 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 지금까지 c10d 레벨의 저수준 분산 통신을 살펴봤습니다. 실제 모델 학습에서는 이런 저수준 API를 직접 사용하기보다, PyTorch가 제공하는 고수준 병렬화 패키지를 사용하는 경우가 대부분입니다. 각 패키지는 서로 다른 병렬화 전략을 구현하고 있습니다.
 
-**Distributed Data Parallel**(DDP)은 모델을 잘게 나누는 게 아니라 **동일한 모델을 여러 GPU에 복제**해 두고 데이터를 GPU별로 분배하는 Data Parallel 방식입니다. 각 GPU가 서로 다른 데이터 배치를 처리해서 throughput을 끌어올리고, 매 step마다 gradient를 `all_reduce`로 합산한 뒤 모든 GPU의 모델 파라미터를 동일하게 업데이트합니다.
+**Distributed Data Parallel**(DDP)은 모델을 잘게 나누는 게 아니라 **동일한 모델을 여러 GPU에 복제**해 두고 데이터를 GPU별로 분배하는 Data Parallel 방식입니다. 각 GPU가 서로 다른 데이터 배치를 처리해서 throughput을 끌어올리고, 매 step마다 gradient를 `all_reduce`로 모아 **평균**한 뒤 모든 GPU의 모델 파라미터를 동일하게 업데이트합니다.
 
-**Fully Sharded Data Parallel**(FSDP)은 모델이 너무 커서 한 머신에 통째로 올릴 수 없을 때 사용합니다. parameter(weight, bias)를 world_size로 나누어 각 GPU에 sharding해 두고, 어떤 op을 실행하기 직전에 그 op에 필요한 weight 조각을 다른 GPU들로부터 모아 완전한 weight를 구성한 뒤 계산합니다. 계산이 끝나면 받아 온 조각들은 다시 버리고, 다음 op에서 필요한 다른 조각을 또 모으는 식입니다. 즉 sharding 되는 건 **weight일 뿐 계산 자체는 한 머신에서 온전히 수행**됩니다.
+**Fully Sharded Data Parallel**(FSDP)은 모델이 너무 커서 한 머신에 통째로 올릴 수 없을 때 사용합니다. parameter(weight, bias)를 world_size로 나누어 각 GPU에 sharding해 두고, 어떤 op을 실행하기 직전에 그 op에 필요한 weight 조각을 다른 GPU들로부터 모아 완전한 weight를 구성한 뒤 계산합니다. 계산이 끝나면 받아 온 조각들은 다시 버리고, 다음 op에서 필요한 다른 조각을 또 모으는 식입니다. FSDP는 parameter뿐 아니라 **gradient와 optimizer state까지 sharding**하여 메모리를 절약하며, 계산 자체는 각 GPU가 자신의 데이터 배치에 대해 온전히 수행합니다.
 
 **Tensor Parallel**(TP)은 한 layer의 연산조차 한 머신에서 처리하지 못할 만큼 클 때 사용하는, FSDP보다 더 복잡한 병렬화입니다. weight뿐 아니라 **연산 자체를 여러 GPU로 쪼개서** row parallel 또는 column parallel 방식으로 분할 계획(plan)을 따라 처리한 뒤, 결과를 다시 합쳐 최종 output을 만듭니다.
 
@@ -621,10 +625,10 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 > **컴파일러처럼 보이지만 컴파일러는 아닙니다.** FSDP나 TP는 모델을 재구성하는 방식이라는 점에서 어떻게 보면 컴파일러가 하는 일과 비슷합니다. 다만 실제 컴파일 과정 같은 건 구현되어 있지 않고, 입력도 출력도 `nn.Module`입니다. Python의 동적 클래스 생성 능력을 활용해 FSDP/TP가 해야 할 일을 함수로 정의하고 그것을 새로운 클래스로 wrap한 뒤 리턴하는 방식으로 "컴파일된 듯한 효과"만 만들어 냅니다.
 
 > **Q. GPU 여러 대로 분산해서 학습하면 결과값이 어떻게 한 곳으로 정확히 모이나요?**
-> `torch.distributed`의 핵심 기능이 바로 이 부분입니다. 랑데뷰 단계에서 world 구성과 각 프로세스 정보를 모두 파악해 두고, 노드들의 접근 정보는 **TCPStore**(원격 접근 가능한 key-value store)에 캐싱합니다. 이를 바탕으로 collective communication API가 sharding된 weight 조각을 누구에게 받을지, 결과를 어떻게 모을지를 처리합니다. Tensor Parallel은 마지막에 reduction으로 결과를 합치고, FSDP는 계산 자체가 한 머신에서 온전히 끝나므로 결과를 모으는 단계가 따로 필요하지 않습니다.
+> `torch.distributed`의 핵심 기능이 바로 이 부분입니다. 랑데뷰 단계에서 world 구성과 각 프로세스 정보를 모두 파악해 두고, 노드들의 접근 정보는 **TCPStore**(원격 접근 가능한 key-value store)에 캐싱합니다. 이를 바탕으로 collective communication API가 sharding된 weight 조각을 누구에게 받을지, 결과를 어떻게 모을지를 처리합니다. Tensor Parallel은 마지막에 reduction으로 결과를 합치고, FSDP는 forward 결과(activation)를 각 GPU가 자신의 데이터에 대해 로컬로 계산하므로 output을 모으는 단계는 없지만, backward에서는 `reduce_scatter`로 gradient를 rank 간에 동기화합니다.
 >
 > **Q. 랑데뷰 역할을 하는 머신이 따로 있나요?**
-> 랑데뷰를 담당하는 노드와 실제 연산을 수행하는 노드 자체는 분리되지만, 어떤 머신이 랑데뷰를 맡을지는 설정에 달려 있습니다. 보통 rank 0이 맡도록 코드를 짜는 경우가 많고(예: `if rank == 0: ...`), 어떤 머신이 rank 0가 될지는 실행 시 결정되므로 특정 물리 머신에 묶여 있는 건 아닙니다.
+> 랑데뷰 host는 `--rdzv_endpoint`로 사용자가 지정한 노드가 맡습니다 (앞의 예제에서는 `192.168.0.2`). 별도의 전용 머신일 필요는 없고, 연산 노드 중 하나가 겸하는 것이 일반적입니다. 랑데뷰는 프로세스들이 서로를 찾고 world를 구성하기 위한 과정일 뿐이므로, 특정 물리 머신에 본질적으로 묶여 있는 것은 아닙니다.
 
 ### FSDP 예제 코드
 
@@ -681,15 +685,15 @@ https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html
 
 FSDP의 내부 동작은 initialization, forward, backward 세 단계로 나눌 수 있습니다.
 
-**Initialization** 단계에서는 먼저 FlatParameter를 설정합니다. 이 과정에서 개별 process의 sharding 정보를 결정하고, sharded memory를 할당하며, 불필요한 unsharded memory를 해제합니다. 그리고 forward/backward 실행 시 자동으로 호출될 hook들을 등록합니다. pre hook에서는 `all_gather`를, post hook에서는 unsharding을 수행하도록 설정합니다.
+**Initialization** 단계에서는 먼저 FlatParameter를 설정합니다. 이 과정에서 개별 process의 sharding 정보를 결정하고, sharded memory를 할당하며, 불필요한 unsharded memory를 해제합니다. 그리고 forward/backward 실행 시 자동으로 호출될 hook들을 등록합니다. pre hook에서는 `all_gather`(unsharding)를, post hook에서는 resharding(모아 온 전체 parameter를 해제)을 수행하도록 설정합니다.
 
-**Forward** 단계에서는 각 layer마다 `all_gather`로 sharded parameter를 복원하고, computation을 수행한 뒤, 다시 unsharding하는 과정을 반복합니다. 한 layer의 계산이 끝나면 해당 layer의 전체 parameter를 다시 버려서 메모리를 절약합니다.
+**Forward** 단계에서는 각 layer마다 `all_gather`로 sharded parameter를 복원(unsharding)하고, computation을 수행한 뒤, 다시 resharding하는 과정을 반복합니다. 한 layer의 계산이 끝나면 해당 layer의 전체 parameter를 다시 버려서 메모리를 절약합니다.
 
-**Backward** 단계에서는 forward와 유사하게 각 layer에서 `all_gather` → computation → unsharding 과정을 거치지만, 추가로 gradient를 동기화하기 위한 `reduce_scatter` 연산이 수행됩니다. 이 hook은 `_register_post_backward_hook`을 통해 등록됩니다.
+**Backward** 단계에서는 forward와 유사하게 각 layer에서 `all_gather` → computation → resharding 과정을 거치지만, 추가로 gradient를 동기화하기 위한 `reduce_scatter` 연산이 수행됩니다. 이 hook은 `_register_post_backward_hook`을 통해 등록됩니다.
 
 ### Tensor Parallel 예제 코드
 
-Tensor Parallel은 FSDP와 달리 **계산 자체를 쪼개기 때문에 자동화가 어려워**, 개발자가 모델의 어떤 layer를 어떻게 자를지 분할 계획(plan)을 직접 설계해야 합니다. 어떤 parameter를 column 방향으로, 어떤 것을 row 방향으로 쪼갈지를 명시적으로 지정한 뒤 plan을 함께 넘기면, PyTorch 패키지가 그 plan대로 모델까지 같이 잘라줍니다. 이 추상화는 Megatron-LM 등에서 제안된 분할 기법을 손쉽게 적용할 수 있게 한 것이라고 볼 수 있습니다.
+Tensor Parallel은 FSDP와 달리 **계산 자체를 쪼개기 때문에 자동화가 어려워**, 개발자가 모델의 어떤 layer를 어떻게 자를지 분할 계획(plan)을 직접 설계해야 합니다. 어떤 parameter를 column 방향으로, 어떤 것을 row 방향으로 쪼갤지를 명시적으로 지정한 뒤 plan을 함께 넘기면, PyTorch 패키지가 그 plan대로 모델까지 같이 잘라줍니다. 이 추상화는 Megatron-LM 등에서 제안된 분할 기법을 손쉽게 적용할 수 있게 한 것이라고 볼 수 있습니다.
 
 ```python
 from torch.distributed.device_mesh \
@@ -707,9 +711,7 @@ layer_tp_plan = {
     "feed_forward.w3": ColwiseParallel(),
 }
 
-for layer_id, transformer_block \
-        in enumerate(model.layers):
-    layer_tp_plan = {...}
+for transformer_block in model.layers:
     parallelize_module(
         module=transformer_block,
         device_mesh=tp_mesh,

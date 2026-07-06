@@ -4,7 +4,6 @@ date: "2025-02-12"
 lecture: 7
 ---
 
-import Mermaid from '../../components/Mermaid.astro';
 import ThemeImage from '../../components/ThemeImage.astro';
 import MemoryHierarchyDiagram from '../../components/MemoryHierarchyDiagram.astro';
 import NpuMemoryHierarchyDiagram from '../../components/NpuMemoryHierarchyDiagram.astro';
@@ -104,7 +103,7 @@ import NpuMemoryHierarchyDiagram from '../../components/NpuMemoryHierarchyDiagra
 
 ## Instruction-Level Pipelining
 
-Latency Hiding의 가장 기본적인 형태는 명령어 수준의 파이프라이닝입니다. 이 절에서는 교과서에서 RISC의 대표 사례로 자주 등장하는 **MIPS의 5-Stage Pipeline**을 가져와 비교 기준으로 사용합니다. 프로그램은 결국 명령어들의 나열이고, 그 명령어가 프로세서에서 실제 수행되기 위해 거치는 단계를 다섯 개로 나눈 것입니다.
+Latency Hiding의 가장 기본적인 형태는 명령어 수준의 파이프라이닝입니다. 이 절에서는 교과서에서 RISC의 대표 사례로 자주 등장하는 **고전적인 5-Stage RISC Pipeline**(MIPS·RISC-V 교과서의 표준 예제)을 가져와 비교 기준으로 사용합니다. 프로그램은 결국 명령어들의 나열이고, 그 명령어가 프로세서에서 실제 수행되기 위해 거치는 단계를 다섯 개로 나눈 것입니다.
 
 - **IF** (Instruction Fetch): 인스트럭션 메모리에서 명령어를 가져옵니다.
 - **ID** (Instruction Decode): 가져온 명령어를 해석해 하드웨어가 무엇을 해야 할지 파악합니다.
@@ -245,7 +244,7 @@ Branch가 일으키는 버블을 없애려면 두 가지 정보가 필요합니�
 
 #### Misprediction과 Speculative Execution
 
-당연히 Prediction은 항상 맞지는 않습니다. **Hit이면 대기 없이 진행**하고, **Miss이면 Misprediction**으로 처리됩니다. Misprediction이 발생하면 그동안 잘못된 경로에서 진행한 작업을 모두 버리고 **올바른 주소에서 다시 Fetch**를 시작해야 하는데, 그 사이에 이미 많은 작업이 진행된 복잡한 프로세서일수록 별도의 **Rollback / Recovery 로직**이 필요해집니다.
+당연히 Prediction은 항상 맞지는 않습니다. **예측이 맞으면 대기 없이 진행**하고, branch가 실제로 resolve된 뒤 **결과가 예측과 다르면 Misprediction**으로 처리됩니다. (BTB의 hit/miss는 target 주소가 캐싱되어 있는지의 문제일 뿐, 예측이 맞았는지는 branch가 resolve되어야 알 수 있습니다.) Misprediction이 발생하면 그동안 잘못된 경로에서 진행한 작업을 모두 버리고 **올바른 주소에서 다시 Fetch**를 시작해야 하는데, 그 사이에 이미 많은 작업이 진행된 복잡한 프로세서일수록 별도의 **Rollback / Recovery 로직**이 필요해집니다.
 
 이렇게 정답이 무엇인지 아직 확실히 모르는 상태에서, **확률이 더 높은 쪽을 미리 골라 실행을 진행해 나가는 방식**을 컴퓨터 아키텍처에서는 **Speculative Execution(추측 실행)** 이라고 부릅니다. Branch Prediction은 그 가장 대표적인 예시이고, 이후 OOO Processor를 다룰 때 다시 확장된 형태로 등장합니다.
 
@@ -298,14 +297,16 @@ lw    t1, 0(s3)     # 3
 mul   t2, t1, t1    # 4
 add   t3, t2, t1    # 5
 sw    t3, 0(s3)     # 6
-addi  s1, s1, 1     # 7`}</pre>
+addi  s1, s1, 1     # 7
+blt   s1, t0, loop  # 8`}</pre>
     <pre style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '10px 14px', fontSize: '0.78em', margin: 0, borderRadius: '4px', lineHeight: '1.5' }}>{`slli  s2, s1, 2     # 1
 add   s3, s0, s2    # 2
 lw    t1, 0(s3)     # 3
 mul   t2, t1, t1    # 4
 add   t3, t2, t1    # 5
 sw    t3, 0(s3)     # 6
-addi  s1, s1, 1     # 7`}</pre>
+addi  s1, s1, 1     # 7
+blt   s1, t0, loop  # 8`}</pre>
   </div>
 </div>
 
@@ -514,13 +515,13 @@ OOO Processor는 명령어가 들어올 때마다 코드에 적힌 Architectural
 
 <img src="/images/07/slide26_1.png" />
 
-이 그림은 앞 절에서 개념적으로 설명한 **"동적으로 Data-Flow Graph를 만들어서 실행하는 엔진"** 의 실제 구현 단면입니다. 그림 안에서 핵심 역할을 하는 장치는 **Reorder Buffer (ROB)** 입니다. 이름은 "재정렬 버퍼"이지만 실제로 하는 일은 다음과 같습니다.
+이 그림은 앞 절에서 개념적으로 설명한 **"동적으로 Data-Flow Graph를 만들어서 실행하는 엔진"** 의 실제 구현 단면입니다. 앞 절의 추상화된 자료구조들이 각각 별도의 장치로 구현되어 함께 동작합니다.
 
-- **Register Renaming** - Architectural Register를 그 시점의 비어 있는 Physical Register로 매핑
-- **동적 Data-Flow Graph 태깅** - 명령어 윈도우 안의 명령어들이 어떤 값을 기다리고, 어디로 결과를 보내는지 매 cycle 갱신
-- **In-order Retire** - 내부적으로는 out-of-order로 실행되더라도, 결과를 외부로 commit할 때는 원래 프로그램 순서대로 정리
+- **Register Alias Table (RAT)** - Architectural Register를 그 시점의 비어 있는 Physical Register로 매핑 (register renaming)
+- **Reservation Station / Scheduler** - 명령어 윈도우 안의 명령어들이 어떤 값을 기다리고, 어디로 결과를 보내는지 매 cycle 갱신하며 실행 가능해진 명령어를 실행 유닛으로 내보냄
+- **Reorder Buffer (ROB)** - 내부적으로는 out-of-order로 실행되더라도, 결과를 외부로 commit할 때는 원래 프로그램 순서대로 정리 (in-order retire) 하고, misprediction 시 rollback의 기준점이 됨
 
-요약하면, 앞 절에서 "Reservation Table + Renaming Table + Instruction Window"로 추상화해 설명한 자료구조들이 실제 Intel Core 안에서는 **Reorder Buffer**라는 하나의 장치로 통합되어 동작한다고 이해하면 됩니다.
+요약하면, 앞 절에서 "Reservation Table + Renaming Table + Instruction Window"로 추상화해 설명한 자료구조들이 실제 Intel Core 안에서는 **RAT, Reservation Station, Reorder Buffer**라는 장치들로 나뉘어 유기적으로 동작한다고 이해하면 됩니다.
 
 ### VLIW: 소프트웨어적 접근
 
@@ -645,16 +646,16 @@ VLIW에서 한 가지 미묘한 어려움이 있습니다. Functional Unit 개�
 
 반면 Vertical Encoding은 짧은 명령어 뒤에 디코더가 모든 디테일을 흡수하므로, 소프트웨어는 하드웨어 구조를 몰라도 코드를 작성할 수 있습니다. 강의 초반에 본 「프로세서 설계의 핵심 질문」으로 다시 돌아가면, **Vertical = ① Microarchitecture 최적화 의존**, **Horizontal = ② Compiler/Programmer 최적화 의존** 이라는 매핑이 정확히 여기에서 성립합니다. 즉 인코딩 방식의 선택은 단순한 비트 배치 문제가 아니라, **하드웨어와 소프트웨어 사이의 책임을 어디에서 끊을 것인가** 라는 설계 철학의 선택입니다.
 
-### Modular Scheduling: SW Pipelining의 핵심
+### Modulo Scheduling: SW Pipelining의 핵심
 
-지금까지 본 VLIW 기법들(Loop Pipeline, Horizontal Encoding, Functional Unit 병렬 제어)은 사실 **꽤 오래된 아이디어**입니다. 그리고 이 모든 것을 컴파일러가 실제로 만들어 내기 위해 사용하는 가장 대표적인 알고리즘이 바로 **Modular Scheduling**(정확한 이름은 *Iterative Modulo Scheduling*)입니다.
+지금까지 본 VLIW 기법들(Loop Pipeline, Horizontal Encoding, Functional Unit 병렬 제어)은 사실 **꽤 오래된 아이디어**입니다. 그리고 이 모든 것을 컴파일러가 실제로 만들어 내기 위해 사용하는 가장 대표적인 알고리즘이 바로 **Modulo Scheduling**(대표적인 구현이 *Iterative Modulo Scheduling*)입니다.
 
 <img src="/images/07/slide33_1.png" />
 
-이 알고리즘의 개념은 1980년대에 **Bob Rau**가 처음 만들었고, 그가 **HP Labs**에 있을 때 잘 정리해서 1992년 논문으로 발표했습니다.
+이 알고리즘의 개념은 1980년대에 **Bob Rau**가 처음 만들었고, 그가 **HP Labs**에 있을 때 잘 정리해서 1994년 논문으로 발표했습니다.
 
-> Bob Rau, *"Iterative modulo scheduling: an integrated approach to software pipelining loops,"*
-> Proceedings of the 25th Annual International Symposium on Microarchitecture (MICRO), 1992.
+> B. Ramakrishna Rau, *"Iterative modulo scheduling: an algorithm for software pipelining loops,"*
+> Proceedings of the 27th Annual International Symposium on Microarchitecture (MICRO-27), 1994.
 
 알고리즘이 워낙 잘 설계되어 있어서, 비슷한 구조의 아키텍처를 다루는 **거의 모든 컴파일러가 이 틀 위에서 SW Pipelining을 구현**합니다.
 
@@ -667,7 +668,7 @@ VLIW에서 한 가지 미묘한 어려움이 있습니다. Functional Unit 개�
 
 요약하면 이렇습니다. **Dependence Graph**(명령어 간 의존성)와 **Schedule**(매 cycle 어떤 명령어가 어떤 stage에 들어가는지), 그리고 그것을 **Initiation Interval(II)** 마다 모듈로 패턴으로 반복시키며 자원 충돌을 추적하는 **Modulo Reservation Table(MRT)**, 이 개념들이 한 묶음으로 작동해서, 컴파일러가 루프를 파이프라인된 형태로 배치하고 그 위에 새로운 iteration을 일정 간격으로 계속 흘려보낼 수 있게 만듭니다. 슬라이드 두 번째에 나오는 *"50 iterations → 5 cycles + 49 × 2 cycles = 103 cycles"* 같은 예시가 그 효과를 그대로 보여 주는 사례입니다.
 
-직관적으로 보면, Modular Scheduling은 OOO Processor가 하드웨어적으로 매 cycle 동적으로 만들어내던 그 일(**루프 iteration들의 명령어를 펼쳐서 의존성에 맞게 재배치하고, 매 cycle 무엇이 동시에 실행될 수 있는지 결정**하는 일)을, **컴파일러가 정적으로 한 번에 풀어내는** 알고리즘이라고 보면 됩니다. 즉 OOO 안의 Reservation Station / Renaming Table / Reorder Buffer 가 동적으로 유지하던 "데이터 플로우 그래프 + 자원 할당 + 시점 결정" 의 역할을, **컴파일 타임에 Dependence Graph + MRT + Schedule** 형태로 미리 풀어 놓는다고 보면 정확합니다. 앞 절에서 본 "OOO와 똑같은 결과를 SW가 미리 만들어 둔다"는 발상이 실제 실행 가능한 형태로 구현되는 곳이 바로 여기입니다.
+직관적으로 보면, Modulo Scheduling은 OOO Processor가 하드웨어적으로 매 cycle 동적으로 만들어내던 그 일(**루프 iteration들의 명령어를 펼쳐서 의존성에 맞게 재배치하고, 매 cycle 무엇이 동시에 실행될 수 있는지 결정**하는 일)을, **컴파일러가 정적으로 한 번에 풀어내는** 알고리즘이라고 보면 됩니다. 즉 OOO 안의 Reservation Station / Renaming Table / Reorder Buffer 가 동적으로 유지하던 "데이터 플로우 그래프 + 자원 할당 + 시점 결정" 의 역할을, **컴파일 타임에 Dependence Graph + MRT + Schedule** 형태로 미리 풀어 놓는다고 보면 정확합니다. 앞 절에서 본 "OOO와 똑같은 결과를 SW가 미리 만들어 둔다"는 발상이 실제 실행 가능한 형태로 구현되는 곳이 바로 여기입니다.
 
 ### Reconfigurable Architecture (Extreme VLIW)
 
@@ -687,7 +688,7 @@ VLIW에서 한 가지 미묘한 어려움이 있습니다. Functional Unit 개�
 
 - **Loop Pipelining = loop iteration을 중첩, Latency Hiding** - 한 iteration이 끝나기 전에 다음 iteration을 시작해 명령어 실행을 겹치는 것이 핵심. 거의 모든 프로그램이 실행 시간을 루프에 쏟기 때문에, 이 효과를 잘 내는 것이 곧 성능 향상의 핵심 과제가 됩니다.
 - **Out-of-Order Processor**에서는 **하드웨어가 동적으로** 자연스럽게 이 효과를 만들어냅니다. 그 이론적 기반은 1960년대의 **Tomasulo Algorithm**으로, 오늘날의 ROB·Reservation Station·Renaming Table까지 곧장 이어집니다.
-- **VLIW (또는 Reconfigurable) Processor**에서는 **소프트웨어(컴파일러)가 정적으로** 이 효과를 만들어냅니다. 대표적인 컴파일러 알고리즘이 1992년의 **Iterative Modulo Scheduling**입니다.
+- **VLIW (또는 Reconfigurable) Processor**에서는 **소프트웨어(컴파일러)가 정적으로** 이 효과를 만들어냅니다. 대표적인 컴파일러 알고리즘이 1994년의 **Iterative Modulo Scheduling**입니다.
 
 #### 정적 접근(VLIW)의 장단점
 
@@ -847,13 +848,13 @@ GPU는 처음부터 머신러닝을 염두에 두고 설계된 것이 아닙니�
 
 <img src="/images/07/slide47_1.png" />
 
-ML 붐이 본격화되면서 NVIDIA는 이 우연한 적합성을 발판으로 폭발적인 성장을 거듭했고, 그 성장에 맞춰 NVIDIA GPU의 **컴퓨팅 성능(FLOPS)** 도 세대마다 빠르게 끌어올라갔습니다. 그림에 나타난 곡선이 바로 그 흐름을 그대로 보여 줍니다.
+ML 붐이 본격화되면서 NVIDIA는 이 우연한 적합성을 발판으로 폭발적인 성장을 거듭했고, 그 성장에 맞춰 NVIDIA GPU의 **컴퓨팅 성능(FLOPS)** 도 세대마다 빠르게 올라갔습니다. 그림에 나타난 곡선이 바로 그 흐름을 그대로 보여 줍니다.
 
 <img src="/images/07/slide48_1.png" />
 
-다만 컴퓨팅 성능이 끌어올라가는 만큼 **메모리 Bandwidth가 같은 속도로 따라오지는 못하고 있다**는 점은 매우 중요한 한계입니다. 메모리 인터페이스 기술 자체도(HBM 세대 교체 등) 빠르게 발전하고는 있지만, NVIDIA가 컴퓨팅 밀도를 끌어올리는 속도를 따라잡지는 못하고 있고, **그 사이의 갭은 오히려 점점 더 벌어지는 추세**입니다.
+다만 컴퓨팅 성능이 올라가는 만큼 **메모리 Bandwidth가 같은 속도로 따라오지는 못하고 있다**는 점은 매우 중요한 한계입니다. 메모리 인터페이스 기술 자체도(HBM 세대 교체 등) 빠르게 발전하고는 있지만, NVIDIA가 컴퓨팅 밀도를 끌어올리는 속도를 따라잡지는 못하고 있고, **그 사이의 갭은 오히려 점점 더 벌어지는 추세**입니다.
 
-특히 최근 세대인 **Blackwell** 정도에 이르면 *"이제 거의 이 게임의 끝에 온 것 아닌가"* 하는 느낌이 들 만큼 컴퓨팅 쪽으로 한참 멀리 가 있는 상황입니다. 거기에 **DeepSeek** 처럼 효율적인 모델 사례가 등장하면서, 앞으로도 계속 **괴물 같은 컴퓨팅을 욱여넣은 칩**이 필요할지, 아니면 이 정도 선에서 멈출지, 또는 오히려 스케일을 백할지에 대한 논의가 시작되고 있습니다. 다만 지난 10년의 행보만 놓고 보면, **인텔이 한때 그랬듯이 NVIDIA도 GPU를 꾸준히 스케일업해 온** 흐름이 그대로 이어지고 있는 상황입니다.
+특히 최근 세대인 **Blackwell** 정도에 이르면 *"이제 거의 이 게임의 끝에 온 것 아닌가"* 하는 느낌이 들 만큼 컴퓨팅 쪽으로 한참 멀리 가 있는 상황입니다. 거기에 **DeepSeek** 처럼 효율적인 모델 사례가 등장하면서, 앞으로도 계속 **괴물 같은 컴퓨팅을 욱여넣은 칩**이 필요할지, 아니면 이 정도 선에서 멈출지, 또는 오히려 스케일백(scale back)할지에 대한 논의가 시작되고 있습니다. 다만 지난 10년의 행보만 놓고 보면, **인텔이 한때 그랬듯이 NVIDIA도 GPU를 꾸준히 스케일업해 온** 흐름이 그대로 이어지고 있는 상황입니다.
 
 ### GPU의 Multithreading Overhead
 
