@@ -19,13 +19,13 @@ PyTorch 2.0에서 가장 크게 변한 부분은 그래프 모드(graph mode)의
 
 ### Lua Torch 시대
 
-PyTorch의 기원은 **Torch**에서 시작됩니다. Torch는 원래 C/C++로 작성된 라이브러리였으며, 이를 더 편하게 사용하기 위해 스크립트 언어를 올렸는데, 처음 선택된 것이 **Lua**였습니다. 이것이 Lua Torch입니다.
+PyTorch의 기원은 **Torch**에서 시작됩니다. Torch는 원래 C/C++로 작성된 라이브러리였으며, 이를 더 편하게 사용하기 위해 스크립트 언어를 올렸는데, 처음 선택된 것이 Lua였습니다. 이것이 Lua Torch입니다.
 
 ### PyTorch의 탄생
 
-Lua보다 Python이 훨씬 더 인기 있는 언어였기 때문에, Meta(당시 Facebook)에서 Python 기반의 PyTorch 프로젝트를 시작했습니다. 당시에는 **TensorFlow가 대세**였고, PyTorch는 지금처럼 큰 프로젝트가 될 것이라 기대하지 않았습니다. 연구자들이 TensorFlow의 복잡한 사용성에 어려움을 겪고 있었기 때문에, 그 문제를 해결하고자 **eager mode** 철학을 중심으로 개발을 시작했습니다.
+Lua보다 Python이 훨씬 더 인기 있는 언어였기 때문에, Meta(당시 Facebook)에서 Python 기반의 PyTorch 프로젝트를 시작했습니다. 당시에는 TensorFlow가 대세였고, PyTorch는 지금처럼 큰 프로젝트가 될 것이라 기대하지 않았습니다. 연구자들이 TensorFlow의 복잡한 사용성에 어려움을 겪고 있었기 때문에, 그 문제를 해결하고자 **eager mode** 철학을 중심으로 개발을 시작했습니다.
 
-이 접근 방식은 특히 **리서치 커뮤니티**에서 큰 호응을 얻으며 PyTorch가 빠르게 성장하는 계기가 되었습니다. 다만 이 시기의 PyTorch는 주로 연구자들이 사용하는 도구였으며, production 환경에서 사용할 수준은 아니었습니다.
+이 접근 방식은 특히 리서치 커뮤니티에서 큰 호응을 얻으며 PyTorch가 빠르게 성장하는 계기가 되었습니다. 다만 이 시기의 PyTorch는 주로 연구자들이 사용하는 도구였으며, production 환경에서 사용할 수준은 아니었습니다.
 
 ### PyTorch 1.0: Production 지원
 
@@ -33,13 +33,13 @@ PyTorch의 인기가 높아지면서, production 환경에서도 사용할 수 �
 
 ### PyTorch 2.0: 그래프 모드의 본격 도입
 
-PyTorch 2.0에서는 1.0 대비 가장 크게 변한 부분이 **그래프 모드**입니다. 전체적인 구조는 **프론트엔드 → 백엔드 → 코드 생성 백엔드**의 형태로, 일반적인 컴파일러 아키텍처와 유사합니다. 다만 몇 가지 차이점이 있습니다:
+PyTorch 2.0에서는 1.0 대비 가장 크게 변한 부분이 그래프 모드입니다. 전체적인 구조는 프론트엔드 → 백엔드 → 코드 생성 백엔드의 형태로, 일반적인 컴파일러 아키텍처와 유사합니다. 다만 몇 가지 차이점이 있습니다:
 
 - **Dynamo**: 그래프를 캡처하는 새로운 모듈이 프론트엔드에 추가
 - **Autograd 통합**: 머신러닝을 위한 컴파일러이므로 자동 미분 기능이 백엔드 과정에 포함
-- **Inductor 및 다양한 백엔드 지원**: 여러 백엔드 중 대표적으로 Inductor가 있으며, 그 하위에 **Triton** 등의 코드 생성 백엔드가 연결
+- **Inductor 및 다양한 백엔드 지원**: 여러 백엔드 중 대표적으로 Inductor가 있으며, 그 하위에 Triton 등의 코드 생성 백엔드가 연결
 
-이 시기에 PyTorch가 **Linux Foundation**에 기부되며 **PyTorch Foundation**이 설립되었습니다.
+이 시기에 PyTorch가 Linux Foundation에 기부되며 PyTorch Foundation이 설립되었습니다.
 
 PyTorch 2.0 이후로 eager mode의 유연성과 graph mode의 컴파일러 최적화를 결합한 형태로 발전하면서, 연구뿐만 아니라 production에서도 널리 쓰이게 되었습니다.
 
@@ -114,7 +114,7 @@ L9:  output(r);
 
 #### Trace
 
-프로그램을 실제로 실행했을 때, CFG 상에서 어떤 노드들을 거쳤는지를 순서대로 기록한 것이 **Trace**입니다. Trace는 결과적으로 **linear list** 형태가 됩니다. 반복문이 있으면 동일한 노드가 여러 번 나타날 수 있지만, 여전히 linear list로 기록됩니다.
+프로그램을 실제로 실행했을 때, CFG 상에서 어떤 노드들을 거쳤는지를 순서대로 기록한 것이 **Trace**입니다. Trace는 결과적으로 linear list 형태가 됩니다. 반복문이 있으면 동일한 노드가 여러 번 나타날 수 있지만, 여전히 linear list로 기록됩니다.
 
 예를 들어 `d = 0`일 때의 Trace는 다음과 같습니다:
 
@@ -149,24 +149,24 @@ L9:  output(r);
 
 이러한 한계에도 불구하고, trace를 잘 추출할 수 있다면 다양한 최적화를 수행할 수 있습니다. 기본적인 아이디어는 다음과 같습니다:
 
-1. **반복 수행되는 구간**을 찾아 trace로 추출하고, 최적화를 적용
-2. 프로그램 실행 중 해당 trace에 진입했다고 판단되면, 실제 코드 대신 **미리 최적화된 trace를 불러와 실행**
-3. 만약 **trace misprediction**이 발생하면 trace에서 빠져나와 **상황을 복구**
+1. 반복 수행되는 구간을 찾아 trace로 추출하고, 최적화를 적용
+2. 프로그램 실행 중 해당 trace에 진입했다고 판단되면, 실제 코드 대신 미리 최적화된 trace를 불러와 실행
+3. 만약 trace misprediction이 발생하면 trace에서 빠져나와 상황을 복구
 
 #### Out-of-Order Execution: Trace 최적화의 대표 사례
 
 Super-scalar 아키텍처의 **Out-of-Order Execution**은 대표적인 trace 기반 최적화입니다.
 Out-of-Order engine의 목표는 instruction을 재배열하여 **Instruction-Level Parallelism(ILP)** 을 극대화하는 것인데, 이를 위해서는 스케줄링 scope이 클수록 유리합니다. 독립적인 instruction을 찾아야 하므로 pool이 클수록 좋기 때문입니다.
 
-문제는 일반적인 프로그램에서 **매 5~6개 instruction마다 branch가 발생**한다는 것입니다. Branch가 나타나면 실제로 어느 방향으로 뛸지 모르므로, 그 이후의 instruction을 미리 스케줄링하기 어렵습니다. 결국 branch 사이의 5~6개 instruction만 보고 ILP를 찾아야 하니 효율이 낮아집니다.
+문제는 일반적인 프로그램에서 매 5~6개 instruction마다 branch가 발생한다는 것입니다. Branch가 나타나면 실제로 어느 방향으로 뛸지 모르므로, 그 이후의 instruction을 미리 스케줄링하기 어렵습니다. 결국 branch 사이의 5~6개 instruction만 보고 ILP를 찾아야 하니 효율이 낮아집니다.
 
 이를 해결하기 위해 **Branch Prediction**을 out-of-order engine에 결합합니다:
 
-1. 확률이 높은 방향으로 trace를 생성하되, branch prediction을 **여러 번 반복**하여 긴 trace를 구성
+1. 확률이 높은 방향으로 trace를 생성하되, branch prediction을 여러 번 반복하여 긴 trace를 구성
 2. 이 긴 trace를 대상으로 out-of-order execution을 수행하면 성능이 크게 향상
 3. 만약 prediction이 틀리면(misprediction), **Reorder Buffer**(ROB)를 통해 rollback. 실제 결과를 commit하기 전에 in-order로 저장해두고, branch 결과가 확정되면 그때 publish
 
-**이 구조가 결국 PyTorch 2.0의 Dynamo가 하는 일과 매우 유사합니다.** Dynamo도 실행 가능한 trace를 미리 추출하여 최적화하고, 동일한 패턴이 반복되면 이를 활용합니다.
+이 구조가 결국 PyTorch 2.0의 Dynamo가 하는 일과 매우 유사합니다. Dynamo도 실행 가능한 trace를 미리 추출하여 최적화하고, 동일한 패턴이 반복되면 이를 활용합니다.
 
 #### 이후 다룰 사례들
 
@@ -180,7 +180,7 @@ Out-of-Order engine의 목표는 instruction을 재배열하여 **Instruction-Le
 
 Trace Cache는 Instruction Cache + Branch Prediction을 더 최적화한 형태입니다. Branch Prediction이 없으면 분기가 결정되기 전까지 instruction을 미리 fetch할 수 없기 때문에 예측을 수행하는데, 그럼에도 Instruction Cache는 점프가 많아지면 fetch 효율이 떨어지는 문제가 있습니다. Bank conflict가 발생하거나 cache miss로 원하는 데이터가 캐시에 없을 가능성이 높아지기 때문입니다.
 
-Trace Cache는 이를 해결하기 위해 **메모리의 비연속적인 구간을 하나의 연속적인 블록으로 묶어** fetch를 최적화합니다. Pentium 4 프로세서에서 최초로 적용되었습니다.
+Trace Cache는 이를 해결하기 위해 메모리의 비연속적인 구간을 하나의 연속적인 블록으로 묶어 fetch를 최적화합니다. Pentium 4 프로세서에서 최초로 적용되었습니다.
 
 <ThemeImage
   darkSrc="/images/03/trace-cache-dark.svg"
@@ -212,10 +212,10 @@ Trace Cache의 동작 방식은 다음과 같습니다:
 
 <img src="/images/03/slide10_1.png" alt="Trace Cache, Trace Predictor, Trace Buffer의 연결 구조 다이어그램" class="h-52" />
 
-1. **Trace Predictor**가 다음에 실행될 trace를 예측하여 **Trace Cache**에서 해당 trace를 fetch → **Execution Engine**에 전달
-2. Trace Cache에 원하는 trace가 없으면(trace miss), **Instruction Cache + Branch Predictor**를 통해 instruction을 하나씩 fetch하면서 새로운 trace 후보를 **outstanding trace buffers**에 수집
-3. 충분한 trace가 모이면 trace buffer에서 선별하여 **Trace Cache를 update**
-4. Execution Engine에서 실제 branch 결과(**branch outcomes**)가 나오면, 이를 Trace Predictor와 Branch Predictor에 피드백하여 예측 정확도를 개선
+1. Trace Predictor가 다음에 실행될 trace를 예측하여 Trace Cache에서 해당 trace를 fetch → Execution Engine에 전달
+2. Trace Cache에 원하는 trace가 없으면(trace miss), Instruction Cache + Branch Predictor를 통해 instruction을 하나씩 fetch하면서 새로운 trace 후보를 outstanding trace buffers에 수집
+3. 충분한 trace가 모이면 trace buffer에서 선별하여 Trace Cache를 update
+4. Execution Engine에서 실제 branch 결과(branch outcomes)가 나오면, 이를 Trace Predictor와 Branch Predictor에 피드백하여 예측 정확도를 개선
 
 결과적으로 Trace Cache는 분기 명령으로 인해 발생하는 명령어 fetch의 불연속성을 완화함으로써 fetch 효율을 높이고, 연속적인 명령어 공급을 가능하게 하여 전체 실행 성능 향상에 기여합니다.
 
@@ -228,7 +228,7 @@ Partial evaluation은 프로그램을 최적화하는 기법으로, 입력을 �
 - **Static Input**: 변하지 않는 상수처럼 취급될 입력 (자주 사용되는 고정 값)
 - **Dynamic Input**: 실행 시마다 변할 수 있는 입력
 
-프로그램 `p`에 고정된 입력 `in1`(static input)을 주어 **부분 평가(partial-evaluate)** 한 뒤, 동적 입력 `in2`(dynamic input)에 의해 영향을 받는 나머지 계산만 수행하는 **특화된 프로그램(specialized program)** 을 생성합니다. 이렇게 생성된 특화 프로그램은 원래 프로그램 `p`보다 **더 빠르게** 실행됩니다.
+프로그램 `p`에 고정된 입력 `in1`(static input)을 주어 부분 평가(partial-evaluate)한 뒤, 동적 입력 `in2`(dynamic input)에 의해 영향을 받는 나머지 계산만 수행하는 **특화된 프로그램(specialized program)** 을 생성합니다. 이렇게 생성된 특화 프로그램은 원래 프로그램 `p`보다 더 빠르게 실행됩니다.
 
 <img src="/images/03/slide11_1.png" alt="Partial evaluation으로 특화된 프로그램을 생성하는 과정 다이어그램" class="h-56" />
 
@@ -261,7 +261,7 @@ def optimized_compute(y):
 - **Static input은 더 이상 필요 없음** - 영향이 이미 반영되었기 때문
 - **Static input에만 영향을 받는 코드는 다시 계산할 필요가 없음** - 결과가 이미 특화 프로그램에 포함됨
 
-모든 입력 집합이 `{i1, i2, ..., in}`이라면, 이를 static input과 dynamic input으로 나누는 과정이 필요합니다. 단, 임의로 나눌 수는 없고 **실제 실행 중 바뀌지 않는 값만 static input으로 설정**해야 효과적입니다. **Static input이 바뀌면 최적화된 Trace도 달라져야** 하므로 새로운 partial evaluation이 필요하고, 잘못된 static input을 적용하면 예상과 다른 결과가 나올 수 있습니다.
+모든 입력 집합이 `{i1, i2, ..., in}`이라면, 이를 static input과 dynamic input으로 나누는 과정이 필요합니다. 단, 임의로 나눌 수는 없고 실제 실행 중 바뀌지 않는 값만 static input으로 설정해야 효과적입니다. Static input이 바뀌면 최적화된 Trace도 달라져야 하므로 새로운 partial evaluation이 필요하고, 잘못된 static input을 적용하면 예상과 다른 결과가 나올 수 있습니다.
 
 **PyTorch 2.0과의 연관성**: Dynamo는 Partial Evaluation과 유사한 방식으로 동작합니다. 변하지 않는 연산(Python 코드, tensor shape 등)을 미리 계산하여 최적화된 Graph를 생성하고, 변하는 부분(실제 tensor 데이터)만 실행 시 처리합니다.
 
@@ -273,9 +273,9 @@ Python으로 작성된 ML 모델에 tracing을 적용하면 여러 이점이 있
 
 **Tensor shape 판별**: 단순히 trace를 추출하는 것을 넘어, tracing 과정에서 수행에 필요한 tensor의 shape들을 판별할 수 있습니다. 이는 다음과 같은 이유로 중요합니다:
 
-- NPU/GPU의 **메모리 레이아웃 최적화**에 필수적
-- 계산 크기에 따른 **스케줄링 결정**에 중요
-- 컴파일 시 **메모리 사용량과 실제 계산 수행 방식을 예측** 가능
+- NPU/GPU의 메모리 레이아웃 최적화에 필수적
+- 계산 크기에 따른 스케줄링 결정에 중요
+- 컴파일 시 메모리 사용량과 실제 계산 수행 방식을 예측 가능
 
 **Graph 최적화**: 전체 계산 흐름을 파악할 수 있으므로, Python 레벨에서는 어려운 종합적인 최적화를 trace 레벨에서 구현할 수 있습니다. 대표적인 최적화 기법으로는 Op Fusion, Constant propagation, Common subexpression elimination 등이 있습니다.
 
@@ -291,7 +291,7 @@ CPython의 기본 동작은 다음과 같습니다:
 
 1. CPython을 초기화
 2. 소스 코드를 **code object**로 컴파일 (compiler)
-3. Code object 내의 **bytecode**를 실행 (virtual machine)
+3. Code object 내의 bytecode를 실행 (virtual machine)
 
 즉, Python 소스 코드가 입력되면 이를 bytecode로 변환하고, VM의 evaluation loop에서 bytecode instruction을 하나씩 실행합니다. 이때 실행되는 instruction을 순서대로 기록하면 그것이 곧 trace가 됩니다.
 
@@ -326,21 +326,21 @@ Dynamo 자체가 CPython에 직접 integration 되어 있기 때문에, Python V
 
 **`jit.trace`**: Dispatcher를 활용한 간단한 Tracing
 
-Eager Mode에서 배운 **Dispatcher**를 활용한 방식입니다. Dispatcher의 dispatch key에 따라 다른 kernel을 실행할 수 있다는 점을 이용하여, 실제 Op을 수행하는 대신 **trace만 collect하는 kernel**을 붙여놓은 것이 `jit.trace`입니다.
+Eager Mode에서 배운 **Dispatcher**를 활용한 방식입니다. Dispatcher의 dispatch key에 따라 다른 kernel을 실행할 수 있다는 점을 이용하여, 실제 Op을 수행하는 대신 trace만 collect하는 kernel을 붙여놓은 것이 `jit.trace`입니다.
 
 - 프로그램이 실행되면 Python 세계에서 일어난 모든 일은 무시
-- **Device에서 실행될 Op들만** 모아서 trace를 생성
+- Device에서 실행될 Op들만 모아서 trace를 생성
 - Partial Evaluation 관점에서, tensor 연산은 dynamic input이고 Python 코드의 제어 흐름은 static input이라고 가정
 
 **`jit.script`**: Python subset 전용 Interpreter
 
-`jit.trace`의 한계를 보완하기 위해 도입된 기술입니다. Partial evaluator와 유사하게 동작하되, **Python 전체가 아닌 subset만 처리**할 수 있는 별도의 interpreter를 사용합니다. 하지만 "popular할 것 같은 subset"을 넘어가는 프로그램이 실제로는 매우 많아, 처리하지 못하고 포기하는 경우가 빈번했습니다.
+`jit.trace`의 한계를 보완하기 위해 도입된 기술입니다. Partial evaluator와 유사하게 동작하되, Python 전체가 아닌 subset만 처리할 수 있는 별도의 interpreter를 사용합니다. 하지만 "popular할 것 같은 subset"을 넘어가는 프로그램이 실제로는 매우 많아, 처리하지 못하고 포기하는 경우가 빈번했습니다.
 
 실무에서는 오히려 `jit.trace`가 더 널리 사용되었습니다. 프로그래머가 코드를 작성할 때 static/dynamic input을 잘 구분하여 설계하면, `jit.trace`로도 안전하게 tracing할 수 있기 때문입니다.
 
 #### jit.trace의 한계
 
-`jit.trace`의 핵심 전제는 "tensor 연산은 dynamic input, Python 제어 흐름은 static input"이라는 가정입니다. 하지만 이는 **검증 없는 가정**일 뿐입니다.
+`jit.trace`의 핵심 전제는 "tensor 연산은 dynamic input, Python 제어 흐름은 static input"이라는 가정입니다. 하지만 이는 검증 없는 가정일 뿐입니다.
 
 아래 코드에서 dynamic input인 `x`의 평균값에 따라 if문의 분기가 달라집니다. 특정 입력으로 trace를 생성하면, 다른 입력에서는 잘못된 경로를 실행하게 됩니다.
 
@@ -355,7 +355,7 @@ def function(inputs):
 ```
 
 - **Trace 안전성 없음**: dynamic input(`x`)의 값에 따라 조건문의 실행 경로가 달라지므로, 한 입력에서 생성한 trace를 다른 입력에 재사용할 수 없음
-- **근본 원인**: `jit.trace`는 input이 static한지 dynamic한지를 분석하지 않고, 단순히 가정만 함. 연산 자체는 문제가 없으며, **input이 static했는지 아닌지**에 따라 trace의 안전성이 결정됨
+- **근본 원인**: `jit.trace`는 input이 static한지 dynamic한지를 분석하지 않고, 단순히 가정만 함. 연산 자체는 문제가 없으며, input이 static했는지 아닌지에 따라 trace의 안전성이 결정됨
 - 이 문제는 앞서 다룬 "입력에 따라 trace가 달라지는" 문제와 정확히 동일
 
 > **Q**: `jit.trace`나 `jit.script`로 직접 최적화할 부분을 지정해서 커널 퓨전을 했는데, PyTorch 버전 업그레이드로 Dynamo를 지원하면서 학습 throughput이 크게 올랐습니다. Dynamo는 알아서 최적화를 해주는 느낌인데, 이렇게 이해해도 될까요?
@@ -368,9 +368,9 @@ def function(inputs):
 
 #### PyTorch 2.0: Dynamo
 
-`jit.trace`와 `jit.script` 모두 근본적인 한계가 있었기 때문에, PyTorch 2.0에서는 이를 한 번에 해결하기 위해 **Dynamo**를 도입했습니다.
+`jit.trace`와 `jit.script` 모두 근본적인 한계가 있었기 때문에, PyTorch 2.0에서는 이를 한 번에 해결하기 위해 Dynamo를 도입했습니다.
 
-Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, **CPython에 직접 통합**하여 bytecode 수준에서 end-to-end trace를 생성한다는 점입니다. 이를 통해:
+Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, CPython에 직접 통합하여 bytecode 수준에서 end-to-end trace를 생성한다는 점입니다. 이를 통해:
 
 - Python 전체 언어를 지원 (`jit.script`의 subset 문제 해결)
 - Guard로 입력 의존성을 검증하고, 조건이 달라지면 재컴파일하는 안전한 tracing (`jit.trace`의 검증 없는 입력 의존 문제 해결)
@@ -380,7 +380,7 @@ Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, 
 
 #### Concept
 
-프로그램의 실행을 끝까지 따라가면 하나의 linear한 trace가 생성됩니다. 하지만 이 긴 trace 중 일부 구간은 dynamic input에 따라 다른 동작을 할 수 있어, static한 behavior가 보장되지 않습니다. Dynamo는 이러한 **trace 불가능한 구간(graph break 지점)을 식별**하여, 그 부분을 제외한 나머지를 **여러 개의 안전한 trace로 분할**합니다.
+프로그램의 실행을 끝까지 따라가면 하나의 linear한 trace가 생성됩니다. 하지만 이 긴 trace 중 일부 구간은 dynamic input에 따라 다른 동작을 할 수 있어, static한 behavior가 보장되지 않습니다. Dynamo는 이러한 trace 불가능한 구간(graph break 지점)을 식별하여, 그 부분을 제외한 나머지를 여러 개의 안전한 trace로 분할합니다.
 
 <ThemeImage
   darkSrc="/images/03/torch-dynamo-dark.svg"
@@ -391,16 +391,16 @@ Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, 
 
 위 다이어그램에서 색칠된 부분이 trace 불가능한 graph break 지점이고, 나머지 구간이 각각 하나의 trace가 됩니다. 분할된 trace들은 다음과 같은 방식으로 실행됩니다:
 
-1. Trace 진입 전, 현재 상태가 해당 trace를 수행할 수 있는 조건을 만족하는지 **Guard로 검사**
-2. 조건이 만족되면, 해당 trace에 대해 **최적화된 compiled function을 호출**
-3. Trace가 끝나면 (graph break 지점까지만 실행), **tracing 불가능한 구간을 원래 방식으로 실행**
+1. Trace 진입 전, 현재 상태가 해당 trace를 수행할 수 있는 조건을 만족하는지 Guard로 검사
+2. 조건이 만족되면, 해당 trace에 대해 최적화된 compiled function을 호출
+3. Trace가 끝나면 (graph break 지점까지만 실행), tracing 불가능한 구간을 원래 방식으로 실행
 4. 이후 다음 trace 진입 시, 다시 Guard로 조건을 확인하고 최적화된 trace를 활용
 
-이 trace를 찾아가는 과정 자체가 **recursive**합니다. Graph break 지점까지 trace를 수행하고, 최적화된 코드를 생성한 뒤, 다시 시작할 수 있는 지점을 찾아 새로운 trace 탐색을 시작합니다.
+이 trace를 찾아가는 과정 자체가 recursive합니다. Graph break 지점까지 trace를 수행하고, 최적화된 코드를 생성한 뒤, 다시 시작할 수 있는 지점을 찾아 새로운 trace 탐색을 시작합니다.
 
 #### CPython과의 통합
 
-앞서 언급했듯 Dynamo는 **CPython 자체에 integration**되어 동작합니다. 아래 그림의 왼쪽이 Python의 기본 동작, 오른쪽이 Dynamo가 이를 확장한 모습입니다:
+앞서 언급했듯 Dynamo는 CPython 자체에 integration되어 동작합니다. 아래 그림의 왼쪽이 Python의 기본 동작, 오른쪽이 Dynamo가 이를 확장한 모습입니다:
 
 <img src="/images/03/slide21_1.png" alt="Python 기본 frame 실행과 Dynamo의 frame evaluation 확장 비교 다이어그램" class="h-64" />
 
@@ -410,15 +410,15 @@ Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, 
 
 **Python의 기본 동작 (왼쪽):**
 
-1. 함수가 호출되면 새로운 **frame object**가 생성
-2. Frame 내부의 **code object**는 이미 컴파일되어 있으므로 바로 실행 가능
-3. **Evaluation loop**이 code object의 bytecode를 해석하며 함수 실행
+1. 함수가 호출되면 새로운 frame object가 생성
+2. Frame 내부의 code object는 이미 컴파일되어 있으므로 바로 실행 가능
+3. Evaluation loop이 code object의 bytecode를 해석하며 함수 실행
 
 **Dynamo의 동작 (오른쪽):**
 
 1. 함수 `foo`를 만나면 frame object를 만드는 것까지는 동일
-2. 해당 함수가 이전에 tracing된 적이 없으면, frame에 붙어 있는 code object의 **bytecode를 분석**하여 tracing을 시도
-3. Function call과 return을 따라가면서 **graph break가 나올 때까지** 추적한 뒤, 최적화된 코드를 생성
+2. 해당 함수가 이전에 tracing된 적이 없으면, frame에 붙어 있는 code object의 bytecode를 분석하여 tracing을 시도
+3. Function call과 return을 따라가면서 graph break가 나올 때까지 추적한 뒤, 최적화된 코드를 생성
 
 Dynamo는 CPython 소스를 수정하는 대신, CPython이 제공하는 **frame evaluation API(PEP 523)** 를 이용해 C 확장에서 frame 실행 함수를 교체하는 방식으로 구현되어 있습니다. 덕분에 CPython 내부 코드를 수정할 필요 없이 frame 단위로 개입하여 bytecode를 분석하고 변환할 수 있습니다.
 
@@ -432,18 +432,18 @@ Dynamo는 CPython 소스를 수정하는 대신, CPython이 제공하는 **frame
 
 지금까지의 내용을 Trace Generation 관점에서 정리합니다.
 
-**입력:** 실행할 **bytecode**와 처리할 **input**. Tensor는 **dynamic input**, 그 외는 **static input**으로 가정합니다.
+**입력:** 실행할 bytecode와 처리할 input. Tensor는 dynamic input, 그 외는 static input으로 가정합니다.
 
-**생성:** bytecode와 input을 가지고 **graph break가 발생할 때까지** 실행을 추적하여 trace를 생성하고, bytecode transformation을 수행하여 최적화된 코드를 **caching**합니다.
+**생성:** bytecode와 input을 가지고 graph break가 발생할 때까지 실행을 추적하여 trace를 생성하고, bytecode transformation을 수행하여 최적화된 코드를 caching합니다.
 
 **Caching된 최적화 코드의 구성 요소:**
 
 - **Guard** (static input 검증 로직) - 이전에 기록된 trace를 재사용할 수 있는지 확인
 - **Captured FX Graph** - 실행할 최적화된 연산 그래프
 - **Transformed bytecode** - FX Graph를 호출하는 bytecode와, 다음 코드로 넘어가기 위한 부분 포함
-- **Resumed functions** - graph break 이후 실행을 재개할 함수. Branch에서 break가 발생한 경우, 분기에 따라 **여러 개의 continuation**이 존재할 수 있음
+- **Resumed functions** - graph break 이후 실행을 재개할 함수. Branch에서 break가 발생한 경우, 분기에 따라 여러 개의 continuation이 존재할 수 있음
 
-Graph break 이후, resumed function의 bytecode를 가지고 위의 과정을 **recursive하게 반복**합니다.
+Graph break 이후, resumed function의 bytecode를 가지고 위의 과정을 recursive하게 반복합니다.
 
 <Mermaid>
 {`graph TB
@@ -477,19 +477,19 @@ Graph break 이후, resumed function의 bytecode를 가지고 위의 과정을 *
 1. **Guard 검사** - 조건을 만족하면 cache된 결과물을 사용, 만족하지 않으면 fallback
 2. **Python bytecode 실행** - captured FX Graph에 대한 계산 수행이 핵심
 3. **Graph break 이후 처리** - trace되지 못한 부분을 실행
-4. **Resume function 호출** - 실행을 재개할 함수가 선택되고, 해당 함수에 대해 **새로운 frame이 만들어지면서 동일한 과정을 반복**
+4. **Resume function 호출** - 실행을 재개할 함수가 선택되고, 해당 함수에 대해 새로운 frame이 만들어지면서 동일한 과정을 반복
 
 #### Trace Replay
 
-동일한 함수가 다시 호출되면, Dynamo는 Guard를 통해 이전 trace를 **재사용할 수 있는지 확인**합니다.
+동일한 함수가 다시 호출되면, Dynamo는 Guard를 통해 이전 trace를 재사용할 수 있는지 확인합니다.
 
 - **Guard 통과** (static input 불변) → cache된 transformed bytecode를 재활용하여 최적화된 코드 실행
-- **Guard 실패** (static input 변경) → **recompilation이 trigger**되어 새로운 trace를 생성
+- **Guard 실패** (static input 변경) → recompilation이 trigger되어 새로운 trace를 생성
 
 
 ## IR Lowering
 
-PyTorch 2.0에서 크게 개선된 부분 중 하나가 IR들이 lowering되는 과정을 **체계적으로 설계**한 것입니다. Dynamo에서 생성된 FxGraph는 여러 단계의 IR lowering을 거쳐 최종적으로 백엔드에서 실행됩니다:
+PyTorch 2.0에서 크게 개선된 부분 중 하나가 IR들이 lowering되는 과정을 체계적으로 설계한 것입니다. Dynamo에서 생성된 FxGraph는 여러 단계의 IR lowering을 거쳐 최종적으로 백엔드에서 실행됩니다:
 
 <Mermaid wide>
 {`graph LR
@@ -508,11 +508,11 @@ Gradient 계산이 필요할 경우 이 단계에서 처리합니다. 필요하�
 
 **3. Inductor** → Loop-Level IR
 
-Lowering된 IR을 받아 Inductor의 **Loop-level IR**로 변환합니다. 이 과정에서 **fusion** 같은 최적화 작업이 이루어지며, 최종적으로 선택한 백엔드에 전달됩니다.
+Lowering된 IR을 받아 Inductor의 **Loop-level IR**로 변환합니다. 이 과정에서 fusion 같은 최적화 작업이 이루어지며, 최종적으로 선택한 백엔드에 전달됩니다.
 
 **4. Triton** (Backend)
 
-백엔드는 전달받은 low-level IR을 **백엔드 특화된 device representation**으로 변환하여 실행합니다.
+백엔드는 전달받은 low-level IR을 백엔드 특화된 device representation으로 변환하여 실행합니다.
 
 ### Torch IR, Aten, Core Aten, and Prims IR
 
@@ -521,7 +521,7 @@ PyTorch의 IR 체계는 상위에서 하위로 단계적으로 lowering되는 �
 - **Torch IR** - Python 코드 수준에서 보이는 모든 연산자(operators)가 포함된 가장 상위 레벨의 IR. PyTorch이 지원하는 2,000개가 넘는 연산자에 해당
 - **Aten IR** - Torch IR을 약 750개의 canonical한 연산자로 정리한 IR. 기존에 이미 PyTorch를 지원하고 있는 backend가 사용 (Intel CPU, NVIDIA GPU 등)
 - **Core Aten IR** - Aten에서 더 작고 표현이 간결한 subset으로 정리한 약 250여개의 operations. 반드시 저수준의 ops를 의미하는 것은 아니며, avgpool2d, convolution 등의 high-level ops도 포함
-- **Prims IR** - Core Aten과 비슷하지만, **타입 정보와 broadcasting을 명시적으로 표현**하여 백엔드로 직접 전달할 수 있도록 변환된 형태. 약 250여개의 primitives
+- **Prims IR** - Core Aten과 비슷하지만, 타입 정보와 broadcasting을 명시적으로 표현하여 백엔드로 직접 전달할 수 있도록 변환된 형태. 약 250여개의 primitives
 
 아래 코드는 이 lowering에 사용되는 decomposition table을 구성하는 예시입니다:
 
@@ -538,7 +538,7 @@ decomp_table = torch._decomp.get_decompositions([
 ])
 ```
 
-이 lowering 과정은 **AOT Autograd**가 수행하며, **decomposition table**을 활용하여 연산을 변환합니다. Decomposition table에는 target 연산들의 구성으로 변환 규칙이 정의되어 있으며, 기본 변환(default)을 사용할 수도 있고 필요에 따라 직접 구성할 수도 있습니다.
+이 lowering 과정은 AOT Autograd가 수행하며, decomposition table을 활용하여 연산을 변환합니다. Decomposition table에는 target 연산들의 구성으로 변환 규칙이 정의되어 있으며, 기본 변환(default)을 사용할 수도 있고 필요에 따라 직접 구성할 수도 있습니다.
 
 > 참고: https://pytorch.org/docs/main/torch.compiler_ir.html
 
@@ -547,7 +547,7 @@ decomp_table = torch._decomp.get_decompositions([
 
 ### 사용자 관점
 
-모델을 생성한 뒤 `torch.compile(model)`을 호출하면 컴파일된 모델이 반환됩니다. 단, 이 시점에서 **실제 컴파일이 수행되는 것은 아닙니다**. 컴파일 의도가 반영된 모델이 생성되며, 실제 컴파일은 **모델 실행 시** 수행됩니다.
+모델을 생성한 뒤 `torch.compile(model)`을 호출하면 컴파일된 모델이 반환됩니다. 단, 이 시점에서 실제 컴파일이 수행되는 것은 아닙니다. 컴파일 의도가 반영된 모델이 생성되며, 실제 컴파일은 모델 실행 시 수행됩니다.
 
 ```python
 import torch
@@ -572,11 +572,11 @@ my_input = torch.randn(10, 100)
 forward_output = my_model(my_input)
 ```
 
-모델을 실행하면 Dynamo가 동작하여 trace를 생성하고, 등록된 backend가 호출되면서 컴파일이 수행됩니다. 첫 번째 실행 시에는 tracing과 compilation이 동시에 진행되어 오버헤드가 있을 수 있지만, **두 번째 실행부터는 cache된 컴파일 결과를 재활용**하여 compilation overhead 없이 최적화된 코드가 실행됩니다.
+모델을 실행하면 Dynamo가 동작하여 trace를 생성하고, 등록된 backend가 호출되면서 컴파일이 수행됩니다. 첫 번째 실행 시에는 tracing과 compilation이 동시에 진행되어 오버헤드가 있을 수 있지만, 두 번째 실행부터는 cache된 컴파일 결과를 재활용하여 compilation overhead 없이 최적화된 코드가 실행됩니다.
 
 ### Custom Backend 추가
 
-Custom backend를 등록하려면 **Backend Object를 생성**하고 function을 구현하여 등록합니다. FX Graph가 생성되면 해당 backend가 호출되어 컴파일을 수행하고, 결과를 runtime에서 실행하도록 설정합니다.
+Custom backend를 등록하려면 Backend Object를 생성하고 function을 구현하여 등록합니다. FX Graph가 생성되면 해당 backend가 호출되어 컴파일을 수행하고, 결과를 runtime에서 실행하도록 설정합니다.
 
 ```python
 # graph_module: torch.fx.GraphModule
@@ -602,38 +602,38 @@ forward_output = model(input)
 
 > **Q**: 상위와 하위 IR을 구분하는 이유는 무엇인가요?
 >
-> **A**: 컴파일러에서 일반적으로 사용하는 접근 방식입니다. 상위 레벨에서 다양한 기능을 제공하는 Op들을 **제한된 Op들의 조합으로 표현**하는 것이 lowering입니다. 예를 들어 Torch IR의 수천 개 Op이 Prims까지 내려가면 약 250개로 추려집니다. Op의 총 개수는 많을 수 있지만 구성하는 set 자체는 줄어들고, 개별 Op도 구체적이고 단순해집니다. 결과적으로 backend compiler는 제한된 수의 단순한 Op만 구현하면 됩니다.
+> **A**: 컴파일러에서 일반적으로 사용하는 접근 방식입니다. 상위 레벨에서 다양한 기능을 제공하는 Op들을 제한된 Op들의 조합으로 표현하는 것이 lowering입니다. 예를 들어 Torch IR의 수천 개 Op이 Prims까지 내려가면 약 250개로 추려집니다. Op의 총 개수는 많을 수 있지만 구성하는 set 자체는 줄어들고, 개별 Op도 구체적이고 단순해집니다. 결과적으로 backend compiler는 제한된 수의 단순한 Op만 구현하면 됩니다.
 
 > **Q**: ATen IR과 Core ATen IR의 관계는?
 >
-> **A**: 둘 다 device-independent한 공통 IR입니다. ATen IR 자체가 750개 이상으로 수가 많기 때문에, 그 아래로 더 내려가기 위해 **Core ATen이라는 추가 lowering 단계**를 거칩니다.
+> **A**: 둘 다 device-independent한 공통 IR입니다. ATen IR 자체가 750개 이상으로 수가 많기 때문에, 그 아래로 더 내려가기 위해 Core ATen이라는 추가 lowering 단계를 거칩니다.
 
 > **Q**: IR들은 모두 device-dependent한가요?
 >
-> **A**: 아닙니다. **Prims 단계까지는 device-independent**합니다. 이후 특정 디바이스(NPU, CUDA 등)에 맞춰 변환됩니다.
+> **A**: 아닙니다. Prims 단계까지는 device-independent합니다. 이후 특정 디바이스(NPU, CUDA 등)에 맞춰 변환됩니다.
 
 > **Q**: Op을 줄이는 과정이 CISC → RISC 과정과 유사한가요?
 >
-> **A**: Intel이 CISC를 구현할 때 내부적으로 RISC에 해당하는 **micro-ops로 명시적으로 쪼갠 뒤 수행**했던 방식과 상당히 유사합니다.
+> **A**: Intel이 CISC를 구현할 때 내부적으로 RISC에 해당하는 micro-ops로 명시적으로 쪼갠 뒤 수행했던 방식과 상당히 유사합니다.
 
 ### Dynamo 및 실행 관련
 
 > **Q**: 모델 실행 시 최적화는 어떻게 이루어지나요?
 >
-> **A**: 첫 번째 실행 시에는 tracing과 compilation이 동시에 진행되어 오버헤드가 있을 수 있습니다. 이후 cache가 저장되면, recompilation이 없는 한 **compilation overhead 없이** 최적화된 코드가 실행됩니다.
+> **A**: 첫 번째 실행 시에는 tracing과 compilation이 동시에 진행되어 오버헤드가 있을 수 있습니다. 이후 cache가 저장되면, recompilation이 없는 한 compilation overhead 없이 최적화된 코드가 실행됩니다.
 
 > **Q**: MyRuntime은 어떤 용도인가요?
 >
-> **A**: CUDA, NPU 등 특정 디바이스에서 코드를 실행하기 위한 **환경을 셋업하고 제공하는 런타임**입니다.
+> **A**: CUDA, NPU 등 특정 디바이스에서 코드를 실행하기 위한 환경을 셋업하고 제공하는 런타임입니다.
 
 > **Q**: Bytecode static analysis와 tracing의 구분은?
 >
-> **A**: Tracing은 전체 과정을 추상적으로 표현한 것이고, bytecode static analysis는 **tracing의 일부 과정**에 해당합니다.
+> **A**: Tracing은 전체 과정을 추상적으로 표현한 것이고, bytecode static analysis는 tracing의 일부 과정에 해당합니다.
 
 > **Q**: TorchDynamo는 Python에서만 사용되나요?
 >
-> **A**: TorchDynamo의 상당히 많은 부분이 **Python으로 작성**되어 있습니다.
+> **A**: TorchDynamo의 상당히 많은 부분이 Python으로 작성되어 있습니다.
 
 > **Q**: 예제의 backend는 Inductor의 backend인가요?
 >
-> **A**: 아닙니다. 이 예제에서는 Inductor를 사용하지 않고, 직접 구현한 function이 **Dynamo의 backend** 역할을 합니다. Inductor를 backend로 선택하거나, 별도의 backend를 붙이는 것도 가능합니다.
+> **A**: 아닙니다. 이 예제에서는 Inductor를 사용하지 않고, 직접 구현한 function이 Dynamo의 backend 역할을 합니다. Inductor를 backend로 선택하거나, 별도의 backend를 붙이는 것도 가능합니다.
