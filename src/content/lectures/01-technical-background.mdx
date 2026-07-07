@@ -18,7 +18,7 @@ PyTorch + NPU 온라인 모임 #1 | 2024-12-04
 
 ### 랩 1기 목표
 
-**랩 차원의 목표**로는 PyTorch internal에 관심 있는 사람들을 모으고, 함께 공부하고 성장하며, 공부한 결과를 강의자료로 정리하여 더 많은 사람들이 PyTorch internal을 쉽게 공부할 수 있도록 공유하는 것입니다. **개인적인 목표**로는 공부한 내용을 바탕으로 리벨리온 NPU를 PyTorch에 더 잘 붙여보고, 많은 분들이 PyTorch upstream에 기여하여 한국이 PyTorch upstream에서 큰 지분을 가져갈 수 있기를 바랍니다.
+랩 차원의 목표로는 PyTorch internal에 관심 있는 사람들을 모으고, 함께 공부하고 성장하며, 공부한 결과를 강의자료로 정리하여 더 많은 사람들이 PyTorch internal을 쉽게 공부할 수 있도록 공유하는 것입니다. 개인적인 목표로는 공부한 내용을 바탕으로 리벨리온 NPU를 PyTorch에 더 잘 붙여보고, 많은 분들이 PyTorch upstream에 기여하여 한국이 PyTorch upstream에서 큰 지분을 가져갈 수 있기를 바랍니다.
 
 ## ML Framework이란
 
@@ -28,7 +28,7 @@ ML Framework은 AI Ecosystem에서 다음과 같은 역할을 합니다:
 - **Programming Language**이자 - Model을 쉽게 작성할 수 있도록 API 제공
 - **Compiler** - 작성된 모델을 computing resource로 mapping
 
-이처럼 ML Framework에는 **다양한 기술적인 background가 혼재**되어 있습니다.
+이처럼 ML Framework에는 다양한 기술적인 background가 혼재되어 있습니다.
 
 PyTorch, TensorFlow, JAX 등의 ML Framework은 모델을 기술하는 것에서 나아가 GPU와 같은 AI 가속기를 효과적으로 활용하는 것이 핵심입니다. 프로그래밍 언어적 성격으로 모델을 직접 작성하고 제공하며, 컴파일러 역할로 AI 가속기에 그대로 매핑하는 대신 트랜스포메이션 과정을 통해 하드웨어 타겟에 최적화합니다.
 
@@ -71,7 +71,7 @@ ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하�
 
 ### Graphics에서의 시작
 
-이 기술의 시작점은 GUI, 컴퓨터 게임 등을 위한 **Graphics**입니다.
+이 기술의 시작점은 GUI, 컴퓨터 게임 등을 위한 Graphics입니다.
 
 - **OpenGL (1992)** - 실리콘 그래픽스가 개발한 Graphics API로, 프로그래머가 그래픽스 연산을 소프트웨어적으로 프로그래밍할 수 있는 시작점이었습니다. 다만 OpenGL 자체는 상업적으로 큰 성공을 거두지는 못했습니다.
 - **DirectX (1995)** - Microsoft가 개발한 Graphics API로, Windows PC의 보급과 함께 실질적인 업계 표준으로 자리잡았습니다. GPU의 성능 향상과 함께 주요 표준이 되었으며, Nvidia와 ATI(현재 AMD)의 성장을 촉진시킨 중요한 계기가 되었습니다.
@@ -96,7 +96,7 @@ ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하�
 - **OpenCL (2008)** - Apple이 주도
 - **HSA (2012)** - AMD/ARM이 주도
 
-그러나 OpenCL과 HSA는 상용화에서 한계를 보였고, **CUDA가 사실상 표준**으로 자리잡았습니다. 오늘날 PyTorch와 같은 ML Framework 내부에서도 CUDA 기반의 API가 광범위하게 사용되고 있으며, 많은 후발 주자들이 이를 기반으로 비슷한 구조를 구축하고 있습니다.
+그러나 OpenCL과 HSA는 상용화에서 한계를 보였고, CUDA가 사실상 표준으로 자리잡았습니다. 오늘날 PyTorch와 같은 ML Framework 내부에서도 CUDA 기반의 API가 광범위하게 사용되고 있으며, 많은 후발 주자들이 이를 기반으로 비슷한 구조를 구축하고 있습니다.
 
 
 ## Supercomputing
@@ -105,10 +105,10 @@ ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하�
 
 ### 슈퍼컴퓨팅과 인터넷 서비스의 차이
 
-슈퍼컴퓨팅은 많은 수의 컴퓨터를 네트워크로 연결해 **하나의 큰 계산을 분산 처리**하는 방식으로 작동합니다. 구글의 데이터센터나 클라우드 기술도 유사한 구조를 가지고 있지만, 본질적인 차이가 존재합니다:
+슈퍼컴퓨팅은 많은 수의 컴퓨터를 네트워크로 연결해 하나의 큰 계산을 분산 처리하는 방식으로 작동합니다. 구글의 데이터센터나 클라우드 기술도 유사한 구조를 가지고 있지만, 본질적인 차이가 존재합니다:
 
 - **인터넷 서비스**는 독립적이고 간단한 계산을 대량으로 처리하는 데 중점을 둡니다.
-- **슈퍼컴퓨팅**은 하나의 거대한 계산을 여러 컴퓨터에서 나누어 처리하며, 모든 작업이 연결되어 있습니다. 따라서 작업 중 하나라도 오류가 발생하면 전체 계산이 망가질 수 있어 **"Fault"를 어떻게 처리하느냐가 관건**입니다.
+- **슈퍼컴퓨팅**은 하나의 거대한 계산을 여러 컴퓨터에서 나누어 처리하며, 모든 작업이 연결되어 있습니다. 따라서 작업 중 하나라도 오류가 발생하면 전체 계산이 망가질 수 있어 "Fault"를 어떻게 처리하느냐가 관건입니다.
 
 머신러닝의 경우에도 인퍼런스는 독립적인 작업이 많지만, 대규모 분산 학습에서는 하나의 작업이 매우 크기 때문에 fault 처리가 더욱 중요해집니다.
 
@@ -127,7 +127,7 @@ ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하�
 매트릭스 곱셈의 연산량은 매트릭스 크기에 따라 N³에 비례하기 때문에, 이를 얼마나 빠르게 처리할 수 있는지가 전체 시스템의 성능에 큰 영향을 미칩니다.
 
 **최적화 기술:**
-- Algorithmic efficiency 측면: **Strassen algorithm**, DeepMind의 **AlphaTensor** 등
+- Algorithmic efficiency 측면: Strassen algorithm, DeepMind의 AlphaTensor 등
 
 **표준 라이브러리 BLAS**
 - **BLAS** (Basic Linear Algebra Subprograms, 1979) - 다양한 linear algebra 문제에 적용할 수 있는 low-level API로, Matrix multiplication을 위한 **GEMM**(General Matrix Multiply)을 포함합니다.
@@ -183,16 +183,16 @@ Data scientist들은 특정 프로그래밍 언어 자체보다는, 이미 존�
 
 ### NumPy의 등장과 Python의 부상
 
-SAS (1966), SPSS (1968), Matlab (1970s), R (1993) 등이 선구적인 역할을 했으나, **NumPy (2005)의 등장과 함께 Python이 대세**로 자리잡았습니다. SciPy, Matplotlib, pandas, scikit-learn 등의 생태계가 형성되었고, Jupyter의 등장으로 더욱 많은 사람들이 쉽게 접근할 수 있게 되었습니다.
+SAS (1966), SPSS (1968), Matlab (1970s), R (1993) 등이 선구적인 역할을 했으나, NumPy (2005)의 등장과 함께 Python이 대세로 자리잡았습니다. SciPy, Matplotlib, pandas, scikit-learn 등의 생태계가 형성되었고, Jupyter의 등장으로 더욱 많은 사람들이 쉽게 접근할 수 있게 되었습니다.
 
-**ML도 사용성 측면에서 같은 추세**를 보이고 있습니다. NumPy는 TensorFlow와 PyTorch의 API 설계와도 밀접한 관련이 있으며, 특히 텐서 연산 처리 방식에서 공통점이 많습니다.
+ML도 사용성 측면에서 같은 추세를 보이고 있습니다. NumPy는 TensorFlow와 PyTorch의 API 설계와도 밀접한 관련이 있으며, 특히 텐서 연산 처리 방식에서 공통점이 많습니다.
 
 흥미로운 점은, NumPy가 PyTorch의 개발에 영향을 준 뒤, 최근에는 NumPy 창시자의 회사가 PyTorch 2.0에 많은 기여를 하고 있다는 것입니다. 이제 PyTorch는 NumPy 코드를 네이티브로 지원하며, NumPy 코드를 수정 없이 작성하면 Dynamo와 Inductor를 통해 바이트코드로 동적 변환 후 CUDA 코드로 컴파일하여 GPU에서 실행할 수 있습니다. 이 기술은 현재 PyTorch의 upstream에 포함되어 있습니다.
 
 
 ## Two (or More) Language Problems
 
-Python은 사용하기 쉽지만 **성능 문제**가 있습니다. 이를 해결하기 위한 세 가지 접근법이 있습니다:
+Python은 사용하기 쉽지만 성능 문제가 있습니다. 이를 해결하기 위한 세 가지 접근법이 있습니다:
 
 **해결책 #1: 고성능 Python compiler를 개발**
 - Cython의 성능이 점점 좋아지고 있으며, PyPy같은 대안 프로젝트도 존재합니다.
@@ -209,11 +209,11 @@ Python은 사용하기 쉽지만 **성능 문제**가 있습니다. 이를 해�
 
 ### Eager mode
 
-API 호출 시 operator가 **곧바로 실행**됩니다.
+API 호출 시 operator가 곧바로 실행됩니다.
 
 ### Graph mode
 
-API 호출 시 graph를 **점진적으로 생성**합니다. Graph가 완성되면 목적에 맞게 변환을 적용한 후 수행합니다:
+API 호출 시 graph를 점진적으로 생성합니다. Graph가 완성되면 목적에 맞게 변환을 적용한 후 수행합니다:
 - Back propagation을 위한 backward graph 생성
 - 성능 향상을 위한 최적화 수행 (예: op fusion)
 
@@ -299,7 +299,7 @@ optimized_foo = torch.compile(foo)
 optimized_foo(x, y)
 ```
 
-PyTorch 1과 2는 모두 100% eager 모드를 지원합니다. PyTorch 1에서는 `torch.jit.trace`를 이용해 trace를 뽑아 그래프 모드를 수행했고, PyTorch 2에서는 이를 더 범용적으로 사용할 수 있는 `torch.compile`을 도입했습니다. 특히 trace를 뽑아내는 기능은 **Dynamo**라는 기술을 통해 더 체계적으로 대응하고 있습니다.
+PyTorch 1과 2는 모두 100% eager 모드를 지원합니다. PyTorch 1에서는 `torch.jit.trace`를 이용해 trace를 뽑아 그래프 모드를 수행했고, PyTorch 2에서는 이를 더 범용적으로 사용할 수 있는 `torch.compile`을 도입했습니다. 특히 trace를 뽑아내는 기능은 Dynamo라는 기술을 통해 더 체계적으로 대응하고 있습니다.
 
 
 ## This is not new
@@ -328,7 +328,7 @@ PGO(Profile-Guided Optimization)는 프로그램의 동적인 특성을 컴파�
 
 ML Framework에는 방대한 양의 배경 기술이 있지만, 시간이 흘러감에 따라 점점 더 잘 정리되어 "이런 문제는 이렇게 풀면 좋겠다"라는 것이 5년, 10년 전보다 훨씬 더 잘 정립되어 있습니다. 그리고 그런 것들이 잘 통합되어 있는 형태가 바로 PyTorch입니다.
 
-대표적인 예로 **vLLM**이 있습니다. vLLM은 PyTorch 위에 올라가는 기술로, 하드웨어를 붙이기 위해 "일단 PyTorch에 잘 붙여봐라"라는 구체적인 요구 조건을 내걸었습니다. 하드웨어 종속적인 부분들은 먼저 PyTorch에 잘 통합하고, 그 다음에 제공하라는 정식 정책을 수립한 것입니다. 이 ML 에코시스템에서 다양한 하드웨어를 잘 추상화하고 단순화시키는 **"Narrow Waist"** 역할로 PyTorch가 점점 더 보편적으로 받아들여지고 있습니다.
+대표적인 예로 **vLLM**이 있습니다. vLLM은 PyTorch 위에 올라가는 기술로, 하드웨어를 붙이기 위해 "일단 PyTorch에 잘 붙여봐라"라는 구체적인 요구 조건을 내걸었습니다. 하드웨어 종속적인 부분들은 먼저 PyTorch에 잘 통합하고, 그 다음에 제공하라는 정식 정책을 수립한 것입니다. 이 ML 에코시스템에서 다양한 하드웨어를 잘 추상화하고 단순화시키는 "Narrow Waist" 역할로 PyTorch가 점점 더 보편적으로 받아들여지고 있습니다.
 
 
 ## PyTorch 2.0
@@ -339,10 +339,10 @@ PyTorch 2.0은 PyTorch 1.0의 특성을 거의 모두 계승(inherit)하면서, 
 - **NumPy-like experience** - 텐서 구조, 사전 정의된 수학 함수, 대화형 환경, Jupyter Notebook 호환성
 - **Heterogeneous computing** as an underneath foundation - 다양한 하드웨어에서 효율적으로 동작
 - **MPI-like** distributed programming model - 분산 프로그래밍 기본 지원
-- Integration with **compute libraries / ML compiler** - PyTorch 1.0부터 Eager mode에서는 컴퓨팅 라이브러리를 사용하고, PyTorch 2.0에서는 Graph mode에서 ML 컴파일러와의 통합을 핵심 과제로 다루고 있음
-- Three language layers: **Python → C++ → kernel language** (예: CUDA, Triton) - 단순한 2개 언어가 아니라 제3 랭귀지 또는 멀티 랭귀지 솔루션. 스크립팅은 Python으로 이루어지지만, 하위 레벨에서는 성능 최적화를 위해 C++로 전환되며, GPU/TPU/NPU 등의 하드웨어에서는 커널 레벨의 최적화 성능을 제공
+- Integration with compute libraries / ML compiler - PyTorch 1.0부터 Eager mode에서는 컴퓨팅 라이브러리를 사용하고, PyTorch 2.0에서는 Graph mode에서 ML 컴파일러와의 통합을 핵심 과제로 다루고 있음
+- Three language layers: Python → C++ → kernel language (예: CUDA, Triton) - 단순한 2개 언어가 아니라 제3 랭귀지 또는 멀티 랭귀지 솔루션. 스크립팅은 Python으로 이루어지지만, 하위 레벨에서는 성능 최적화를 위해 C++로 전환되며, GPU/TPU/NPU 등의 하드웨어에서는 커널 레벨의 최적화 성능을 제공
 - **Define-by-run** with graph capturing via TorchDynamo - Eager mode 중심으로 Graph mode를 부드럽게 지원
-- Support both **training and inference** - Graph mode(컴파일) 경로가 inference뿐 아니라 training까지 지원하게 된 것이 PyTorch 2.0에서 가장 크게 변화한 부분
+- Support both training and inference - Graph mode(컴파일) 경로가 inference뿐 아니라 training까지 지원하게 된 것이 PyTorch 2.0에서 가장 크게 변화한 부분
 
 ### Backend Integration Points
 
