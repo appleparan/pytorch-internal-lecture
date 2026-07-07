@@ -44,24 +44,24 @@ PyTorch + NPU 온라인 모임 #4 | 2025-01-08
 3. **Backward Propagation (역전파)**: 손실을 줄이기 위해 loss에서 출발하여 입력층까지 역방향으로 gradient를 계산합니다. 중간층의 모든 가중치에 대한 보정값을 구하는 이 과정을 backpropagation이라 하며, 이것이 자동화된 것이 **Automatic Differentiation**입니다.
 4. **Optimizer**: 계산된 gradient를 기반으로 optimizer가 가중치를 조정합니다. 이때 모델 아키텍처 자체는 변하지 않고, 가중치만 업데이트됩니다.
 
-이 과정을 반복하면 손실이 점차 줄어들며, 목표 성능에 수렴하면 학습이 종료됩니다. 이것이 **Supervised Learning**(지도 학습)의 일반적인 흐름입니다.
+이 과정을 반복하면 손실이 점차 줄어들며, 목표 성능에 수렴하면 학습이 종료됩니다. 이것이 Supervised Learning(지도 학습)의 일반적인 흐름입니다.
 
 
 ### (Reverse-Mode) Automatic Differentiation
 
 Reverse-mode automatic differentiation은 역전파(backpropagation)를 구현하는 알고리즘으로, 다음 세 가지로 구성됩니다:
 
-1. **Computation graph**의 구성
-2. Computation graph 각 노드에서의 **gradient function** 도출
-3. Gradient를 전파하기 위한 graph의 **backward walking**
+1. Computation graph의 구성
+2. Computation graph 각 노드에서의 gradient function 도출
+3. Gradient를 전파하기 위한 graph의 backward walking
 
 이 과정의 수학적 기반은 **Chain Rule**입니다.
 
-**(i)** $y = f(g(x))$일 때:
+(i) $y = f(g(x))$일 때:
 
 $$\frac{dy}{dx} = \underbrace{f'(g(x))}_{\text{Outside's Function Derivative}} \cdot \underbrace{g'(x)}_{\text{Inside's Function Derivative}}$$
 
-**(ii)** $y = f(t)$이고 $x = g(t)$일 때 (parametric form):
+(ii) $y = f(t)$이고 $x = g(t)$일 때 (parametric form):
 
 $$\frac{dy}{dx} = \frac{dy/dt}{dx/dt}$$
 
@@ -88,13 +88,13 @@ $$f(x_1, x_2) = \ln(x_1) + x_1 x_2 - \sin(x_2)$$
 
 PyTorch에서 reverse-mode automatic differentiation을 구현한 것이 바로 **Autograd**입니다. "Autograd"라는 이름은 하버드 대학에서 NumPy 기반의 automatic differentiation을 연구하던 팀이 먼저 사용했으며, 해당 팀의 핵심 멤버들은 이후 Google에 입사하여 JAX 팀에 합류했습니다. PyTorch도 같은 이름을 사용하면서 초기에 이름 충돌에 대한 논의가 있었습니다.
 
-PyTorch의 Autograd는 텐서 연산의 **미분 계산**을 자동화하여, 개발자가 복잡한 계산 그래프를 수동으로 정의하지 않고도 backpropagation을 수행할 수 있게 합니다. 핵심 특징은 다음 세 가지입니다:
+PyTorch의 Autograd는 텐서 연산의 미분 계산을 자동화하여, 개발자가 복잡한 계산 그래프를 수동으로 정의하지 않고도 backpropagation을 수행할 수 있게 합니다. 핵심 특징은 다음 세 가지입니다:
 
 #### 1. Eager Mode를 위한 Autograd
 
-PyTorch는 **Eager Mode**를 기본으로 동작하며, 각 연산이 실행될 때마다 computation graph를 **incremental**하게 구축합니다 (반대 개념인 graph mode에서는 먼저 그래프를 모두 생성한 뒤 연산을 진행합니다).
+PyTorch는 **Eager Mode**를 기본으로 동작하며, 각 연산이 실행될 때마다 computation graph를 incremental하게 구축합니다 (반대 개념인 graph mode에서는 먼저 그래프를 모두 생성한 뒤 연산을 진행합니다).
 
-이를 위해 PyTorch는 **Dispatcher**와 **operator overloading**을 활용합니다:
+이를 위해 PyTorch는 Dispatcher와 operator overloading을 활용합니다:
 - **Dispatcher**는 연산 요청이 들어오면 해당 연산을 어떤 방식으로 처리할지 결정하고, 적합한 구현(Autograd dispatch key 등)을 호출합니다.
 - **Operator overloading**을 통해 Python의 기본 연산자(예: `+`, `*`, `@`)를 PyTorch 텐서 객체에서 사용할 때, Autograd와 함께 처리되도록 수정된 함수가 실행됩니다.
 
@@ -102,7 +102,7 @@ PyTorch는 **Eager Mode**를 기본으로 동작하며, 각 연산이 실행될 
 
 #### 2. Tensor별 Gradient 선택
 
-각 텐서별로 **gradient 계산 여부**를 선택할 수 있습니다. 딥러닝 모델에서 모든 텐서에 대해 gradient가 필요한 것은 아닙니다. 예를 들어 입력 데이터(input)는 값이 변하지 않으므로 backprop이 필요 없지만, 학습 대상인 weight는 backprop이 필요합니다.
+각 텐서별로 gradient 계산 여부를 선택할 수 있습니다. 딥러닝 모델에서 모든 텐서에 대해 gradient가 필요한 것은 아닙니다. 예를 들어 입력 데이터(input)는 값이 변하지 않으므로 backprop이 필요 없지만, 학습 대상인 weight는 backprop이 필요합니다.
 
 텐서에는 `requires_grad`라는 flag가 있어서, 이 flag가 켜져 있는 텐서들만 computation graph에 연산 기록을 남기게 됩니다. Backpropagation을 실행하기 전에 gradient가 필요한 텐서를 transitive하게 선별하여 연산 비용을 줄이고 불필요한 리소스 낭비를 방지합니다. 이 기능은 학습 중 특정 텐서를 freeze하거나 모델의 일부만 미세 조정(fine-tuning)할 때 유용합니다.
 
@@ -191,9 +191,9 @@ at::Tensor add_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, const at:
 }
 ```
 
-이 코드는 사람이 직접 작성한 것이 아니라, Autograd 라이브러리가 자동으로 생성(codegen)한 커널입니다. Eager mode에서의 dispatch 개념을 떠올리면, PyTorch에는 **dispatch key**가 있어서 텐서의 상태에 따라 어떤 함수를 dispatch할지 결정합니다. Forward용 커널과 backward용 커널이 각각 존재하고, 하드웨어(CPU, GPU 등)에 따라 다른 함수를 dispatch할 수 있도록 설계되어 있습니다.
+이 코드는 사람이 직접 작성한 것이 아니라, Autograd 라이브러리가 자동으로 생성(codegen)한 커널입니다. Eager mode에서의 dispatch 개념을 떠올리면, PyTorch에는 dispatch key가 있어서 텐서의 상태에 따라 어떤 함수를 dispatch할지 결정합니다. Forward용 커널과 backward용 커널이 각각 존재하고, 하드웨어(CPU, GPU 등)에 따라 다른 함수를 dispatch할 수 있도록 설계되어 있습니다.
 
-`requires_grad`가 켜진 텐서가 관여하는 연산에서는 **Autograd dispatch key**를 사용하여 dispatch가 이루어집니다. 이 커널은 backward에서 호출되는 함수가 아니라, **forward에서 add를 처리하는 함수**입니다. Forward를 수행하면서 나중에 backward가 될 때 어떻게 처리할지를 미리 기록해 두는 것입니다:
+`requires_grad`가 켜진 텐서가 관여하는 연산에서는 Autograd dispatch key를 사용하여 dispatch가 이루어집니다. 이 커널은 backward에서 호출되는 함수가 아니라, forward에서 add를 처리하는 함수입니다. Forward를 수행하면서 나중에 backward가 될 때 어떻게 처리할지를 미리 기록해 두는 것입니다:
 
 1. `compute_requires_grad`로 현재 계산이 나중에 gradient를 구해야 하는 계산인지 판별합니다.
 2. 필요하다면 해당 연산의 `grad_fn`(예: `AddBackward0`)을 찾아 등록합니다. `add`라는 함수가 정해져 있으므로 PyTorch는 대응하는 `grad_fn`이 무엇인지 알고 있습니다.
@@ -359,7 +359,7 @@ PyTorch 1.0에서 eager mode 기반 Autograd가 핵심 기능으로 도입된 �
 
 ## PyTorch 2.0: AOTAutograd
 
-**PyTorch 1.0과 2.0의 가장 큰 차이는 실행 모델(execution model) 자체**에 있습니다. PyTorch 1.0은 **Eager Mode**를 기본으로, 연산을 즉시 실행하면서 Autograd가 backward graph를 동시에 구축합니다. PyTorch 2.0은 `torch.compile()`을 통한 **Graph Mode**를 도입하여, 연산을 먼저 **FX Graph**로 캡처한 뒤 backend compiler(예: Inductor)로 최적화된 코드를 생성합니다. 이러한 실행 모델 변화는 automatic differentiation에도 재설계를 요구했고, 그 결과가 **AOTAutograd**입니다.
+PyTorch 1.0과 2.0의 가장 큰 차이는 실행 모델(execution model) 자체에 있습니다. PyTorch 1.0은 Eager Mode를 기본으로, 연산을 즉시 실행하면서 Autograd가 backward graph를 동시에 구축합니다. PyTorch 2.0은 `torch.compile()`을 통한 Graph Mode를 도입하여, 연산을 먼저 FX Graph로 캡처한 뒤 backend compiler(예: Inductor)로 최적화된 코드를 생성합니다. 이러한 실행 모델 변화는 automatic differentiation에도 재설계를 요구했고, 그 결과가 **AOTAutograd**입니다.
 
 | 항목 | PyTorch 1.0 (Eager) | PyTorch 2.0 (Graph) |
 |------|---------------------|---------------------|
@@ -369,18 +369,18 @@ PyTorch 1.0에서 eager mode 기반 Autograd가 핵심 기능으로 도입된 �
 | 미분 엔진 | **Autograd** | **AOTAutograd** |
 | 최적화 단위 | 단일 op | Forward + backward joint graph |
 
-Graph mode에서는 **fake tensor**를 이용하여 forward를 빠르게 에뮬레이션(trace)하면서 계산이 어떻게 이루어질지 전체적인 스케치를 먼저 합니다. 이 스케치가 FX Graph로 캡처되고, FX Graph를 backend compiler에 전달하면 컴파일 후 실제 계산이 이루어집니다. 그렇다면 이러한 graph mode에서는 backward graph를 어떻게 생성해야 할까요? 두 가지 접근을 생각해 볼 수 있습니다:
+Graph mode에서는 fake tensor를 이용하여 forward를 빠르게 에뮬레이션(trace)하면서 계산이 어떻게 이루어질지 전체적인 스케치를 먼저 합니다. 이 스케치가 FX Graph로 캡처되고, FX Graph를 backend compiler에 전달하면 컴파일 후 실제 계산이 이루어집니다. 그렇다면 이러한 graph mode에서는 backward graph를 어떻게 생성해야 할까요? 두 가지 접근을 생각해 볼 수 있습니다:
 
-1. **Dynamo trace 중에 Autograd를 실행하여 backward graph 생성**: Fake tensor를 이용한 tracing 과정에서 기존 eager mode의 Autograd를 함께 돌리는 방법입니다. 그러나 Autograd는 실제 tensor 값을 기반으로 동작하도록 설계되었기 때문에, fake tensor를 사용하는 tracing 과정에서 그대로 동작할지 확신하기 어렵습니다. 또한 Dynamo trace는 전체 계산을 하나의 trace로 만드는 것이 아니라, eager mode와 graph mode가 번갈아가면서 실행되므로 backward graph 생성이 복잡해질 수 있습니다.
+1. Dynamo trace 중에 Autograd를 실행하여 backward graph 생성: Fake tensor를 이용한 tracing 과정에서 기존 eager mode의 Autograd를 함께 돌리는 방법입니다. 그러나 Autograd는 실제 tensor 값을 기반으로 동작하도록 설계되었기 때문에, fake tensor를 사용하는 tracing 과정에서 그대로 동작할지 확신하기 어렵습니다. 또한 Dynamo trace는 전체 계산을 하나의 trace로 만드는 것이 아니라, eager mode와 graph mode가 번갈아가면서 실행되므로 backward graph 생성이 복잡해질 수 있습니다.
 
-2. **FX Graph를 먼저 만든 후 backward graph를 생성**: FX Graph로 변환되고 나면 복잡한 부분들은 정리된 상태이므로, 이 시점에서 backward graph를 만드는 것이 더 깔끔합니다. FX Graph로 묶인 부분을 eager mode 관점에서 **하나의 거대한 합성 연산**(composite Op)으로 보면, 그 Op에 대한 미분 함수만 알고 있으면 eager mode에서 자연스럽게 backward가 수행될 수 있습니다.
+2. FX Graph를 먼저 만든 후 backward graph를 생성: FX Graph로 변환되고 나면 복잡한 부분들은 정리된 상태이므로, 이 시점에서 backward graph를 만드는 것이 더 깔끔합니다. FX Graph로 묶인 부분을 eager mode 관점에서 하나의 거대한 합성 연산(composite Op)으로 보면, 그 Op에 대한 미분 함수만 알고 있으면 eager mode에서 자연스럽게 backward가 수행될 수 있습니다.
 
-이 두 번째 아이디어를 바탕으로 **AOTAutograd**(Ahead-of-Time Autograd)가 개발되었습니다.
+이 두 번째 아이디어를 바탕으로 AOTAutograd(Ahead-of-Time Autograd)가 개발되었습니다.
 
 
 ### What Happens When Training with torch.compile()?
 
-먼저 왼쪽의 Python 코드를 예로 들어보겠습니다. `model`이 어떤 `input`을 받아 `output`을 만들고, 이 `output`을 기대하는 reference와 비교하여 cross entropy로 `loss`를 계산한 후, `loss.backward()`를 호출하는 전형적인 학습 루프입니다. 이 코드를 **eager mode**로 실행할 때와 **graph mode**(`torch.compile()` 적용)로 실행할 때 내부에서 어떤 일이 일어나는지 비교해보겠습니다.
+먼저 왼쪽의 Python 코드를 예로 들어보겠습니다. `model`이 어떤 `input`을 받아 `output`을 만들고, 이 `output`을 기대하는 reference와 비교하여 cross entropy로 `loss`를 계산한 후, `loss.backward()`를 호출하는 전형적인 학습 루프입니다. 이 코드를 eager mode로 실행할 때와 graph mode(`torch.compile()` 적용)로 실행할 때 내부에서 어떤 일이 일어나는지 비교해보겠습니다.
 
 | 단계 | Eager Mode | Graph Mode (`torch.compile()`) |
 |------|------------|---------------------------------|
@@ -392,7 +392,7 @@ Graph mode에서는 **fake tensor**를 이용하여 forward를 빠르게 에뮬�
 | **Backward 실행** | `loss.backward()` 호출 시 Autograd engine이 미리 등록된 backward graph를 따라가며 gradient를 계산. 호출할 때마다 준비 과정이 반복됨 | `loss.backward()` 호출 시 compiled backward가 **하나의 큰 Op**으로서 실행됨. Backend compiler로 이미 최적화된 코드가 수행됨 |
 | **사용자 코드 차이** | 기존 방식 그대로 | `torch.compile(model)` 한 줄 추가 정도 |
 
-겉에서 볼 때는 두 코드의 차이가 거의 없습니다. 오른쪽 코드만 봐서는 위 표의 복잡한 과정들이 일어난다는 것이 **obvious하지 않지만**, `torch.compile()`이 모델을 컴파일해 두었기 때문에 그냥 `model`을 쓰는 대신 `compiled_model`을 쓰는 것만으로 내부에서 알아서 최적화된 방식으로 forward와 backward가 처리됩니다. 그 "알아서 잘 되도록 하기 위해서 일어나는 과정"이 바로 AOTAutograd입니다.
+겉에서 볼 때는 두 코드의 차이가 거의 없습니다. 오른쪽 코드만 봐서는 위 표의 복잡한 과정들이 일어난다는 것이 obvious하지 않지만, `torch.compile()`이 모델을 컴파일해 두었기 때문에 그냥 `model`을 쓰는 대신 `compiled_model`을 쓰는 것만으로 내부에서 알아서 최적화된 방식으로 forward와 backward가 처리됩니다. 그 "알아서 잘 되도록 하기 위해서 일어나는 과정"이 바로 AOTAutograd입니다.
 
 아래는 `torch.compile()`을 적용한 학습 코드의 각 라인에서 실제로 어떤 일이 일어나는지를 번호로 표시한 것입니다. 왼쪽은 사용자가 작성하는 코드, 오른쪽은 AOTAutograd에 의해 생성되어 `torch.autograd.Function`으로 감싸진 compiled forward/backward의 예시입니다.
 
@@ -440,28 +440,28 @@ def backward(self, ge_scalar, tangents_1):
 </div>
 </div>
 
-오른쪽 코드에서 `forward()`와 `backward()`가 한 `torch.autograd.Function` 객체 안에 함께 들어 있다는 점에 주목하세요. 이것이 PyTorch 1.0 Autograd에서 언급했던 **custom differentiable function** 기능을 그대로 활용한 결과이며, compiled model은 "forward와 backward를 모두 가진 하나의 custom Op"처럼 동작합니다. 참고로 `forward`가 `ge_scalar`를 추가로 반환하는 것은 partitioner가 backward 계산의 일부(`ge` 비교)를 forward 쪽으로 옮겼기 때문이며, `backward`는 이 값을 받아 재계산 없이 그대로 사용합니다.
+오른쪽 코드에서 `forward()`와 `backward()`가 한 `torch.autograd.Function` 객체 안에 함께 들어 있다는 점에 주목하세요. 이것이 PyTorch 1.0 Autograd에서 언급했던 custom differentiable function 기능을 그대로 활용한 결과이며, compiled model은 "forward와 backward를 모두 가진 하나의 custom Op"처럼 동작합니다. 참고로 `forward`가 `ge_scalar`를 추가로 반환하는 것은 partitioner가 backward 계산의 일부(`ge` 비교)를 forward 쪽으로 옮겼기 때문이며, `backward`는 이 값을 받아 재계산 없이 그대로 사용합니다.
 
 이제 `[1]` → `[2]` → `[3]` 순서대로 어떤 일이 일어나는지 하나씩 짚어 봅니다.
 
 **[1] `outputs = compiled_model(images)`**
 
-`compiled_model(images)`를 처음 호출하는 시점에 Dynamo가 모델을 tracing하여 **FX Graph**를 생성하고, 이 FX Graph가 **AOTAutograd**에 의해 compiled forward와 compiled backward를 모두 포함하는 `torch.autograd.Function` 객체로 변환됩니다 (`torch.compile(model)` 자체는 앞의 표에서 본 것처럼 준비 단계일 뿐입니다). 이후 이 객체의 **forward 부분만 실제로 실행**되어 `outputs`가 계산됩니다. 이와 동시에 `outputs`의 `grad_fn`으로 **compiled backward**가 등록되며, backward 부분 자체는 이 시점에서는 호출되지 않고 나중을 위해 보관됩니다.
+`compiled_model(images)`를 처음 호출하는 시점에 Dynamo가 모델을 tracing하여 FX Graph를 생성하고, 이 FX Graph가 AOTAutograd에 의해 compiled forward와 compiled backward를 모두 포함하는 `torch.autograd.Function` 객체로 변환됩니다 (`torch.compile(model)` 자체는 앞의 표에서 본 것처럼 준비 단계일 뿐입니다). 이후 이 객체의 forward 부분만 실제로 실행되어 `outputs`가 계산됩니다. 이와 동시에 `outputs`의 `grad_fn`으로 compiled backward가 등록되며, backward 부분 자체는 이 시점에서는 호출되지 않고 나중을 위해 보관됩니다.
 
 **[2] `loss = F.cross_entropy(outputs, labels)`**
 
-`outputs`에는 실제 계산된 값이 들어 있으므로 cross entropy 등의 loss를 계산할 수 있습니다. 이 계산은 `requires_grad`가 켜진 상태의 **eager mode**로 수행되며, 그 과정에서 loss function의 `grad_fn`이 새로 만들어집니다. 그리고 `outputs`에 이미 붙어 있던 `grad_fn`(compiled backward)이 이 loss function의 `grad_fn`에 **자연스럽게 이어 붙습니다**.
+`outputs`에는 실제 계산된 값이 들어 있으므로 cross entropy 등의 loss를 계산할 수 있습니다. 이 계산은 `requires_grad`가 켜진 상태의 eager mode로 수행되며, 그 과정에서 loss function의 `grad_fn`이 새로 만들어집니다. 그리고 `outputs`에 이미 붙어 있던 `grad_fn`(compiled backward)이 이 loss function의 `grad_fn`에 자연스럽게 이어 붙습니다.
 
 **[3] `loss.backward()`**
 
-`loss.backward()`를 호출하면 [2]에서 만들어진 **loss function의 backward**가 먼저 실행되고, 이어서 그 입력이었던 `outputs`의 `grad_fn`, 즉 [1]에서 등록된 **compiled backward**가 **하나의 큰 Op**으로서 호출됩니다. 이 둘이 역방향으로 concatenate되어 순차적으로 실행되면서 model weight의 gradient가 최종적으로 계산됩니다.
+`loss.backward()`를 호출하면 [2]에서 만들어진 loss function의 backward가 먼저 실행되고, 이어서 그 입력이었던 `outputs`의 `grad_fn`, 즉 [1]에서 등록된 compiled backward가 하나의 큰 Op으로서 호출됩니다. 이 둘이 역방향으로 concatenate되어 순차적으로 실행되면서 model weight의 gradient가 최종적으로 계산됩니다.
 
 즉, 사용자 입장에서는 `torch.compile(model)` 한 줄을 추가했을 뿐이지만, 내부적으로는 "compiled forward+backward를 가진 `torch.autograd.Function`을 만들어 두고, forward만 실행한 뒤 backward를 `grad_fn`으로 달아두었다가, `loss.backward()` 시점에 그것을 호출"하는 구조로 바뀌어 있습니다.
 
 
 ### AOTAutograd Does the Magic
 
-지금까지 설명한 과정을 조금 더 쪼개서 살펴보면, training mode에서 `torch.compile()`이 모델을 돌릴 때 내부적으로는 **AOTAutograd**라고 하는 큰 엔진이 모든 일을 담당하고 있다는 것을 알 수 있습니다. AOTAutograd는 PyTorch 2.0에서 새로 추가된 기능으로, Autograd의 forward 및 backward 과정을 **한꺼번에** 처리해 주는 핵심 엔진입니다.
+지금까지 설명한 과정을 조금 더 쪼개서 살펴보면, training mode에서 `torch.compile()`이 모델을 돌릴 때 내부적으로는 AOTAutograd라고 하는 큰 엔진이 모든 일을 담당하고 있다는 것을 알 수 있습니다. AOTAutograd는 PyTorch 2.0에서 새로 추가된 기능으로, Autograd의 forward 및 backward 과정을 한꺼번에 처리해 주는 핵심 엔진입니다.
 
 전체 흐름을 다이어그램으로 정리하면 다음과 같습니다:
 
@@ -472,16 +472,16 @@ def backward(self, ge_scalar, tangents_1):
     AOT --> F["torch.autograd.Function<br/>with <b>compiled forward</b><br/>and <b>compiled backward</b>"]`}
 </Mermaid>
 
-이 그림에서 주목해야 할 핵심은, training mode에서는 Dynamo가 만들어낸 **FX Graph가 backend compiler로 곧바로 전달되지 않는다**는 점입니다. 중간에 AOTAutograd가 반드시 끼어들어야 합니다. 왜냐하면 FX Graph에는 **forward 부분만 담겨 있고**, training을 하려면 그에 대응하는 backward 부분이 추가로 필요하기 때문입니다. AOTAutograd는 이 "빠진 backward"를 만들어 주고, forward와 backward를 함께 묶어 한 덩어리로 컴파일할 수 있도록 다리를 놓아 주는 역할을 합니다.
+이 그림에서 주목해야 할 핵심은, training mode에서는 Dynamo가 만들어낸 FX Graph가 backend compiler로 곧바로 전달되지 않는다는 점입니다. 중간에 AOTAutograd가 반드시 끼어들어야 합니다. 왜냐하면 FX Graph에는 forward 부분만 담겨 있고, training을 하려면 그에 대응하는 backward 부분이 추가로 필요하기 때문입니다. AOTAutograd는 이 "빠진 backward"를 만들어 주고, forward와 backward를 함께 묶어 한 덩어리로 컴파일할 수 있도록 다리를 놓아 주는 역할을 합니다.
 
-**단계별로 일어나는 일**:
+단계별로 일어나는 일:
 
 1. **`nn.Module` → Dynamo → FX Graph**: 입력된 `nn.Module`을 Dynamo가 tracing하여 가속 가능한 부분을 FX Graph로 캡처합니다. (graph mode에서 이미 다뤘던 내용과 동일한 부분입니다.)
-2. **FX Graph → AOTAutograd 개입**: Training mode에서는 FX Graph가 backend compiler로 바로 넘어가지 않고, AOTAutograd가 먼저 개입합니다. AOTAutograd는 FX Graph를 가지고 **forward와 backward 연산을 함께 포함하는 joint graph**를 만든 뒤, 이를 forward와 backward로 다시 분리합니다.
-3. **각각 따로 Backend Compile**: 분리된 forward graph와 backward graph를 **각각 별도로** backend compiler(예: Inductor)에 넘겨 최적화된 형태로 컴파일합니다. Forward와 backward가 서로 다른 최적화를 받을 수 있다는 점이 중요합니다.
+2. **FX Graph → AOTAutograd 개입**: Training mode에서는 FX Graph가 backend compiler로 바로 넘어가지 않고, AOTAutograd가 먼저 개입합니다. AOTAutograd는 FX Graph를 가지고 forward와 backward 연산을 함께 포함하는 joint graph를 만든 뒤, 이를 forward와 backward로 다시 분리합니다.
+3. **각각 따로 Backend Compile**: 분리된 forward graph와 backward graph를 각각 별도로 backend compiler(예: Inductor)에 넘겨 최적화된 형태로 컴파일합니다. Forward와 backward가 서로 다른 최적화를 받을 수 있다는 점이 중요합니다.
 4. **`torch.autograd.Function`으로 wrap**: 최적화된 forward와 backward 연산을 모두 포함하는 하나의 `torch.autograd.Function` 객체로 묶어 반환합니다.
 
-**`torch.compile` 실행 시 동작 흐름**: Autograd가 활성화된 상태(즉 `requires_grad=True`인 tensor가 포함된 상태)에서 `torch.compile`을 호출하면 위의 1~4번 과정이 순차적으로 일어나 최종적으로 compiled forward와 compiled backward를 모두 가진 `torch.autograd.Function`이 반환됩니다. 이후 training loop에서 이 객체를 호출하면, 이미 컴파일된 형태의 forward와 backward가 그대로 실행되므로 **가속된 training**이 가능해집니다.
+**`torch.compile` 실행 시 동작 흐름**: Autograd가 활성화된 상태(즉 `requires_grad=True`인 tensor가 포함된 상태)에서 `torch.compile`을 호출하면 위의 1~4번 과정이 순차적으로 일어나 최종적으로 compiled forward와 compiled backward를 모두 가진 `torch.autograd.Function`이 반환됩니다. 이후 training loop에서 이 객체를 호출하면, 이미 컴파일된 형태의 forward와 backward가 그대로 실행되므로 가속된 training이 가능해집니다.
 
 사용자에게 `torch.compile()`은 모델을 빠르게 만들어 주는 한 줄로 보이지만, 그 뒤에서 AOTAutograd가 FX Graph를 받아 joint graph 생성 → forward/backward 분리 → 각각 컴파일 → `torch.autograd.Function`으로 포장하는 일련의 "magic"을 수행하고 있는 것입니다. 다음 절부터 이 magic 안에서 구체적으로 어떤 일들이 일어나는지 하나씩 들여다봅니다.
 
@@ -540,7 +540,7 @@ def backward(self, ge_scalar, tangents_1):
 </tbody>
 </table>
 
-**정리하면**, AOTAutograd는 (1) backward tracing을 Python이 아닌 **C++ dispatcher 수준**에서 수행하여 "Autograd engine은 C++, Dynamo는 Python"이라는 층위 차이를 극복하고, (2) **FX Graph normalization**(functionalization + decomposition)을 적용하여 eager mode의 dispatcher가 암묵적으로 해 주던 복잡성 처리를 graph mode에서도 명시적으로 수행합니다. 이 두 축을 통해 graph mode에서도 eager mode와 본질적으로 같은 방식의 backward 구성을 가능하게 합니다.
+정리하면, AOTAutograd는 (1) backward tracing을 Python이 아닌 C++ dispatcher 수준에서 수행하여 "Autograd engine은 C++, Dynamo는 Python"이라는 층위 차이를 극복하고, (2) FX Graph normalization(functionalization + decomposition)을 적용하여 eager mode의 dispatcher가 암묵적으로 해 주던 복잡성 처리를 graph mode에서도 명시적으로 수행합니다. 이 두 축을 통해 graph mode에서도 eager mode와 본질적으로 같은 방식의 backward 구성을 가능하게 합니다.
 
 <img src="/images/04/slide22_1.png" alt="AOTAutograd의 C++ dispatcher 수준 tracing과 FX Graph normalization 개요 다이어그램" class="h-72 mx-auto" />
 
@@ -568,7 +568,7 @@ AOTAutograd 전체 구조를 한눈에 보여주는 그림입니다.
 
 ### AOTAutograd 수행 순서
 
-앞 절의 architecture 그림을 좀 더 잘게 쪼개면, AOTAutograd의 전체 수행 순서는 **A부터 I까지** 다음과 같이 정리할 수 있습니다:
+앞 절의 architecture 그림을 좀 더 잘게 쪼개면, AOTAutograd의 전체 수행 순서는 A부터 I까지 다음과 같이 정리할 수 있습니다:
 
 | 단계 | 과정 |
 |------|------|
@@ -582,15 +582,15 @@ AOTAutograd 전체 구조를 한눈에 보여주는 그림입니다.
 | **H** | Forward/backward를 각각 **backend compiler**로 컴파일 |
 | **I** | Compiled function들을 묶어 최종 `torch.autograd.Function` 생성 |
 
-**B 단계: "joint 함수를 만들어놓기"**: 여기서 중요한 포인트는 B 단계 자체에서는 **아직 tracing이 일어나지 않는다**는 것입니다. 단지 trace할 대상이 될 함수를 준비해 둘 뿐입니다. 구체적으로는 C++ 쪽의 `grad` 함수와 원래의 forward 함수를 **back-to-back**으로 호출하는 새로운 Python-level 함수를 하나 만들어 두는 과정입니다. 이렇게 만들어 둔 joint 함수를 한 번만 호출하면, 그 한 번의 호출 안에서 forward와 backward가 **한꺼번에 trace**되도록 설계되어 있습니다.
+**B 단계: "joint 함수를 만들어놓기"**: 여기서 중요한 포인트는 B 단계 자체에서는 아직 tracing이 일어나지 않는다는 것입니다. 단지 trace할 대상이 될 함수를 준비해 둘 뿐입니다. 구체적으로는 C++ 쪽의 `grad` 함수와 원래의 forward 함수를 back-to-back으로 호출하는 새로운 Python-level 함수를 하나 만들어 두는 과정입니다. 이렇게 만들어 둔 joint 함수를 한 번만 호출하면, 그 한 번의 호출 안에서 forward와 backward가 한꺼번에 trace되도록 설계되어 있습니다.
 
-**Joint 함수를 만드는 이유**: 직관적으로는 "어차피 forward와 backward를 따로 컴파일할 건데, 왜 굳이 하나로 합친 다음 다시 쪼개는가?"라는 의문이 들 수 있습니다. 핵심 이유는 **recomputation**입니다. Training 시 backward는 forward의 중간 텐서 값이 필요한데, 이 텐서들이 크면 메모리를 많이 먹습니다. 모두 저장하는 대신 필요할 때 다시 계산하는 것이 유리한 경우가 있고, 반대로 저장이 더 싸게 먹히는 경우도 있어 **trade-off**가 존재합니다. 이 균형을 맞추려면 "forward에서 만들어진 어떤 텐서가 backward의 어떤 입력으로 연결되는가"라는 input-output 관계를 전부 알고 있어야 하는데, forward와 backward를 따로 떼어 놓으면 이 관계를 파악하기가 매우 까다로워집니다. 반면 joint 함수로 묶어 하나의 trace를 만들어 두면 이 관계가 전부 그래프에 살아 있으므로, recomputation을 포함한 최적화를 훨씬 쉽게 적용할 수 있습니다.
+**Joint 함수를 만드는 이유**: 직관적으로는 "어차피 forward와 backward를 따로 컴파일할 건데, 왜 굳이 하나로 합친 다음 다시 쪼개는가?"라는 의문이 들 수 있습니다. 핵심 이유는 **recomputation**입니다. Training 시 backward는 forward의 중간 텐서 값이 필요한데, 이 텐서들이 크면 메모리를 많이 먹습니다. 모두 저장하는 대신 필요할 때 다시 계산하는 것이 유리한 경우가 있고, 반대로 저장이 더 싸게 먹히는 경우도 있어 trade-off가 존재합니다. 이 균형을 맞추려면 "forward에서 만들어진 어떤 텐서가 backward의 어떤 입력으로 연결되는가"라는 input-output 관계를 전부 알고 있어야 하는데, forward와 backward를 따로 떼어 놓으면 이 관계를 파악하기가 매우 까다로워집니다. 반면 joint 함수로 묶어 하나의 trace를 만들어 두면 이 관계가 전부 그래프에 살아 있으므로, recomputation을 포함한 최적화를 훨씬 쉽게 적용할 수 있습니다.
 
-**Joint 함수 생성 과정의 구체적 동작**: Eager mode에서는 forward를 한 단계씩 실행하면서 **incremental하게** 각 텐서에 `grad_fn`을 붙여 backward graph를 만듭니다. AOTAutograd에서는 이 과정을 한 번 실행해 모든 `grad_fn`을 붙여 둔 뒤, 이어서 **Autograd engine이 등록된 `grad_fn`들을 수행하는 부분**(eager mode에서는 `graph_task` 기반으로 순회하며 각 `grad_fn`을 dispatch하는 그 과정)까지 **같은 함수 안에 묶어** 둡니다. 이 함수를 C++ dispatcher 수준에서 trace하면, forward에서 계산된 텐서와 backward에서 그것을 사용하는 지점이 모두 연결된 **하나의 큰 trace**가 한 번에 튀어나옵니다. 즉 목적 자체가 "순차적으로 실행해서 gradient 값을 얻는 것"이 아니라, **forward 텐서가 backward input으로 이어지는 관계까지 모두 살아 있는 단일 계산 그래프**를 얻는 것입니다.
+**Joint 함수 생성 과정의 구체적 동작**: Eager mode에서는 forward를 한 단계씩 실행하면서 incremental하게 각 텐서에 `grad_fn`을 붙여 backward graph를 만듭니다. AOTAutograd에서는 이 과정을 한 번 실행해 모든 `grad_fn`을 붙여 둔 뒤, 이어서 Autograd engine이 등록된 `grad_fn`들을 수행하는 부분(eager mode에서는 `graph_task` 기반으로 순회하며 각 `grad_fn`을 dispatch하는 그 과정)까지 같은 함수 안에 묶어 둡니다. 이 함수를 C++ dispatcher 수준에서 trace하면, forward에서 계산된 텐서와 backward에서 그것을 사용하는 지점이 모두 연결된 하나의 큰 trace가 한 번에 튀어나옵니다. 즉 목적 자체가 "순차적으로 실행해서 gradient 값을 얻는 것"이 아니라, forward 텐서가 backward input으로 이어지는 관계까지 모두 살아 있는 단일 계산 그래프를 얻는 것입니다.
 
-**Normalization(C/E 단계)이란?** Eager mode에서 암묵적(implicit)으로 처리되던 복잡한 동작(aliasing, mutation, view/storage decoupling 등)을 명시적(explicit) step들로 **전부 쪼개어 trace 상에 드러낸 뒤**, 이를 다시 단순한 작은 Op들로 분해하는 과정입니다. 크게 보면 **Functionalization**(implicit한 mutation/aliasing을 명시적으로 제거)과 **Decomposition**(고수준 op을 저수준 op으로 분해)이 여기에 해당합니다. Normalization 덕분에 이후 partitioning과 backend compile이 더 깔끔하게 수행됩니다.
+**Normalization(C/E 단계)이란?** Eager mode에서 암묵적(implicit)으로 처리되던 복잡한 동작(aliasing, mutation, view/storage decoupling 등)을 명시적(explicit) step들로 전부 쪼개어 trace 상에 드러낸 뒤, 이를 다시 단순한 작은 Op들로 분해하는 과정입니다. 크게 보면 Functionalization(implicit한 mutation/aliasing을 명시적으로 제거)과 Decomposition(고수준 op을 저수준 op으로 분해)이 여기에 해당합니다. Normalization 덕분에 이후 partitioning과 backend compile이 더 깔끔하게 수행됩니다.
 
-**H 단계: Backend Compile의 범위**: H 단계에서의 "컴파일"은 Dynamo의 tracing이 아니라, 진짜 backend compiler(예: Inductor)가 최적화된 코드를 생성하는 과정입니다. 질문이 자주 나오는 부분인데, **backend-aware 최적화(per-backend 최적화)는 H 단계에서만 적용됩니다**. forward/backward가 분리된 이 시점 이전에는 backend에 따른 최적화가 들어갈 여지가 없습니다.
+**H 단계: Backend Compile의 범위**: H 단계에서의 "컴파일"은 Dynamo의 tracing이 아니라, 진짜 backend compiler(예: Inductor)가 최적화된 코드를 생성하는 과정입니다. 질문이 자주 나오는 부분인데, backend-aware 최적화(per-backend 최적화)는 H 단계에서만 적용됩니다. forward/backward가 분리된 이 시점 이전에는 backend에 따른 최적화가 들어갈 여지가 없습니다.
 
 **G 단계: Partitioning 방식**: Forward/backward를 어디서 쪼갤지는 **Min-Cut** 계열 알고리즘이 결정합니다. 이는 recomputation과도 연결되는 부분으로, "어디서 자르는 것이 메모리/연산 측면에서 가장 유리한가"를 전체 joint graph의 input-output 관계를 보고 결정하는 문제입니다. 구체적인 알고리즘 디테일은 이 자리에서는 다루지 않고, 이후 "Min-Cut Algorithm으로 Forward/Backward 분리" 절에서 간단히 짚고 넘어갑니다.
 
@@ -638,7 +638,7 @@ aot_dispatch_autograd(flat_fn)
 - C 단계 - Normalization: B에서 만든 joint 함수를 그대로 trace하면 eager mode의 복잡성(aliasing, mutation 등)이 그대로 따라 들어오기 때문에, `create_functionalize_fn`, `aot_dispatch_subclass` 등을 통해 먼저 함수 자체를 정규화된 형태로 바꿔 둡니다.
 - D~F 단계 - `_create_graph(joint_fn_to_trace, ...)`: 여기가 실제로 tracing이 일어나는 지점입니다. 정규화된 joint 함수를 C++ dispatcher 수준에서 trace하여 decomposition까지 적용한 뒤, 최종 joint FX Graph를 만들어냅니다.
 
-여기서 C 단계의 normalization과 E 단계의 decomposition은 **서로 다른 목적의 정규화**라는 점을 구분해 두는 것이 좋습니다. Normalization은 eager mode가 가지고 있던 복잡한 동작(aliasing, mutation 등)을 명시적으로 풀어내는 과정인 반면, decomposition은 수많은 Torch Op을 정해진 소수의 저수준 Op들로 표현하기 위한 IR 변환 과정(Torch IR → ATen IR → Core ATen IR → Prims IR)입니다. 두 과정을 거쳐 만들어진 joint FX Graph가 G 단계의 partitioning으로 forward/backward로 다시 쪼개지고, H 단계에서 각각 backend compile된 뒤, I 단계에서 `torch.autograd.Function`으로 wrap되어 return됩니다.
+여기서 C 단계의 normalization과 E 단계의 decomposition은 서로 다른 목적의 정규화라는 점을 구분해 두는 것이 좋습니다. Normalization은 eager mode가 가지고 있던 복잡한 동작(aliasing, mutation 등)을 명시적으로 풀어내는 과정인 반면, decomposition은 수많은 Torch Op을 정해진 소수의 저수준 Op들로 표현하기 위한 IR 변환 과정(Torch IR → ATen IR → Core ATen IR → Prims IR)입니다. 두 과정을 거쳐 만들어진 joint FX Graph가 G 단계의 partitioning으로 forward/backward로 다시 쪼개지고, H 단계에서 각각 backend compile된 뒤, I 단계에서 `torch.autograd.Function`으로 wrap되어 return됩니다.
 
 
 ### AOTAutograd 실행 예제
@@ -673,7 +673,7 @@ def f(*inputs):
     return outputs
 ```
 
-Dynamo가 만들어낸 이 FX Graph는 **joint graph의 forward 부분에 해당**합니다. 이 자체로는 backward가 없기 때문에, training을 위해서는 여기에 backward를 붙여야 합니다.
+Dynamo가 만들어낸 이 FX Graph는 joint graph의 forward 부분에 해당합니다. 이 자체로는 backward가 없기 때문에, training을 위해서는 여기에 backward를 붙여야 합니다.
 
 **[B-2] Forward + Backward를 합친 joint 함수**
 
@@ -686,14 +686,14 @@ def joint_fw_bw(fw_inputs, grad_outs):
     return fw_out, grad_inps
 ```
 
-`f()`를 수행한 뒤 곧바로 `torch.autograd.grad()`를 호출하여 backward까지 같이 수행하는 **하나의 함수**로 묶어 둡니다. (위 코드는 원문 슬라이드의 pseudocode를 그대로 옮긴 것으로, 실제 `torch.autograd.grad`의 인자 이름은 `inputs=`, `grad_outputs=`입니다.) 겉보기에는 forward를 한 번 부른 것처럼 보이지만, 그 안에서 backward가 forward의 연장선처럼 자연스럽게 이어져 실행됩니다.
+`f()`를 수행한 뒤 곧바로 `torch.autograd.grad()`를 호출하여 backward까지 같이 수행하는 하나의 함수로 묶어 둡니다. (위 코드는 원문 슬라이드의 pseudocode를 그대로 옮긴 것으로, 실제 `torch.autograd.grad`의 인자 이름은 `inputs=`, `grad_outputs=`입니다.) 겉보기에는 forward를 한 번 부른 것처럼 보이지만, 그 안에서 backward가 forward의 연장선처럼 자연스럽게 이어져 실행됩니다.
 
 </div>
 <div>
 
 **[D] joint 함수를 trace하여 Joint Graph 생성**
 
-`joint_fw_bw`를 (내부의 `torch.autograd.grad` 호출이 동작하는 상태 그대로) C++ dispatcher 수준에서 trace하면, autograd가 만들어내는 backward 계산 경로까지 함께 기록되어 forward와 backward가 모두 포함된 **joint graph**가 한 번에 만들어집니다.
+`joint_fw_bw`를 (내부의 `torch.autograd.grad` 호출이 동작하는 상태 그대로) C++ dispatcher 수준에서 trace하면, autograd가 만들어내는 backward 계산 경로까지 함께 기록되어 forward와 backward가 모두 포함된 joint graph가 한 번에 만들어집니다.
 
 **Joint Function의 Input 구성**
 
@@ -702,7 +702,7 @@ def joint_fw_bw(fw_inputs, grad_outs):
 - **Forward Input** (`fw_inputs`): 원래 모델이 받는 입력값 그대로.
 - **Backward Input** (`grad_outs`): Loss로부터 전달되는 최종 gradient 값.
 
-왜 `grad_outs`가 필요할까요? Backward를 계산하려면 일반적으로 ① loss 쪽에서 내려오는 최종 gradient와 ② forward 중간 단계에서 계산된 tensor들이 필요합니다. 이 중 **중간 tensor들은 joint graph 안에 forward 부분으로 이미 포함**되어 있으므로 별도 input으로 넘길 필요가 없습니다. 반면 loss function은 이 FX Graph 바깥에 있어 캡처되지 않으므로, loss에서 내려오는 `grad_outs`만큼은 반드시 joint 함수의 input으로 넣어 줘야 최종 gradient를 끝까지 계산할 수 있습니다.
+왜 `grad_outs`가 필요할까요? Backward를 계산하려면 일반적으로 ① loss 쪽에서 내려오는 최종 gradient와 ② forward 중간 단계에서 계산된 tensor들이 필요합니다. 이 중 중간 tensor들은 joint graph 안에 forward 부분으로 이미 포함되어 있으므로 별도 input으로 넘길 필요가 없습니다. 반면 loss function은 이 FX Graph 바깥에 있어 캡처되지 않으므로, loss에서 내려오는 `grad_outs`만큼은 반드시 joint 함수의 input으로 넣어 줘야 최종 gradient를 끝까지 계산할 수 있습니다.
 
 **[G] Joint Graph → Forward/Backward 분리**
 
@@ -721,12 +721,12 @@ to give us the forwards pass and the backwards pass.
 > 위 설명은 강연 transcript에 기반한 풀이이며, 원문 [How does torch.compile work with autograd?](https://dev-discuss.pytorch.org/t/how-does-torch-compile-work-with-autograd/1621/14)과 대조하면 다음 몇 가지를 추가로 알아두면 좋습니다:
 >
 > - **`grad_outs`가 필요한 이유 (원문)**: "backward computation depends on incoming gradients", 즉 backward 계산이 본질적으로 외부에서 들어오는 gradient 신호에 의존하기 때문이라는 일반적 서술이며, "loss function이 FX Graph 바깥이라서"라는 구체화는 강연자의 해석입니다.
-> - **Partitioning의 성격**: 원문은 forward/backward partition이 "**not strictly disjoint**"라고 명시합니다. 메모리 효율을 위해 backward pass가 forward graph의 일부를 **재계산**(recomputation)할 수 있으며, 어느 부분을 저장하고 어느 부분을 재계산할지는 partitioning 단계의 최적화 결정입니다. (이 주제는 뒤의 "Activation Checkpointing" 절에서 다시 다룹니다.)
+> - **Partitioning의 성격**: 원문은 forward/backward partition이 "not strictly disjoint"라고 명시합니다. 메모리 효율을 위해 backward pass가 forward graph의 일부를 재계산(recomputation)할 수 있으며, 어느 부분을 저장하고 어느 부분을 재계산할지는 partitioning 단계의 최적화 결정입니다. (이 주제는 뒤의 "Activation Checkpointing" 절에서 다시 다룹니다.)
 
 
 ### [D 단계] Joint Graph Example
 
-앞 절의 `joint_fw_bw`를 C++ dispatcher 수준에서 trace하면, forward와 backward가 모두 하나의 graph 안에 들어간 **joint FX Graph**가 만들어집니다. 이것이 수행 순서표의 **D 단계** 결과물입니다.
+앞 절의 `joint_fw_bw`를 C++ dispatcher 수준에서 trace하면, forward와 backward가 모두 하나의 graph 안에 들어간 **joint FX Graph**가 만들어집니다. 이것이 수행 순서표의 D 단계 결과물입니다.
 
 <img src="/images/04/slide30_1.png" alt="Forward와 backward 연산이 하나의 그래프에 공존하는 joint FX Graph 예제" class="h-56 mx-auto" />
 
@@ -735,7 +735,7 @@ to give us the forwards pass and the backwards pass.
 
 ### [E 단계] Decomposition (+ Functionalization)
 
-D 단계에서 만들어진 joint graph는 아직 Torch IR 수준의 고수준 op들을 포함하고 있습니다. **E 단계**(Decomposition)에서는 이 op들을 더 낮은 수준의 작은 op들로 분해하여, backend compiler가 다루기 쉬운 형태로 내려 줍니다. 참고로 **C 단계의 Functionalization**(aliasing/mutation 제거)도 이 흐름 상에서 같이 이해해 두면 normalization 전체 그림이 잡힙니다.
+D 단계에서 만들어진 joint graph는 아직 Torch IR 수준의 고수준 op들을 포함하고 있습니다. E 단계(Decomposition)에서는 이 op들을 더 낮은 수준의 작은 op들로 분해하여, backend compiler가 다루기 쉬운 형태로 내려 줍니다. 참고로 C 단계의 Functionalization(aliasing/mutation 제거)도 이 흐름 상에서 같이 이해해 두면 normalization 전체 그림이 잡힙니다.
 
 <img src="/images/04/slide31_1.png" alt="Torch IR에서 Prims IR까지 내려가는 Decomposition IR 계층 다이어그램" class="h-72 mx-auto" />
 
@@ -749,7 +749,7 @@ Torch IR → ATen IR → Core ATen IR → Prims IR
 
 ### [G 단계] Min-Cut Algorithm으로 Forward/Backward 분리
 
-E 단계까지 거쳐 정규화된 joint FX Graph를 이제 **G 단계에서 forward와 backward로 다시 쪼갭니다**. 앞서 말한 **Min-Cut 계열 알고리즘**이 사용되며, 이 단계의 결정이 곧 "어느 중간 텐서를 저장(save)하고 어느 것을 재계산(recompute)할지"와 직결됩니다.
+E 단계까지 거쳐 정규화된 joint FX Graph를 이제 G 단계에서 forward와 backward로 다시 쪼갭니다. 앞서 말한 Min-Cut 계열 알고리즘이 사용되며, 이 단계의 결정이 곧 "어느 중간 텐서를 저장(save)하고 어느 것을 재계산(recompute)할지"와 직결됩니다.
 
 입력은 [D 단계] Joint Graph Example에서 본 그래프, 즉 forward와 backward 노드가 한 그래프 안에 얽혀 있는 상태입니다. 여기에 Min-Cut을 적용하면 forward와 backward가 각각 독립된 FX Graph로 깔끔하게 분리됩니다.
 
@@ -758,13 +758,13 @@ E 단계까지 거쳐 정규화된 joint FX Graph를 이제 **G 단계에서 for
   <img src="/images/04/slide32_2.png" alt="Min-Cut partitioning으로 분리된 backward FX Graph" class="w-full h-auto" />
 </div>
 
-이 partitioning 과정에서 한 가지 흥미로운 점은 **계산을 어느 쪽에 둘지까지 최적화**한다는 것입니다. 앞쪽 "What Happens When Training with torch.compile()?" 절에서 본 compiled `forward`/`backward` 코드를 다시 떠올려 보면, backward에서 쓰일 비교 결과(`ge_scalar`)가 **forward 쪽에서 미리 계산되어 반환**되고 있습니다. 이것이 슬라이드의 *"Partitioner moved backward compute to forwards!"* 주석이 가리키는 부분이며, partitioner가 메모리/연산 trade-off를 고려해 계산 위치를 옮긴 결과입니다.
+이 partitioning 과정에서 한 가지 흥미로운 점은 계산을 어느 쪽에 둘지까지 최적화한다는 것입니다. 앞쪽 "What Happens When Training with torch.compile()?" 절에서 본 compiled `forward`/`backward` 코드를 다시 떠올려 보면, backward에서 쓰일 비교 결과(`ge_scalar`)가 forward 쪽에서 미리 계산되어 반환되고 있습니다. 이것이 슬라이드의 *"Partitioner moved backward compute to forwards!"* 주석이 가리키는 부분이며, partitioner가 메모리/연산 trade-off를 고려해 계산 위치를 옮긴 결과입니다.
 
-Partitioning이 끝나면 forward graph와 backward graph 각각이 독립된 FX Graph로 떨어져 나오고, 이후 H 단계에서 backend compiler(예: Inductor)가 forward/backward를 **각각 별도로** 컴파일하여 최적화된 실행 코드를 생성합니다.
+Partitioning이 끝나면 forward graph와 backward graph 각각이 독립된 FX Graph로 떨어져 나오고, 이후 H 단계에서 backend compiler(예: Inductor)가 forward/backward를 각각 별도로 컴파일하여 최적화된 실행 코드를 생성합니다.
 
 ### Activation Checkpointing
 
-앞서 joint graph가 필요한 이유를 설명할 때 잠깐 언급했던 **recomputation**(재계산)은, training 분야에서는 보통 **"activation checkpointing"** 이라는 이름으로 더 많이 불립니다. (강연자 역시 training 전문가는 아니어서 이 용어가 다소 낯설 수 있다고 언급했습니다.)
+앞서 joint graph가 필요한 이유를 설명할 때 잠깐 언급했던 recomputation(재계산)은, training 분야에서는 보통 **"activation checkpointing"** 이라는 이름으로 더 많이 불립니다. (강연자 역시 training 전문가는 아니어서 이 용어가 다소 낯설 수 있다고 언급했습니다.)
 
 <div class="flex flex-col items-center gap-6 mt-4 max-w-3xl mx-auto">
 
@@ -780,20 +780,20 @@ Batch size가 커질수록 forward 과정의 중간 activation도 함께 커지�
 
 <img src="/images/04/slide33_2.png" alt="Segment별 입력 activation만 저장하고 backward 시 재계산하는 activation checkpointing 다이어그램" class="w-full h-auto" />
 
-Segment별로 **입력 activation만** 저장해 두고, backward를 수행할 때 segment 단위로 forward를 다시 돌려 필요한 중간값을 그때그때 재계산합니다.
+Segment별로 입력 activation만 저장해 두고, backward를 수행할 때 segment 단위로 forward를 다시 돌려 필요한 중간값을 그때그때 재계산합니다.
 
 </div>
 
 </div>
 
-**Recomputation이란?** 모델 학습 과정에서 일부 중간 계산(특히 중간 activation)을 곧바로 저장하지 않고, 나중에 필요할 때 다시 계산함으로써 GPU 메모리를 절약하는 기법입니다. Forward 과정에서 모든 중간 값을 전부 저장해 두면 메모리를 많이 차지하지만, 일정 부분만 저장해 두고 backward 과정에서 필요한 시점에 다시 계산(재계산)하게 되면 메모리 사용량을 크게 줄일 수 있습니다. 다만 필요한 시점에 다시 계산하는 추가 연산이 발생하므로, 메모리를 아끼는 대신 **연산량(시간)은 조금 늘어나는 trade-off**가 있습니다. 이 방식은 흔히 "activation checkpointing"이라고 부르며, 여러 딥러닝 프레임워크에서 관련 기능을 지원합니다.
+**Recomputation이란?** 모델 학습 과정에서 일부 중간 계산(특히 중간 activation)을 곧바로 저장하지 않고, 나중에 필요할 때 다시 계산함으로써 GPU 메모리를 절약하는 기법입니다. Forward 과정에서 모든 중간 값을 전부 저장해 두면 메모리를 많이 차지하지만, 일정 부분만 저장해 두고 backward 과정에서 필요한 시점에 다시 계산(재계산)하게 되면 메모리 사용량을 크게 줄일 수 있습니다. 다만 필요한 시점에 다시 계산하는 추가 연산이 발생하므로, 메모리를 아끼는 대신 연산량(시간)은 조금 늘어나는 trade-off가 있습니다. 이 방식은 흔히 "activation checkpointing"이라고 부르며, 여러 딥러닝 프레임워크에서 관련 기능을 지원합니다.
 
-AOTAutograd 관점에서 중요한 것은, 앞서 강조한 **joint graph** 덕분에 "forward에서 만들어진 어떤 텐서가 backward의 어떤 입력으로 연결되는가"라는 input-output 관계가 전부 살아 있다는 점입니다. 이 관계를 알고 있으면 Min-Cut partitioner가 "어느 텐서는 저장(save)하고 어느 텐서는 재계산(recompute)하는 것이 더 유리한가"를 전체 그래프 관점에서 판단할 수 있어, activation checkpointing을 보다 자동화되고 효율적으로 적용할 수 있습니다.
+AOTAutograd 관점에서 중요한 것은, 앞서 강조한 joint graph 덕분에 "forward에서 만들어진 어떤 텐서가 backward의 어떤 입력으로 연결되는가"라는 input-output 관계가 전부 살아 있다는 점입니다. 이 관계를 알고 있으면 Min-Cut partitioner가 "어느 텐서는 저장(save)하고 어느 텐서는 재계산(recompute)하는 것이 더 유리한가"를 전체 그래프 관점에서 판단할 수 있어, activation checkpointing을 보다 자동화되고 효율적으로 적용할 수 있습니다.
 
 
 ### [I 단계] Compiled Model = torch.autograd.Function
 
-이제 AOTAutograd 수행 순서의 마지막 단계입니다. G 단계에서 forward/backward로 분리하고 H 단계에서 각각 backend compile한 결과물을 하나로 묶어 **`torch.autograd.Function`** 객체로 wrap해서 돌려주는 것이 바로 I 단계입니다. 최종 결과물은 compiled `forward()`와 compiled `backward()`가 한 객체 안에 나란히 들어 있는 형태가 됩니다. 아래는 그 형태를 이해하기 위한 공식 문서의 hand-written 예제입니다 (AOTAutograd의 실제 출력물은 앞서 본 "AOTAutograd가 생성한 `torch.autograd.Function`" 예시를 참고하세요):
+이제 AOTAutograd 수행 순서의 마지막 단계입니다. G 단계에서 forward/backward로 분리하고 H 단계에서 각각 backend compile한 결과물을 하나로 묶어 `torch.autograd.Function` 객체로 wrap해서 돌려주는 것이 바로 I 단계입니다. 최종 결과물은 compiled `forward()`와 compiled `backward()`가 한 객체 안에 나란히 들어 있는 형태가 됩니다. 아래는 그 형태를 이해하기 위한 공식 문서의 hand-written 예제입니다 (AOTAutograd의 실제 출력물은 앞서 본 "AOTAutograd가 생성한 `torch.autograd.Function`" 예시를 참고하세요):
 
 ```python
 class MyCube(torch.autograd.Function):
@@ -821,16 +821,16 @@ class MyCube(torch.autograd.Function):
         return result
 ```
 
-**`torch.autograd.Function`은 PyTorch 2.0에서 새로 만들어진 개념이 아닙니다.** 앞서 "PyTorch 1.0: Autograd" 절의 세 번째 특징으로 다뤘던 **custom differentiable function** 기능이 바로 이것으로, 사용자가 직접 만든 custom op에 대해 자신만의 미분 규칙을 기술해 붙일 수 있도록 PyTorch 1.0부터 존재해 온 장치입니다. AOTAutograd는 이 기존 메커니즘을 그대로 재활용합니다.
+`torch.autograd.Function`은 PyTorch 2.0에서 새로 만들어진 개념이 아닙니다. 앞서 "PyTorch 1.0: Autograd" 절의 세 번째 특징으로 다뤘던 custom differentiable function 기능이 바로 이것으로, 사용자가 직접 만든 custom op에 대해 자신만의 미분 규칙을 기술해 붙일 수 있도록 PyTorch 1.0부터 존재해 온 장치입니다. AOTAutograd는 이 기존 메커니즘을 그대로 재활용합니다.
 
-Dynamo가 FX Graph로 캡처한 덩어리를 eager mode 관점에서 바라보면 **하나의 거대한 custom Op**으로 생각할 수 있습니다. 그렇다면 이 custom Op에는 custom 미분 함수가 필요한데, 사람이 수많은 op을 포함하는 FX Graph에 대한 미분 함수를 손으로 작성하기는 사실상 불가능합니다. **AOTAutograd가 바로 그 미분 함수를 자동으로 만들어 주는 역할**을 하고, 생성된 compiled forward/backward를 `torch.autograd.Function`으로 포장하여 "미분 가능한 하나의 custom Op"으로 돌려주는 것입니다. 지금까지 여러 각도에서 설명한 AOTAutograd 내부의 복잡한 과정들이 모두 이 custom 미분 함수를 자동 생성하기 위한 작업이었다고 볼 수 있습니다.
+Dynamo가 FX Graph로 캡처한 덩어리를 eager mode 관점에서 바라보면 하나의 거대한 custom Op으로 생각할 수 있습니다. 그렇다면 이 custom Op에는 custom 미분 함수가 필요한데, 사람이 수많은 op을 포함하는 FX Graph에 대한 미분 함수를 손으로 작성하기는 사실상 불가능합니다. AOTAutograd가 바로 그 미분 함수를 자동으로 만들어 주는 역할을 하고, 생성된 compiled forward/backward를 `torch.autograd.Function`으로 포장하여 "미분 가능한 하나의 custom Op"으로 돌려주는 것입니다. 지금까지 여러 각도에서 설명한 AOTAutograd 내부의 복잡한 과정들이 모두 이 custom 미분 함수를 자동 생성하기 위한 작업이었다고 볼 수 있습니다.
 
 **`torch.autograd.Function`이 통합하는 두 가지 개념 (PyTorch 공식 문서)**:
 
 > PyTorch combines the following two concepts into `torch.autograd.Function`:
 >
-> 1. You wish to call code that **does not contain PyTorch operations** and have it work with function transforms. That is, the `torch.autograd.Function`'s `forward`/`backward`/etc calls into functions from other systems like **C++, CUDA, numpy**.
-> 2. You wish to specify **custom gradient rules**, like JAX's `custom_vjp` / `custom_jvp`.
+> 1. You wish to call code that does not contain PyTorch operations and have it work with function transforms. That is, the `torch.autograd.Function`'s `forward`/`backward`/etc calls into functions from other systems like C++, CUDA, numpy.
+> 2. You wish to specify custom gradient rules, like JAX's `custom_vjp` / `custom_jvp`.
 
 AOTAutograd의 출력은 이 두 가지 중 두 번째(custom gradient rules)를 적극적으로 활용합니다. FX Graph로 캡처된 Python 코드 덩어리에 대해, AOTAutograd가 생성한 compiled backward를 custom gradient rule로 등록하여 Autograd engine이 마치 기본 제공 op처럼 자연스럽게 이 덩어리를 미분할 수 있게 만듭니다.
 
@@ -850,7 +850,7 @@ AOTAutograd가 만들어낸 `torch.autograd.Function`이 실제 학습 루프에
 
 **[2] Compile된 `backward()`가 output tensor의 grad function으로 등록**
 
-Forward가 실행되는 동안, 함께 묶여 있던 compiled `backward()`는 곧바로 실행되지는 않고 **output tensor의 `grad_fn`**으로 등록됩니다. 즉 나중에 `loss.backward()`가 호출될 때 타고 들어갈 수 있도록 "대기 상태"로 걸어 두는 단계입니다.
+Forward가 실행되는 동안, 함께 묶여 있던 compiled `backward()`는 곧바로 실행되지는 않고 output tensor의 `grad_fn`으로 등록됩니다. 즉 나중에 `loss.backward()`가 호출될 때 타고 들어갈 수 있도록 "대기 상태"로 걸어 두는 단계입니다.
 
 **[3] `loss.backward()` 수행 과정에서 compiled `backward()` 실행**
 
@@ -861,7 +861,7 @@ Forward가 실행되는 동안, 함께 묶여 있던 compiled `backward()`는 �
   <p class="text-sm text-center">→ 등록된 backend가 backward를 미리 컴파일</p>
 </div>
 
-결과적으로 forward와 backward **둘 다** backend compiler로 미리 최적화되어 있고, 사용자가 작성한 학습 루프는 거의 그대로 둔 채 내부적으로만 가속된 실행 경로를 타게 됩니다.
+결과적으로 forward와 backward 둘 다 backend compiler로 미리 최적화되어 있고, 사용자가 작성한 학습 루프는 거의 그대로 둔 채 내부적으로만 가속된 실행 경로를 타게 됩니다.
 
 
 ### Q&A
@@ -870,28 +870,28 @@ Forward가 실행되는 동안, 함께 묶여 있던 compiled `backward()`는 �
 
 **Q1. [B 단계] `inner_fn`의 `outs`와 `backward_out`은 각각 무엇인가요?**
 
-A. `outs`는 forward를 수행했을 때 나오는 **output**, 일반적으로 input이 들어왔을 때 나가는 그 output입니다. 반면 `backward_out`은 backward의 결과물, 즉 **weight들의 gradient**에 해당합니다.
+A. `outs`는 forward를 수행했을 때 나오는 output, 일반적으로 input이 들어왔을 때 나가는 그 output입니다. 반면 `backward_out`은 backward의 결과물, 즉 weight들의 gradient에 해당합니다.
 
 **Q2. 앞 설명에서 B 단계는 joint graph를 만드는 부분이라고 했는데, 코드를 보면 forward와 backward가 분리돼 있는 것처럼 보입니다.**
 
-A. 여기서 **B 단계는 joint graph 자체를 만드는 것이 아니라, "trace의 입력이 될 함수"를 먼저 준비해 두는 단계**입니다. forward와 backward를 붙인 `inner_fn`이 그 함수이고, 이 함수의 input은 원래 모델의 input + loss로부터 흘러 들어오는 gradient(`grad_outs`)이며, output은 forward 결과 + weight들의 gradient입니다. 이 함수를 D 단계에서 한 번 trace하면 forward/backward가 모두 연결된 joint graph가 만들어집니다.
+A. 여기서 B 단계는 joint graph 자체를 만드는 것이 아니라, "trace의 입력이 될 함수"를 먼저 준비해 두는 단계입니다. forward와 backward를 붙인 `inner_fn`이 그 함수이고, 이 함수의 input은 원래 모델의 input + loss로부터 흘러 들어오는 gradient(`grad_outs`)이며, output은 forward 결과 + weight들의 gradient입니다. 이 함수를 D 단계에서 한 번 trace하면 forward/backward가 모두 연결된 joint graph가 만들어집니다.
 
 **Q3. Joint Graph 생성 슬라이드에서, forward를 수행하면서 backward가 되는데 `outputs`가 또 하나의 input으로 다시 들어가는 건가요?**
 
-A. 혼동이 생길 수 있는데, training loop 다이어그램을 떠올리면 이해가 쉽습니다. 실제 forward 흐름(training data input → 모델 → output → loss function → gradient)에서, **loss function은 joint graph 바깥에 남아 있고**, 그 loss로부터 내려오는 gradient가 backward의 시작점이 됩니다. 따라서 joint graph의 관점에서:
+A. 혼동이 생길 수 있는데, training loop 다이어그램을 떠올리면 이해가 쉽습니다. 실제 forward 흐름(training data input → 모델 → output → loss function → gradient)에서, loss function은 joint graph 바깥에 남아 있고, 그 loss로부터 내려오는 gradient가 backward의 시작점이 됩니다. 따라서 joint graph의 관점에서:
 
 - **Input**: ① 원래 모델의 input (forward를 시작시키는 값), ② loss function으로부터 흘러 들어오는 backward-trigger gradient (`grad_outs`)
 - **Output**: ① 원래 모델의 forward output (바깥에서 loss를 계산하는 데 필요), ② 다음 iteration에서 optimizer가 보정해야 할 weight들의 gradient
 
 슬라이드의 `joint_fw_bw`에서 `fw_inputs`가 ①의 input, `grad_outs`가 ②의 input에 해당하고, `fw_out`과 `grad_inps`가 각각의 output에 해당합니다.
 
-**Q4. 모델뿐 아니라 loss 계산과 optimizer까지 포함해서 **한꺼번에** trace하고 최적화하는 방법도 가능할까요?**
+**Q4. 모델뿐 아니라 loss 계산과 optimizer까지 포함해서 한꺼번에 trace하고 최적화하는 방법도 가능할까요?**
 
-A. 좋은 질문입니다. 개념적으로는 "What Happens When Training with torch.compile()?" 절에서 봤던 전체 학습 루프(왼쪽 코드)를 통째로 하나의 함수로 정의한 뒤 compile하면 되겠지만, 현실적으로는 난점이 있습니다. Loss 계산이나 optimizer 쪽 코드에서 **graph break**가 발생할 가능성이 커서 하나의 trace로 깔끔하게 묶기 어렵기 때문입니다. 이를 해결하기 위해 PyTorch 팀에서는 [**Compiled Autograd**](https://pytorch.org/tutorials/intermediate/compiled_autograd_tutorial.html) 같은 새로운 시도를 진행 중입니다. 다만 loss 계산 자체가 전체 training 시간에서 차지하는 비중이 크지 않기 때문에, "다 합쳐 하나로 trace하면 얼마나 더 빨라질지"는 해봐야 알 수 있는 부분이라고 생각합니다.
+A. 좋은 질문입니다. 개념적으로는 "What Happens When Training with torch.compile()?" 절에서 봤던 전체 학습 루프(왼쪽 코드)를 통째로 하나의 함수로 정의한 뒤 compile하면 되겠지만, 현실적으로는 난점이 있습니다. Loss 계산이나 optimizer 쪽 코드에서 graph break가 발생할 가능성이 커서 하나의 trace로 깔끔하게 묶기 어렵기 때문입니다. 이를 해결하기 위해 PyTorch 팀에서는 [Compiled Autograd](https://pytorch.org/tutorials/intermediate/compiled_autograd_tutorial.html) 같은 새로운 시도를 진행 중입니다. 다만 loss 계산 자체가 전체 training 시간에서 차지하는 비중이 크지 않기 때문에, "다 합쳐 하나로 trace하면 얼마나 더 빨라질지"는 해봐야 알 수 있는 부분이라고 생각합니다.
 
 **Q5. `torch.compile` 과정에서 Dynamo가 fake tensor로 FX graph만 만들어내는 것인지, 아니면 실제 하드웨어에서 돌아갈 코드까지 생성하는 것인지 헷갈립니다.**
 
-A. **Dynamo가 하는 일은 FX graph 캡처까지**이고, 하드웨어 코드 생성은 그 뒤에 붙는 **backend compiler**가 맡습니다. Dynamo에 어떤 backend(예: Inductor, TensorRT 등)를 붙이느냐에 따라 결과가 달라지며, backend가 연결되어 있으면 캡처된 FX graph가 그 backend의 input으로 전달되어 **실제 하드웨어에서 실행 가능한 코드**까지 생성됩니다. 최종적으로는 이 결과물이 `nn.Module` 형태로 감싸져 사용자에게 돌아오고, 모듈을 실행하면 내부에서 적절한 하드웨어로 dispatch되어 실제 연산이 수행됩니다.
+A. Dynamo가 하는 일은 FX graph 캡처까지이고, 하드웨어 코드 생성은 그 뒤에 붙는 backend compiler가 맡습니다. Dynamo에 어떤 backend(예: Inductor, TensorRT 등)를 붙이느냐에 따라 결과가 달라지며, backend가 연결되어 있으면 캡처된 FX graph가 그 backend의 input으로 전달되어 실제 하드웨어에서 실행 가능한 코드까지 생성됩니다. 최종적으로는 이 결과물이 `nn.Module` 형태로 감싸져 사용자에게 돌아오고, 모듈을 실행하면 내부에서 적절한 하드웨어로 dispatch되어 실제 연산이 수행됩니다.
 
 ## Appendix: Grad Function Codegen 재현 방법
 
