@@ -138,10 +138,8 @@ PyTorch는 기본 제공되는 연산자(log, sin, polynomial 등) 외에도, �
 
 ### Autograd 동작 예제
 
-머신러닝 모델이라고 보기는 어렵지만, Autograd의 동작 원리를 단계별로 이해하기에 충분한 단순 수학 연산 예제입니다.
-
-- **변수**: $x$는 상수이지만 gradient가 필요하도록 마킹, $y = 2x$, $z = y^2$
-- **목표**: $x$에 대한 $z$의 gradient $\left(\frac{dz}{dx}\right)$를 구하기
+- **변수**: $x = 2$ (`requires_grad = True`로 마킹), $y = 2x$, $z = y^2$
+- **목표**: $x$에 대한 $z$의 gradient $\left(\frac{dz}{dx}\right)$ 구하기
 
 ```python
 x = torch.tensor(2.0)
@@ -155,7 +153,11 @@ print(z)       # tensor(16., grad_fn=<PowBackward0>)
 print(x.grad)  # tensor(16.)
 ```
 
-각 값을 확인하면: $x = 2$이고 `requires_grad` flag가 `True`, $y = 2x = 4$, $z = y^2 = 16$입니다. 실제로 뒤에서부터 미분을 수행하면 $\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx} = 2y \cdot 2 = 8 \cdot 2 = 16$이 됩니다. 이 원리를 기반으로 신경망에서는 수많은 연산의 미분을 체계적으로 계산하여 학습이 진행됩니다.
+출력에서 눈여겨볼 부분:
+
+- $y$, $z$에 붙은 `grad_fn`(`MulBackward0`, `PowBackward0`) — forward 중에 Autograd가 남긴 기록
+- `z.backward()` — 이 기록을 거꾸로 따라가며 gradient 계산, 결과 $16$이 `x.grad`에 저장
+- 아래에서 이 과정을 Step 1~4로 나누어 살펴봅니다
 
 
 ### Step 1: Tensor 생성
