@@ -38,7 +38,10 @@ PyTorch의 기원은 **Torch**에서 시작됩니다. Torch는 원래 C/C++로 �
 
 Lua보다 Python이 훨씬 더 인기 있는 언어였기 때문에, Meta(당시 Facebook)에서 Python 기반의 PyTorch 프로젝트를 시작했습니다. 당시에는 TensorFlow가 대세였고, PyTorch는 지금처럼 큰 프로젝트가 될 것이라 기대하지 않았습니다. 연구자들이 TensorFlow의 복잡한 사용성에 어려움을 겪고 있었기 때문에, 그 문제를 해결하고자 **eager mode** 철학을 중심으로 개발을 시작했습니다.
 
-이 접근 방식은 특히 리서치 커뮤니티에서 큰 호응을 얻으며 PyTorch가 빠르게 성장하는 계기가 되었습니다. 다만 이 시기의 PyTorch는 주로 연구자들이 사용하는 도구였으며, production 환경에서 사용할 수준은 아니었습니다.
+이 접근 방식은 특히 리서치 커뮤니티에서 큰 호응을 얻으며 PyTorch가 빠르게 성장하는 계기가 되었습니다. 다만 이 시기의 PyTorch는 주로 연구자들이 사용하는 도구였으며, production 환경에서 사용하기에는 부족한 점이 있었습니다:
+
+- **Python runtime 의존**: Eager mode는 모델 실행이 Python 코드 자체에 묶여 있어, 배포 시 Python interpreter까지 함께 가져가야 합니다. Python이 없는 C++ 서버나 모바일 환경으로 모델을 내보내기 어렵고, interpreter 오버헤드와 GIL 때문에 고성능 serving에도 불리합니다.
+- **Graph 수준 최적화 불가**: 연산이 한 줄씩 즉시 실행되므로 전체 계산 흐름(graph)이 실행 전에 드러나지 않고, kernel fusion 같은 graph 수준의 최적화를 적용할 수 없습니다.
 
 ### PyTorch 1.0: Production 지원
 
