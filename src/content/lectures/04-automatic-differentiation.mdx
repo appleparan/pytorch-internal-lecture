@@ -751,7 +751,7 @@ def joint_fw_bw(fw_inputs, grad_outs):
 - **Forward Input** (`fw_inputs`): 원래 모델이 받는 입력값 그대로.
 - **Backward Input** (`grad_outs`): Loss로부터 전달되는 최종 gradient 값.
 
-왜 `grad_outs`가 필요할까요? Backward를 계산하려면 일반적으로 ① loss 쪽에서 내려오는 최종 gradient와 ② forward 중간 단계에서 계산된 tensor들이 필요합니다. 이 중 중간 tensor들은 joint graph 안에 forward 부분으로 이미 포함되어 있으므로 별도 input으로 넘길 필요가 없습니다. 반면 loss function은 이 FX Graph 바깥에 있어 캡처되지 않으므로, loss에서 내려오는 `grad_outs`만큼은 반드시 joint 함수의 input으로 넣어 줘야 최종 gradient를 끝까지 계산할 수 있습니다.
+왜 `grad_outs`가 필요할까요? Backward 계산은 본질적으로 위에서 내려오는 gradient(incoming gradients)에 의존하기 때문입니다. Backward에 필요한 재료는 ① 위에서 내려오는 gradient와 ② forward 중간 단계에서 계산된 tensor들인데, 중간 tensor들은 joint graph 안에 forward 부분으로 이미 포함되어 있으므로 별도 input으로 넘길 필요가 없습니다. 반면 위에서 내려오는 gradient는 graph 바깥에서 들어오는 값입니다 — 학습 루프 관점에서 보면 loss function이 이 FX Graph 밖에 있으므로, loss에서 내려오는 `grad_outs`만큼은 반드시 joint 함수의 input으로 넣어 줘야 최종 gradient를 끝까지 계산할 수 있습니다.
 
 **[G] Joint Graph → Forward/Backward 분리**
 
@@ -760,14 +760,7 @@ Then, we simply partition this graph into two
 to give us the forwards pass and the backwards pass.
 ```
 
-이렇게 얻어진 joint graph를 적절한 기준(이후 절에서 다룰 Min-Cut 알고리즘)으로 partition하면 forward pass와 backward pass로 다시 분리할 수 있습니다.
-
-> **[참고] 원문(PyTorch Dev Discussions) 기준 보충 사항**
->
-> 위 설명은 강연 transcript에 기반한 풀이이며, 원문 [How does torch.compile work with autograd?](https://dev-discuss.pytorch.org/t/how-does-torch-compile-work-with-autograd/1621/14)과 대조하면 다음 몇 가지를 추가로 알아두면 좋습니다:
->
-> - **`grad_outs`가 필요한 이유 (원문)**: "backward computation depends on incoming gradients", 즉 backward 계산이 본질적으로 외부에서 들어오는 gradient 신호에 의존하기 때문이라는 일반적 서술이며, "loss function이 FX Graph 바깥이라서"라는 구체화는 강연자의 해석입니다.
-> - **Partitioning의 성격**: 원문은 forward/backward partition이 "not strictly disjoint"라고 명시합니다. 메모리 효율을 위해 backward pass가 forward graph의 일부를 재계산(recomputation)할 수 있으며, 어느 부분을 저장하고 어느 부분을 재계산할지는 partitioning 단계의 최적화 결정입니다. (이 주제는 뒤의 "Activation Checkpointing" 절에서 다시 다룹니다.)
+이렇게 얻어진 joint graph를 적절한 기준(이후 절에서 다룰 Min-Cut 알고리즘)으로 partition하면 forward pass와 backward pass로 다시 분리할 수 있습니다. 다만 이 분리가 두 그래프를 완전히 겹치지 않게 나누는 것은 아닙니다(not strictly disjoint). 메모리 효율을 위해 backward pass가 forward graph의 일부를 재계산(recomputation)하도록 만들 수 있으며, 어느 중간 결과를 저장하고 어느 것을 재계산할지가 바로 partitioning 단계의 최적화 결정입니다. 이 주제는 뒤의 "Activation Checkpointing" 절에서 다시 다룹니다.
 
 
 ### [D 단계] Joint Graph Example
