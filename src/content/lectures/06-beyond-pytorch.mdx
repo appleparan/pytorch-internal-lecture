@@ -900,6 +900,18 @@ vLLM의 내부를 한 층만 들춰 보면, 이 강의에서 다룬 개념들이
 
 이 구조는 그 후 **하드웨어 플러그인 시스템**으로 공식화되었습니다. vLLM 코어는 특정 하드웨어를 하드코딩하지 않고 platform plugin 인터페이스만 정의해 두고, 각 하드웨어 벤더가 자기 플러그인을 별도 패키지(out-of-tree)로 유지하는 방식입니다. 실제로 리벨리온도 [vllm-rbln](https://github.com/rebellions-sw/vllm-rbln) 플러그인을 오픈소스로 공개해 ATOM·REBEL에서 vLLM 서빙을 지원하고 있습니다. FlashAttention·PagedAttention 같은 기법을 NPU의 메모리 계층에 맞게 재구현해 플러그인 밑에 깔아 두면, 사용자는 기존 vLLM 워크플로를 그대로 쓰면서 백엔드만 NPU로 갈아 끼울 수 있습니다. "PyTorch만 잘 붙여 오면 그 위에서 vLLM이 돌게 하겠다"던 방향이, 이제는 벤더가 직접 꽂을 수 있는 표준 인터페이스로 자리 잡은 셈입니다.
 
+### 모델 코드는 어디서 오는가: 자체 구현과 Transformers Backend
+
+하드웨어 반대편, 모델 정의 쪽에도 같은 질문을 던질 수 있습니다. vLLM에서 Llama나 Qwen을 서빙할 때 그 모델 코드는 어디서 올까요? 기본적으로 vLLM은 주요 아키텍처마다 **자체 최적화 구현**을 유지합니다. Hugging Face의 모델 코드를 그대로 쓰는 것이 아니라, tensor parallel용 병렬 linear 레이어와 vLLM의 attention 인터페이스에 맞춰 다시 작성한 구현이고(`vllm/model_executor/models/`), checkpoint(weight)만 Hugging Face Hub에서 받아 그 위에 얹습니다.
+
+그럼 이 지원 목록에 없는 모델이 들어오면 어떻게 될까요? 이때 vLLM은 **Transformers backend**로 자동으로 넘어갑니다(fallback). Hugging Face `transformers`의 모델 코드를 그대로 가져오되, attention은 vLLM의 paged attention 커널로 바꿔 끼우고 linear 레이어는 병렬 레이어로 치환해서, transformers의 모델 정의 위에 vLLM의 서빙 최적화를 얹는 방식입니다. `--model-impl transformers` 플래그로 명시적으로 선택할 수도 있습니다.
+
+흥미로운 것은 최근의 방향입니다. 처음에는 "자체 구현이 없을 때의 fallback"이었던 Transformers backend가 계속 최적화되면서(torch.compile·CUDA graph 호환 유지, fused kernel 치환 등), 2026년 기준 여러 아키텍처에서 자체 구현과 대등하거나 더 빠른 수준에 도달했고, 일부 모델은 아예 Transformers backend로만 지원됩니다. 450개가 넘는 아키텍처를 가진 transformers를 모델 정의의 reference로 삼고, vLLM은 모델 구현을 점점 transformers 쪽에 위임하는 흐름입니다. 정리하면 vLLM은 모델 정의는 위쪽의 transformers에, 하드웨어 지원은 아래쪽의 PyTorch에 위임하고, 자신은 그 사이의 서빙 최적화(스케줄링, KV cache 관리, 커널)에 집중하는 구조로 수렴하고 있습니다. 강의 도입부에서 본 "Open Pretrained LLM → Hugging Face 배포 → PyTorch → 커널·서빙" 그림의 각 층이 실제 소프트웨어 구조로도 그대로 맞물리는 셈입니다.
+
+> 참고: [Transformers modeling backend integration in vLLM](https://blog.vllm.ai/2025/04/11/transformers-backend.html)
+>
+> 참고: [Native-speed vLLM transformers modeling backend](https://huggingface.co/blog/native-speed-vllm-transformers-backend)
+
 ### 기타 상용 프레임워크
 
 서빙 프레임워크 풍경을 좀 더 넓게 보면 이렇습니다.
