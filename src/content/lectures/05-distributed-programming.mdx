@@ -163,13 +163,15 @@ Rendezvous는 여러 Node를 묶어서 하나의 분산 환경을 구성합니�
 
 * **Backend** 
     * 가장 맨 아래단에서 실제 통신을 담당합니다.
-    * NCCL, MPI, Gloo 등 다른 라이브러리를 활용하여 CPU 또는 GPU 간의 프로세스 통신을 관장합니다.
+    * NCCL[^nccl], MPI, Gloo 등 다른 라이브러리를 활용하여 CPU 또는 GPU 간의 프로세스 통신을 관장합니다.
 * **c10d (PyTorch Distributed Core Layer)** 
     * PyTorch 분산 처리의 핵심(core) 레이어입니다.
     * 실제 Backend들이 이 레이어에 붙으며, `all-reduce`, `broadcast` 같은 Collective API의 인터페이스도 여기에 정리되어 있습니다.
 * **High-level 패키지** 
     * c10d 위에 올라가는 DDP, FSDP, TP, SP, PP 등의 모델 병렬화 패키지입니다. 
     * 사용자는 복잡한 분산 통신 로직을 직접 작성하지 않고도 이 패키지들을 활용해 여러 머신에서 PyTorch 모델을 병렬로 돌릴 수 있습니다.
+
+[^nccl]: NVIDIA Collective Communications Library. NVIDIA GPU 간 collective communication에 최적화된 통신 라이브러리로, NVLink·InfiniBand 같은 interconnect를 자동으로 감지해 활용합니다. 아래 "Communication Backends"에서 다른 backend들과 비교합니다.
 
 ### Process Group
 
@@ -415,10 +417,12 @@ Fault tolerance 측면에서도 랑데뷰는 중요한 역할을 합니다. 한 
 ```python
 if __name__ == "__main__":
     n = 16000
-    rank = int(os.environ.get("RANK"))
+    rank = int(os.environ.get("RANK"))  # torchrun이 넣어 준 global rank
     if rank == 0:
+        # rank 0만 실제 데이터를 로드
         A, B = torch.ones(n, n), torch.ones(n, n)
     else:
+        # 나머지 rank는 broadcast로 받을 빈 텐서만 준비
         A, B = torch.empty(n, n), torch.empty(n, n)
 
     result = dist_matmul_allreduce(
@@ -427,7 +431,7 @@ if __name__ == "__main__":
         int(os.environ.get("WORLD_SIZE")))
 
     if rank == 0:
-        print(result)
+        print(result)  # 최종 결과 출력도 rank 0만
 ```
 
 이 코드에서 MPI 스타일의 역할 분담이 그대로 드러납니다.
@@ -442,19 +446,23 @@ if __name__ == "__main__":
 ```python
 def dist_matmul_allreduce(
         A, B, local_rank, world_size):
+    # init: device 지정 + 통신 backend 선택
     torch.cuda.set_device(local_rank)
     dist.init_process_group(backend="nccl")
     # NCCL은 CUDA tensor만 지원하므로 먼저 GPU로 이동
     device = torch.device(f"cuda:{local_rank}")
     A, B = A.to(device), B.to(device)
+    # rank 0이 가진 A, B를 모든 rank에 전달
     dist.broadcast(A, 0)
     dist.broadcast(B, 0)
     local_A, local_B = distributed_data(
         A, B, local_rank, world_size)
+    # job: 부분 곱 계산 후 all_reduce로 합산
     local_result = local_matmul(
         local_A, local_B)
     dist.all_reduce(
         local_result, op=dist.ReduceOp.SUM)
+    # finalize: 통신 자원 반환
     dist.destroy_process_group()
     return local_result
 ```
@@ -473,9 +481,9 @@ def dist_matmul_allreduce(
 ```python
 def distributed_data(A, B, lrank, world_size):
     n = A.shape[0]
-    k = n // world_size
+    k = n // world_size  # rank당 담당 폭
     device = torch.device(f"cuda:{lrank}")
-    # split A and B
+    # A는 column, B는 row 방향으로 자기 조각만 선택
     local_A = A[:, lrank*k:(lrank+1)*k].to(
         device)
     local_B = B[lrank*k:(lrank+1)*k, :].to(
@@ -483,6 +491,7 @@ def distributed_data(A, B, lrank, world_size):
     return local_A, local_B
 
 def local_matmul(local_A, local_B):
+    # (n, k) @ (k, n) = (n, n) 부분 곱
     return torch.matmul(local_A, local_B)
 ```
 
@@ -560,11 +569,11 @@ work.wait()     # 통신 완료를 기다림
 def all_reduce(tensor, op=ReduceOp.SUM,
                group=None, async_op=False):
     ...
-    work = group.allreduce([tensor], opts)
+    work = group.allreduce([tensor], opts)  # backend(NCCL 등)에 위임
     if async_op:
-        return work
+        return work    # 호출자가 나중에 work.wait()
     else:
-        work.wait()
+        work.wait()    # blocking: 완료까지 대기
 ```
 
 ### 3: Process Group 생성 및 통신 채널 설정
@@ -597,6 +606,7 @@ dist.init_process_group(
 
 ```python
 # torch/distributed/rendezvous.py
+# init_method에 없으면 torchrun이 설정한 환경변수에서 수집
 if "rank" in query_dict:
     rank = int(query_dict["rank"])
 else:
@@ -608,6 +618,7 @@ else:
 master_addr = _get_env_or_raise("MASTER_ADDR")
 master_port = int(_get_env_or_raise("MASTER_PORT"))
 use_libuv = _get_use_libuv_from_query_dict(query_dict)
+# rank 0이 daemon을 띄우는 key-value store(TCPStore) 생성
 store = _create_c10d_store(
     master_addr, master_port, rank, world_size, timeout, use_libuv
 )
@@ -630,10 +641,12 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 전략을 비교하기 전에, 학습 중 GPU 메모리에 무엇이 올라가 있는지부터 보겠습니다. 학습 상태는 크게 네 가지입니다:
 
-- **Parameter**: 모델 weight 자체. mixed precision이면 fp16/bf16으로 parameter당 2 byte
+- **Parameter**: 모델 weight 자체. mixed precision[^mixed-precision]이면 fp16/bf16으로 parameter당 2 byte
 - **Gradient**: backward가 만들어내는 값. parameter와 같은 크기로 2 byte
 - **Optimizer state**: Adam 기준 fp32 master weight(4 byte) + momentum(4 byte) + variance(4 byte) = 12 byte
 - **Activation**: forward 중간 결과. batch/sequence 길이에 비례하며, Week 4에서 본 activation checkpointing으로 줄이는 대상
+
+[^mixed-precision]: forward/backward 계산은 fp16/bf16 저정밀로 수행하고, 수치 안정성을 위해 optimizer에는 fp32 master weight를 유지하는 학습 기법. Optimizer state에 fp32 master weight(4 byte)가 포함되는 이유입니다.
 
 즉 mixed precision Adam 학습에서는 parameter 1개당 약 16 byte가 필요합니다. 7B 모델이라면 weight 자체는 14GB지만 학습 상태 전체는 112GB에 달해, 최신 GPU 한 장에도 들어가지 않습니다. inference에는 2 byte면 되는 모델이 학습에는 8배가 필요하다는 이 격차가 분산 학습 전략의 출발점이고, 각 전략은 "이 중 무엇을 rank들에 나눌 것인가"에 대한 서로 다른 답입니다.
 
@@ -724,8 +737,8 @@ from torch.distributed.fsdp import fully_shard, FSDPModule
 
 model = Transformer()
 for layer in model.layers:
-    fully_shard(layer)
-fully_shard(model)
+    fully_shard(layer)  # transformer block 단위로 sharding
+fully_shard(model)      # 남은 최상위 parameter까지 sharding
 ```
 
 이렇게 layer 단위로 나누어 적용하는 이유는 메모리 효율 때문입니다. forward에서 layer i를 계산하는 동안 나머지 layer들은 sharded 상태로 남아 있고, 필요한 layer의 parameter만 그때그때 all-gather됩니다. FSDP1에서는 `auto_wrap_policy`로 이 wrapping 단위를 지정했지만, FSDP2에서는 이렇게 명시적으로 `fully_shard`를 호출하는 방식으로 바뀌었습니다.
@@ -764,7 +777,9 @@ for param in model.parameters():
 - **부분 freeze(LoRA 등)**: LoRA는 base weight를 freeze하고 작은 adapter만 학습하는데, FSDP1에서는 둘이 같은 FlatParameter에 묶이면 `requires_grad`가 하나뿐이라 "일부만 freeze"를 표현할 수 없었습니다(frozen끼리, trainable끼리 wrapping을 나누는 우회가 필요). FSDP2는 parameter마다 flag를 따로 유지하므로 그대로 동작하고, frozen parameter에는 gradient 메모리도 잡히지 않습니다.
 - **dtype 혼합(fp8 등)**: 하나의 연속 버퍼로 이어붙이려면 모든 parameter가 같은 dtype이어야 했지만, parameter가 각자 독립된 tensor인 FSDP2에서는 큰 matmul weight만 fp8로 두고 LayerNorm처럼 민감한 부분은 bf16으로 남기는 혼합 구성이 자연스럽습니다.
 - **통신 없는 sharded checkpointing**: FSDP1의 shard는 이어붙인 1D 버퍼를 world_size로 등분한 조각이라 parameter 경계와 어긋납니다. 한 parameter의 절반이 rank 0에, 나머지가 rank 1에 걸칠 수 있으니 조각 자체로는 의미가 없고, 저장하려면 조각을 모으는 통신이 필요했습니다(FULL_STATE_DICT 저장 시 rank 0에 메모리가 몰리는 원인). FSDP2의 shard는 parameter를 dim-0으로 자른 조각에 원래 shape·placement metadata가 붙어 있어, 각 rank가 자기 조각을 그대로 저장해도 어느 parameter의 어느 부분인지 자명합니다. `torch.distributed.checkpoint`의 sharded state dict가 통신 없이 병렬로 저장·로드되는 근거입니다.
-- **결정적(deterministic) 메모리 관리**: all-gather는 별도 CUDA stream에서 돌고 계산은 default stream에서 도는데, 통신 stream이 할당한 unsharded 버퍼를 계산이 다 쓰기 전에 allocator가 재사용하지 못하게 막아야 합니다. FSDP1이 쓰던 `record_stream()`은 GPU가 실제로 작업을 끝냈는지를 보고 메모리를 반환하므로, 해제 시점이 GPU 실행 타이밍에 따라 달라져 같은 코드의 peak memory가 실행마다 달라지고 간헐적 OOM의 원인이 됐습니다. FSDP2는 stream 간 event 동기화로 해제 시점을 프로그램 순서에 고정해서, 메모리 사용량이 매 실행 동일하게 예측 가능합니다.
+- **결정적(deterministic) 메모리 관리**: all-gather는 별도 CUDA stream[^cuda-stream]에서 돌고 계산은 default stream에서 도는데, 통신 stream이 할당한 unsharded 버퍼를 계산이 다 쓰기 전에 allocator가 재사용하지 못하게 막아야 합니다. FSDP1이 쓰던 `record_stream()`은 GPU가 실제로 작업을 끝냈는지를 보고 메모리를 반환하므로, 해제 시점이 GPU 실행 타이밍에 따라 달라져 같은 코드의 peak memory가 실행마다 달라지고 간헐적 OOM의 원인이 됐습니다. FSDP2는 stream 간 event 동기화로 해제 시점을 프로그램 순서에 고정해서, 메모리 사용량이 매 실행 동일하게 예측 가능합니다.
+
+[^cuda-stream]: GPU에 kernel을 제출하는 명령 큐. 같은 stream 안의 kernel들은 제출 순서대로 실행되고, 서로 다른 stream의 kernel들은 동시에 실행될 수 있습니다. 통신과 계산을 겹치는 overlap 기법들이 모두 이 장치 위에서 동작합니다.
 
 DTensor는 바로 뒤에서 다룰 Tensor Parallel에서도 동일하게 쓰이는 추상화라서, FSDP2와 TP를 조합하는 것도 같은 표현 위에서 자연스럽게 이루어집니다.
 
@@ -778,7 +793,9 @@ DTensor는 바로 뒤에서 다룰 Tensor Parallel에서도 동일하게 쓰이�
 
 FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌 수 있습니다.
 
-**Initialization** 단계에서는 `fully_shard`가 호출된 module 단위로 parameter들을 dim-0 기준으로 쪼개 DTensor로 바꾸고, 각 rank는 자신의 shard에 해당하는 memory만 유지합니다. 그리고 forward/backward 실행 시 자동으로 호출될 hook들을 등록합니다. pre hook에서는 `all_gather`(unsharding)를, post hook에서는 resharding(모아 온 전체 parameter를 해제)을 수행하도록 설정합니다. 큰 모델의 경우 meta device 위에서 모델을 정의하고 `fully_shard` 적용 후 `to_empty()` + `reset_parameters()`로 shard만 materialize하면, 어떤 rank도 전체 모델을 memory에 올리지 않고 초기화할 수 있습니다.
+**Initialization** 단계에서는 `fully_shard`가 호출된 module 단위로 parameter들을 dim-0 기준으로 쪼개 DTensor로 바꾸고, 각 rank는 자신의 shard에 해당하는 memory만 유지합니다. 그리고 forward/backward 실행 시 자동으로 호출될 hook들을 등록합니다. pre hook에서는 `all_gather`(unsharding)를, post hook에서는 resharding(모아 온 전체 parameter를 해제)을 수행하도록 설정합니다. 큰 모델의 경우 meta device[^meta-device] 위에서 모델을 정의하고 `fully_shard` 적용 후 `to_empty()` + `reset_parameters()`로 shard만 materialize하면, 어떤 rank도 전체 모델을 memory에 올리지 않고 초기화할 수 있습니다.
+
+[^meta-device]: 실제 메모리 할당 없이 shape·dtype 같은 metadata만 가진 tensor를 만드는 PyTorch의 가상 device. 모델 구조만 먼저 정의해 두고, 실제 메모리는 나중에 필요한 shard만큼만 materialize할 수 있게 해 줍니다.
 
 **Forward** 단계에서는 `fully_shard` 단위마다 `all_gather`로 sharded parameter를 복원(unsharding)하고, computation을 수행한 뒤, 다시 resharding하는 과정을 반복합니다. 한 layer의 계산이 끝나면 해당 layer의 전체 parameter를 다시 버려서 메모리를 절약합니다.
 
@@ -801,8 +818,10 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 
 내부 동작을 봤으니 step당 통신량을 비교할 수 있습니다. parameter 전체 크기를 P라 하면:
 
-- **DDP**: backward 중 gradient `all_reduce` 한 번뿐입니다. 통신량은 약 2P(ring all-reduce 기준)이고, bucket 단위로 계산과 거의 완전히 겹쳐집니다. forward는 통신이 없습니다.
+- **DDP**: backward 중 gradient `all_reduce` 한 번뿐입니다. 통신량은 약 2P(ring all-reduce[^ring-allreduce] 기준)이고, bucket 단위로 계산과 거의 완전히 겹쳐집니다. forward는 통신이 없습니다.
 - **FSDP**(FULL_SHARD): forward에서 all-gather(P), backward에서 다시 all-gather(P) + `reduce_scatter`(P)로 약 3P입니다.
+
+[^ring-allreduce]: rank들을 ring으로 연결하고 데이터를 1/N 조각씩 이웃으로 돌리는 all-reduce 구현. reduce-scatter 단계와 all-gather 단계가 각각 약 P씩 통신해 총 2P가 되며, 본문 그림의 분해가 바로 이 구조입니다.
 
 숫자만 보면 FSDP가 1.5배 느려야 할 것 같지만, 실제로는 그렇지 않습니다. ring all-reduce는 내부적으로 all-gather + reduce-scatter와 동치라서(각각 P), backward의 통신량은 DDP와 FSDP가 정확히 같습니다.
 
@@ -815,7 +834,9 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 </div>
  FSDP가 추가로 내는 비용은 forward의 all-gather(P)뿐인데, forward에는 그만큼의 계산이 함께 있어서 prefetch로 겹치면 "계산 대비 통신" 비율은 forward와 backward 모두 DDP와 같아집니다. 즉 per-device batch가 충분히 커서 계산 시간이 통신 시간을 넘는 영역(compute-bound)이라면, FSDP는 DDP와 거의 같은 속도로 돕니다.
 
-반대로 per-device batch가 작으면 둘 다 통신이 병목이 됩니다. 계산 시간은 batch에 비례해 줄어드는데 통신량은 parameter 크기로 고정이기 때문입니다. 이 경계는 "device당 처리하는 token 수가 하드웨어의 연산 성능 대 통신 대역폭 비율(arithmetic intensity)을 넘는가"로 정해지며, 최신 GPU와 고속 interconnect 조합에서는 대략 device당 수천 token 수준입니다. GPU를 늘릴수록 per-device batch는 줄어들므로, data parallel 계열의 확장 한계는 메모리가 아니라 "global batch를 얼마나 키울 수 있는가"가 정합니다.
+반대로 per-device batch가 작으면 둘 다 통신이 병목이 됩니다. 계산 시간은 batch에 비례해 줄어드는데 통신량은 parameter 크기로 고정이기 때문입니다. 이 경계는 "device당 처리하는 token 수가 하드웨어의 연산 성능 대 통신 대역폭 비율(arithmetic intensity)[^arithmetic-intensity]을 넘는가"로 정해지며, 최신 GPU와 고속 interconnect 조합에서는 대략 device당 수천 token 수준입니다. GPU를 늘릴수록 per-device batch는 줄어들므로, data parallel 계열의 확장 한계는 메모리가 아니라 "global batch를 얼마나 키울 수 있는가"가 정합니다.
+
+[^arithmetic-intensity]: 연산량(FLOPs)을 데이터 이동량(bytes)으로 나눈 값. 하드웨어의 "연산 성능 ÷ 대역폭" 임계값과 비교해 compute bound인지 memory bound인지를 판별하는 기준으로, Week 6의 Roofline 분석에서 본격적으로 다룹니다.
 
 그리고 FSDP가 메모리로 얻는 것은 분명합니다. DDP는 rank마다 16 byte/param 전체를 복제하지만, FSDP는 그것을 world_size로 나눕니다. 따라서 결정 기준은 하나입니다:
 
@@ -839,16 +860,16 @@ from torch.distributed.tensor.parallel \
            RowwiseParallel, \
            parallelize_module
 
-tp_mesh = init_device_mesh("cuda", (8,))
+tp_mesh = init_device_mesh("cuda", (8,))  # 8-GPU 1차원 mesh
 
 layer_tp_plan = {
-    "feed_forward.w1": ColwiseParallel(),
-    "feed_forward.w2": RowwiseParallel(),
+    "feed_forward.w1": ColwiseParallel(),  # output 차원(dim-0)으로 분할
+    "feed_forward.w2": RowwiseParallel(),  # input 차원(dim-1)으로 분할
     "feed_forward.w3": ColwiseParallel(),
 }
 
 for transformer_block in model.layers:
-    parallelize_module(
+    parallelize_module(  # plan대로 weight를 DTensor로 변환
         module=transformer_block,
         device_mesh=tp_mesh,
         parallelize_plan=layer_tp_plan,
@@ -1065,7 +1086,7 @@ def train_func_per_worker(config):
 
 trainer = TorchTrainer(
     train_func_per_worker,
-    scaling_config=ScalingConfig(num_workers=4, use_gpu=True),
+    scaling_config=ScalingConfig(num_workers=4, use_gpu=True),  # 확장은 이 숫자만 변경
     datasets={"train": train_dataset},
 )
 result = trainer.fit()
