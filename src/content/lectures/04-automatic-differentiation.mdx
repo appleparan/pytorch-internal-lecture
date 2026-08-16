@@ -113,6 +113,8 @@ $$
 
 PyTorch에서 reverse-mode automatic differentiation을 구현한 것이 바로 **Autograd**입니다. "Autograd"라는 이름은 하버드 대학에서 NumPy 기반의 automatic differentiation을 연구하던 팀이 먼저 사용했으며, 해당 팀의 핵심 멤버들은 이후 Google에 입사하여 JAX 팀에 합류했습니다. PyTorch도 같은 이름을 사용하면서 초기에 이름 충돌에 대한 논의가 있었습니다.
 
+### Autograd의 세 가지 핵심 특징
+
 PyTorch의 Autograd는 텐서 연산의 미분 계산을 자동화하여, 개발자가 복잡한 계산 그래프를 수동으로 정의하지 않고도 backpropagation을 수행할 수 있게 합니다. 핵심 특징은 다음 세 가지입니다:
 
 #### 1. Eager Mode를 위한 Autograd
@@ -167,7 +169,7 @@ $$
 아래에서 이 과정을 Step 1~4로 나누어 살펴봅니다.
 
 
-### Step 1: Tensor 생성
+#### Step 1: Tensor 생성
 
 ```python
 x = torch.tensor(2.0)
@@ -177,7 +179,7 @@ x.requires_grad = True
 $x = 2$로 초기화하고 `requires_grad = True`로 gradient 필요 여부를 마킹합니다. 이 시점의 computation graph에는 `x:2` 노드만 존재합니다.
 
 
-### Step 2: Forward 연산 (y = x * 2)
+#### Step 2: Forward 연산 (y = x * 2)
 
 ```python
 y = x * 2
@@ -191,7 +193,7 @@ y = x * 2
 </Mermaid>
 
 
-### Step 3: Forward 연산 (z = y ** 2)
+#### Step 3: Forward 연산 (z = y ** 2)
 
 ```python
 z = y ** 2
@@ -205,7 +207,7 @@ Step 2와 동일한 과정이 반복됩니다. $z = y^2 = 16$이 계산되면서
 </Mermaid>
 
 
-### Step 4: Backward
+#### Step 4: Backward
 
 ```python
 z.backward()
