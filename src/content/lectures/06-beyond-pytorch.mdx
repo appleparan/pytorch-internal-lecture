@@ -320,6 +320,12 @@ $$
 
 앞서 Prefill과 Decode를 "weight를 공유하는 두 개의 별도 모델"로 보는 편이 자연스럽다고 했고, 리벨리온이 둘을 별도 binary로 컴파일한다는 이야기도 했습니다. Disaggregation은 같은 관점을 시스템 레벨로 확장한 것입니다. 컴파일 단위에서 갈라졌던 두 단계가, 이제는 아예 서로 다른 머신 풀에서 돌아가는 셈입니다.
 
+<div class="flex justify-center mt-4">
+  <img src="/images/06/vllm-anatomy-pd.png" alt="Prefill 인스턴스와 Decode 인스턴스를 분리하고 KV cache를 커넥터로 전달하는 disaggregated serving 구조" class="h-[32rem]" />
+</div>
+
+> 출처: [Inside vLLM: Anatomy of a High-Throughput LLM Inference System](https://vllm.ai/blog/2025-09-05-anatomy-of-vllm)
+
 > 참고: [DistServe: Disaggregating Prefill and Decoding for Goodput-optimized LLM Serving (OSDI '24)](https://arxiv.org/abs/2401.09670)
 >
 > 참고: [vLLM: Easy, Fast, and Cheap LLM Serving for Everyone — Simon Mo](https://www.youtube.com/watch?v=Tv71-g75OgU)
@@ -893,6 +899,35 @@ Week 3에서 본 그래프 모드·Inductor 이야기가 "서빙 프레임워크
 > 참고: [Introduction to torch.compile and How It Works with vLLM](https://vllm.ai/blog/2025-08-20-torch-compile)
 >
 > 참고: [vLLM: Easy, Fast, and Cheap LLM Serving for Everyone — Simon Mo, PyTorch Conference 2025](https://www.youtube.com/watch?v=Tv71-g75OgU)
+
+### vLLM 내부 구조: 이 강의의 기법들이 코드로 만나는 곳
+
+vLLM의 내부를 한 층만 들춰 보면, 이 강의에서 다룬 개념들이 그대로 구현 컴포넌트로 등장합니다. 엔진의 심장은 단순한 루프입니다. Scheduler가 이번 스텝에 처리할 요청들을 고르고 → 모델이 forward를 한 번 돌고 → 결과를 후처리해 각 요청에 나눠 주는 세 단계를 무한히 반복합니다.
+
+- **Scheduler와 token budget** - V1 스케줄러는 Prefill과 Decode를 별개의 경로로 두지 않고, "이번 스텝에 처리할 토큰 예산" 하나로 통합했습니다. 매 스텝 running 큐에 있는 요청들의 decode 토큰을 먼저 배정하고, 남은 예산에 waiting 큐의 prefill 토큰을 채워 넣습니다. 긴 프롬프트는 예산에 맞게 잘라 여러 스텝에 나눠 처리합니다(chunked prefill). 이것이 곧 continuous batching의 실제 구현입니다.
+- **패딩 없는 배칭** - 선택된 요청들의 토큰은 padding 없이 하나의 긴 "super sequence"로 이어 붙여 단 한 번의 forward로 처리합니다. position 인덱스와 attention 커널의 가변 길이 지원이 시퀀스 간 경계를 지켜 줍니다.
+- **KV cache manager** - KV cache는 고정 크기 블록(기본 16토큰) 단위로 관리되고, free block pool에서 필요한 만큼만 그때그때 할당됩니다. Paged Attention 그 자체입니다. 여기에 블록 단위 해시로 같은 prefix를 가진 요청끼리 KV 블록을 재사용하는 prefix caching이 얹힙니다.
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-start">
+  <div class="text-center">
+    <img src="/images/06/vllm-anatomy-engine_loop.png" alt="vLLM 엔진 코어 루프: scheduler가 요청을 고르고 forward를 돌린 뒤 결과를 후처리하는 반복 구조" class="h-96 mx-auto" />
+    <div class="text-sm mt-2">엔진 코어 루프: schedule → forward → postprocess</div>
+  </div>
+  <div class="text-center">
+    <img src="/images/06/vllm-anatomy-kv_cache_blocks.png" alt="vLLM KV cache manager가 고정 크기 블록 단위로 KV cache를 할당·관리하는 구조" class="h-96 mx-auto" />
+    <div class="text-sm mt-2">블록 단위로 관리되는 KV cache (Paged Attention의 구현)</div>
+  </div>
+</div>
+
+> 출처: [Inside vLLM: Anatomy of a High-Throughput LLM Inference System](https://vllm.ai/blog/2025-09-05-anatomy-of-vllm)
+
+한 층 더 아래의 실행 코어도 계속 다시 쓰이고 있습니다. 2026년의 **Model Runner V2**는 배치 상태 관리 같은 CPU 쪽 북키핑이 새로운 병목이 되는 문제를 풀기 위해, 입력 텐서 준비와 sampler까지 Triton 커널로 GPU에 올리고 CPU–GPU 실행을 겹치는 async-first 구조로 재설계되었고, 작은 모델에서 throughput을 50% 이상 끌어올렸습니다. 모델 forward가 빨라질수록 그 사이사이의 프레임워크 오버헤드가 다음 병목으로 떠오른다는, roofline과 같은 결의 이야기가 서빙 레이어 안에서도 반복되는 셈입니다.
+
+커널 레이어와의 연결 고리도 있습니다. vLLM의 attention 백엔드 중 하나는 Triton만으로 작성되어 있는데, H100에서 FlashAttention 3와 대등한 성능을 내면서 같은 커널 코드가 AMD GPU에서도 그대로 돕니다. 앞서 커널 프로그래밍 절에서 본 "타일 수준 추상화 + 컴파일러가 하드웨어 디테일 처리"라는 접근이 서빙 프레임워크의 실전 커널에서 이미 통하고 있다는 증거입니다.
+
+> 참고: [vLLM Model Runner V2](https://vllm.ai/blog/2026-03-24-mrv2)
+>
+> 참고: [vLLM Triton Attention Backend Deep Dive](https://vllm.ai/blog/2026-03-04-vllm-triton-backend-deep-dive)
 
 ### vLLM의 PyTorch 중심 전략
 
