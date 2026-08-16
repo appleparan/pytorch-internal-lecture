@@ -740,12 +740,14 @@ https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html
 
 **FSDP1**은 하나의 FSDP module에 속한 모든 parameter를 **FlatParameter**라는 단일 1D tensor로 이어 붙인(flatten) 뒤, 그것을 rank들에 나누어 sharding했습니다. 구현은 단순하지만 여러 parameter가 하나의 tensor로 뭉개지기 때문에, parameter별 metadata(`dtype`, `requires_grad` 등)를 온전히 유지하기 어렵다는 근본적인 한계가 있었습니다.
 
-**FSDP2**는 FlatParameter를 버리고 parameter 하나하나를 dim-0 기준으로 sharding하는 **per-parameter sharding**을 채택했습니다. 각 parameter는 원본 tensor의 shape·metadata와 sharding 방식(placement)을 함께 들고 있는 DTensor가 됩니다. 이 변화 덕분에:
+**FSDP2**는 FlatParameter를 버리고 parameter 하나하나를 dim-0 기준으로 sharding하는 **per-parameter sharding**을 채택했습니다. 각 parameter는 원본 tensor의 shape·metadata와 sharding 방식(placement)을 함께 들고 있는 DTensor가 됩니다.
 
-- parameter 단위로 `requires_grad`를 다룰 수 있어 일부 parameter만 freeze하는 기법(LoRA 등)이 그대로 동작합니다
-- fp8 등 서로 다른 dtype의 parameter를 한 모델 안에 섞을 수 있습니다
-- 각 rank가 자기 shard만 저장하는 sharded state dict 방식의 checkpointing이 추가 통신 없이 이루어집니다
-- 내부적으로 `recordStream`을 쓰지 않고 stream 간 동기화로 대체하여 memory 사용량이 결정적(deterministic)으로 관리됩니다
+이 변화가 왜 중요한지는 한 가지 사실에서 출발합니다. `requires_grad`와 `dtype`은 tensor 하나당 하나씩만 존재하는 속성인데, FlatParameter는 여러 parameter를 한 tensor로 합쳐 버렸으니 그 안의 모든 parameter가 이 속성들을 강제로 공유해야 했습니다. per-parameter sharding은 이 제약을 풀면서 다음을 가능하게 합니다:
+
+- **부분 freeze(LoRA 등)**: LoRA는 base weight를 freeze하고 작은 adapter만 학습하는데, FSDP1에서는 둘이 같은 FlatParameter에 묶이면 `requires_grad`가 하나뿐이라 "일부만 freeze"를 표현할 수 없었습니다(frozen끼리, trainable끼리 wrapping을 나누는 우회가 필요). FSDP2는 parameter마다 flag를 따로 유지하므로 그대로 동작하고, frozen parameter에는 gradient 메모리도 잡히지 않습니다.
+- **dtype 혼합(fp8 등)**: 같은 논리의 dtype 버전입니다. 하나의 연속 버퍼로 이어붙이려면 전부 같은 dtype이어야 했지만, FSDP2에서는 큰 matmul weight만 fp8로 두고 LayerNorm처럼 민감한 부분은 bf16으로 남기는 혼합 구성이 자연스럽습니다.
+- **통신 없는 sharded checkpointing**: FSDP1의 shard는 이어붙인 1D 버퍼를 world_size로 등분한 조각이라 parameter 경계와 어긋납니다. 한 parameter의 절반이 rank 0에, 나머지가 rank 1에 걸칠 수 있으니 조각 자체로는 의미가 없고, 저장하려면 조각을 모으는 통신이 필요했습니다(FULL_STATE_DICT 저장 시 rank 0에 메모리가 몰리는 원인). FSDP2의 shard는 parameter를 dim-0으로 자른 조각에 원래 shape·placement metadata가 붙어 있어, 각 rank가 자기 조각을 그대로 저장해도 어느 parameter의 어느 부분인지 자명합니다. `torch.distributed.checkpoint`의 sharded state dict가 통신 없이 병렬로 저장·로드되는 근거입니다.
+- **결정적(deterministic) 메모리 관리**: all-gather는 별도 CUDA stream에서 돌고 계산은 default stream에서 도는데, 통신 stream이 할당한 unsharded 버퍼를 계산이 다 쓰기 전에 allocator가 재사용하지 못하게 막아야 합니다. FSDP1이 쓰던 `record_stream()`은 GPU가 실제로 작업을 끝냈는지를 보고 메모리를 반환하므로, 해제 시점이 GPU 실행 타이밍에 따라 달라져 같은 코드의 peak memory가 실행마다 달라지고 간헐적 OOM의 원인이 됐습니다. FSDP2는 stream 간 event 동기화로 해제 시점을 프로그램 순서에 고정해서, 메모리 사용량이 매 실행 동일하게 예측 가능합니다.
 
 DTensor는 바로 뒤에서 다룰 Tensor Parallel에서도 동일하게 쓰이는 추상화라서, FSDP2와 TP를 조합하는 것도 같은 표현 위에서 자연스럽게 이루어집니다.
 
