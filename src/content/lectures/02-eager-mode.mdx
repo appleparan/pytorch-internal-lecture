@@ -45,6 +45,8 @@ GPU에서 matmul이 수행되도록 설정한 상태에서 CUDA GEMM[^gemm] 진�
 
 [^gemm]: General Matrix Multiply. BLAS(Basic Linear Algebra Subprograms)에서 정의하는 행렬 곱셈 연산으로, NVIDIA GPU용 구현이 call stack 끝에서 만나게 될 cuBLAS입니다. Week 1의 supercomputing 배경(BLAS/cuBLAS)에서 소개했습니다.
 
+이 snapshot은 특정 시점의 빌드(Python 3.12 이상 환경)에서 캡처한 것입니다. v2.13.0 소스와 대조해 보면 표에 등장하는 심볼 이름·파일 경로·전체 dispatch 흐름은 그대로 유효하지만, 파일 내 라인 번호는 버전에 따라 이동합니다(예: `Dispatcher.h`의 `redispatch`는 v2.13.0 기준 833행). 또한 v2.13에서는 cuBLAS 호출 직전에 TunableOp 체크와 backend 선택(cuBLAS/cuBLASLt) 레이어가 추가되어, `gemm<float>` → `gemm_internal<float>` → `gemm_internal_cublas<float>` 순으로 스택이 1~2단 더 깊어집니다.
+
 ```text
 #0 at::cuda::blas::gemm<float> at aten/src/ATen/cuda/CUDABlas.cpp:1127
 #1 operator at aten/src/ATen/native/cuda/Blas.cpp:457
@@ -181,7 +183,7 @@ Call stack은 밑에서 위로 진입합니다. 크게 두 영역으로 나뉘�
 | **#12** | `at::_ops::mm::redispatch` at `build/.../Operators_3.cpp:4010` | **mm redispatch frontend** - op별 생성된 redispatch 진입점 (자동생성) |
 | #13 | `at::redispatch::mm` at `build/.../RedispatchFunctions.h:5217` | mm redispatch convenience 함수 (자동생성) |
 | #14 | `operator` at `generated/VariableType_3.cpp:13455` | Autograd kernel 내부 lambda (자동생성) |
-| **#15** | `torch::autograd::VariableType::mm` at `generated/VariableType_3.cpp:13456` | **Autograd kernel** - backward graph 세팅 후 forward 실행, gradient 필요 시 기록 (자동생성) |
+| **#15** | `torch::autograd::VariableType::mm` at `generated/VariableType_3.cpp:13456` | **Autograd kernel** - backward graph 세팅 후 forward 실행, gradient 필요 시 기록 (자동생성; 실제 심볼은 `VariableType` 아래 익명 namespace 안에 생성됨) |
 | #16-19 | `WrapFunctionIntoFunctor` → `KernelFunction::call` at `boxing/*.h` | **dispatch logic** - mm의 Autograd key에 대한 kernel 실행 |
 | #20 | `c10::Dispatcher::callWithDispatchKeySlowPath` at `Dispatcher.h:661` | dispatch key set에서 최우선 key를 선택하여 해당 kernel 탐색 |
 | **#21** | `c10::Dispatcher::call` at `Dispatcher.h:680` | **dispatch 진입** - mm op에 대한 첫 번째 dispatch (Autograd key 선택) |
