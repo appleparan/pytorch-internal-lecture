@@ -157,7 +157,14 @@ print(x.grad)  # tensor(16.)
 
 - $y$, $z$에 붙은 `grad_fn`(`MulBackward0`, `PowBackward0`) — forward 중에 Autograd가 남긴 기록
 - `z.backward()` — 이 기록을 거꾸로 따라가며 gradient 계산, 결과 $16$이 `x.grad`에 저장
-- 아래에서 이 과정을 Step 1~4로 나누어 살펴봅니다
+
+`x.grad`에 저장된 값은 chain rule로 계산한 결과와 일치합니다:
+
+$$
+\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx} = 2y \cdot 2 = 2(2x) \cdot 2 = 8x = 16 \qquad (x = 2)
+$$
+
+아래에서 이 과정을 Step 1~4로 나누어 살펴봅니다.
 
 
 ### Step 1: Tensor 생성
