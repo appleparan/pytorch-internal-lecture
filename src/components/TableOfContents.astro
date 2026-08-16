@@ -11,8 +11,8 @@ interface Props {
 
 const { headings } = Astro.props;
 
-// Filter to h2 and h3 only (h1 is the article title)
-const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
+// Filter to h2-h4 (h1 is the article title)
+const tocHeadings = headings.filter((h) => h.depth >= 2 && h.depth <= 4);
 ---
 
 {tocHeadings.length > 0 && (
