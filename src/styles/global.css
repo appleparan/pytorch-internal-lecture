@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @import 'pretendard-std/dist/web/static/pretendard-std.css';
 
+/* Make Tailwind's dark: variant follow the site's data-theme toggle
+   (default prefers-color-scheme would ignore the manual toggle). */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
 /* ===== al-folio Theme Variables ===== */
 :root {
   /* Background */

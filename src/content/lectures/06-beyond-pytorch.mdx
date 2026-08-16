@@ -38,30 +38,30 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
     <div></div>
     <div></div>
     <div></div>
-    <div class="text-orange-400 text-sm font-bold pb-1 border-b-2 border-orange-400 mx-2">
+    <div class="text-orange-600 dark:text-orange-400 text-sm font-bold pb-1 border-b-2 border-orange-500 dark:border-orange-400 mx-2">
       ⌐ 오늘의 초점 ¬
     </div>
   </div>
   <div class="grid grid-cols-4 gap-0 text-center mt-3">
     <div class="px-4 border-r border-dashed border-gray-500 flex flex-col">
       <div class="flex flex-col items-center gap-3 flex-1 justify-center">
-        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">Llama 3</div>
-        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">DeepSeek</div>
+        <div class="px-3 py-1.5 rounded bg-slate-200 dark:bg-slate-700 text-sm font-semibold">Llama 3</div>
+        <div class="px-3 py-1.5 rounded bg-slate-200 dark:bg-slate-700 text-sm font-semibold">DeepSeek</div>
       </div>
-      <p class="mt-4 text-sm font-bold text-gray-200">Open Pretrained LLM</p>
+      <p class="mt-4 text-sm font-bold text-gray-800 dark:text-gray-200">Open Pretrained LLM</p>
     </div>
     <div class="px-4 border-r border-dashed border-gray-500 flex flex-col">
       <div class="flex flex-col items-center gap-3 flex-1 justify-center">
-        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">🤗 Hub</div>
-        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">🤗 Transformers</div>
+        <div class="px-3 py-1.5 rounded bg-slate-200 dark:bg-slate-700 text-sm font-semibold">🤗 Hub</div>
+        <div class="px-3 py-1.5 rounded bg-slate-200 dark:bg-slate-700 text-sm font-semibold">🤗 Transformers</div>
       </div>
-      <p class="mt-4 text-sm font-bold text-gray-200">LLM 배포</p>
+      <p class="mt-4 text-sm font-bold text-gray-800 dark:text-gray-200">LLM 배포</p>
     </div>
     <div class="px-4 border-r border-dashed border-gray-500 flex flex-col">
       <div class="flex flex-col items-center gap-3 flex-1 justify-center">
-        <div class="px-3 py-1.5 rounded bg-slate-700 text-sm font-semibold">PyTorch</div>
+        <div class="px-3 py-1.5 rounded bg-slate-200 dark:bg-slate-700 text-sm font-semibold">PyTorch</div>
       </div>
-      <p class="mt-4 text-sm font-bold text-gray-200">ML Framework</p>
+      <p class="mt-4 text-sm font-bold text-gray-800 dark:text-gray-200">ML Framework</p>
     </div>
     <div class="px-4 flex flex-col">
       <div class="flex flex-col items-center gap-3 flex-1 justify-center">
@@ -70,11 +70,11 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
             <div class="px-3 py-1.5 rounded text-white text-sm font-semibold" style="background-color:#3a7bd5">Triton</div>
             <div class="px-3 py-1.5 rounded text-white text-sm font-semibold" style="background-color:#3a7bd5">CUDA</div>
           </div>
-          <p class="text-xs font-bold" style="color:#7ba9dd">Kernel Programming</p>
+          <p class="text-xs font-bold text-[#2c5ea0] dark:text-[#7ba9dd]">Kernel Programming</p>
         </div>
         <div class="flex flex-col items-center gap-2 mt-2">
           <div class="px-3 py-1.5 rounded text-white text-sm font-semibold" style="background-color:#3a7bd5">vLLM</div>
-          <p class="text-xs font-bold" style="color:#7ba9dd">서빙 최적화</p>
+          <p class="text-xs font-bold text-[#2c5ea0] dark:text-[#7ba9dd]">서빙 최적화</p>
         </div>
       </div>
     </div>
@@ -88,17 +88,19 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
 
 - LLM inference의 성능 문제 - Decode가 memory wall에 부딪히는 이유
     - Prefill vs. Decode: 계산 구조와 병렬성의 비대칭
+    - KV cache: 재계산을 저장으로 바꾼 트레이드, 그리고 그것이 다시 병목이 되는 이유
     - Roofline analysis: Decode는 매 스텝 같은 weight를 읽으면서 연산량은 적어 arithmetic intensity가 낮음 → 연산기가 아니라 메모리 대역폭에 발목이 잡히는 구조
+    - 이 비대칭의 귀결: Prefill과 Decode를 아예 다른 머신 풀에서 돌리는 PD Disaggregation
 - Memory overhead를 줄이기 위한 기술들
     - Continuous batching: 여러 request를 동적으로 묶어 lock-step의 낭비 제거
     - Speculative decoding: 생성을 검증 문제로 바꿔 순차적인 decode를 병렬처럼 처리
     - Flash Attention과 Paged Attention: attention 연산과 KV cache 메모리 할당이라는 서로 다른 각도의 공략
 - Kernel programming - 위 기법들을 PyTorch만으로 구현할 수 없는 이유
     - PyTorch op 하나하나가 DRAM read-compute-write로 고정된 커널로 매핑되어, tiling과 fusion으로 DRAM 왕복을 줄이려는 시도가 op 레벨에서는 불가능
-    - 그래서 필요한 더 낮은 레벨: CUDA, CUTLASS, Triton
-    - Flash Attention v1 → v2 → v3로 이어지는 GPU utilization 개선의 역사
+    - 그래서 필요한 더 낮은 레벨: CUDA, CUTLASS, Triton, 그리고 최근의 CUDA Tile(cuTile)
+    - Flash Attention v1 → v2 → v3 → v4로 이어지는 GPU utilization 개선의 역사, 그리고 서빙 쪽 기본값이 되어가는 FlashInfer
 - Serving 최적화 framework - 이 최적화들을 하나로 묶는 layer
-    - vLLM: paged attention을 만든 팀이 시작해 업계 표준이 된 서빙 프레임워크
+    - vLLM: paged attention을 만든 팀이 시작해 업계 표준이 된 서빙 프레임워크 - V1 엔진의 torch.compile 통합, 하드웨어 플러그인 시스템까지
     - 결론: LLM 추론 스택은 PyTorch 하나로 완성되지 않고, 커널 프로그래밍과 서빙 최적화라는 층이 함께 필요
 
 
@@ -117,7 +119,7 @@ LLM에서 가장 중요한 연산을 하나 꼽으라면 단연 **Self-Attention
 - **병렬 처리가 자연스러운 부분** - 입력 embedding으로부터의 K·Q·V 계산, 그리고 단어별로 독립적인 하위(아래쪽) 연산
 - **병렬 처리가 까다로운 부분** - 전체 분포를 봐야 하는 softmax, 그리고 그 결과와 V를 곱한 뒤 모든 단어에 대해 합산하는 summation
 
-이 "위쪽이 병렬화하기 까다롭다"는 점은 이후 Flash Attention 같은 GPU-aware 알고리듬이 풀어야 하는 문제로 다시 등장합니다.
+이 "위쪽이 병렬화하기 까다롭다"는 점은 이후 Flash Attention 같은 GPU-aware 알고리즘이 풀어야 하는 문제로 다시 등장합니다.
 
 <div class="flex flex-col gap-8 mt-6">
   <div class="text-center">
@@ -134,17 +136,17 @@ LLM에서 가장 중요한 연산을 하나 꼽으라면 단연 **Self-Attention
         <p class="text-sm font-bold text-white">④ Self-attention이 반영된 "it"(=$x_1$)의 새 embedding</p>
         <p class="text-xs text-white/80 mt-1">출력 $a_1$이 곧 "it"의 새 표현</p>
       </div>
-      <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
-        <p class="text-sm font-bold text-slate-100">③ 모든 단어의 영향을 더함</p>
-        <p class="text-xs text-slate-300 mt-1">softmax 분포로 정규화 후 $\sum$로 합산</p>
+      <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/40 p-3">
+        <p class="text-sm font-bold text-slate-900 dark:text-slate-100">③ 모든 단어의 영향을 더함</p>
+        <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">softmax 분포로 정규화 후 $\sum$로 합산</p>
       </div>
-      <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
-        <p class="text-sm font-bold text-slate-100">② 단어별로 $qk$와 $v$를 곱함</p>
-        <p class="text-xs text-slate-300 mt-1">attention score($\alpha$)와 value를 element-wise 곱</p>
+      <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/40 p-3">
+        <p class="text-sm font-bold text-slate-900 dark:text-slate-100">② 단어별로 $qk$와 $v$를 곱함</p>
+        <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">attention score($\alpha$)와 value를 element-wise 곱</p>
       </div>
-      <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
-        <p class="text-sm font-bold text-slate-100">① "it"(=$x_1$)의 query가 모든 k에 반영</p>
-        <p class="text-xs text-slate-300 mt-1">$q_1$을 $k_1$, $k_2$, $k_3$와 각각 내적해 attention score 계산</p>
+      <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/40 p-3">
+        <p class="text-sm font-bold text-slate-900 dark:text-slate-100">① "it"(=$x_1$)의 query가 모든 k에 반영</p>
+        <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">$q_1$을 $k_1$, $k_2$, $k_3$와 각각 내적해 attention score 계산</p>
       </div>
     </div>
   </div>
@@ -166,12 +168,12 @@ Self-Attention의 또 다른 중요한 특징은 Causal이냐, Non-Causal이냐�
 <div class="text-center">
   <img src="/images/06/slide07_1.png" alt="Non-Causal Attention: 앞뒤 모든 단어를 고려하는 양방향 attention 구조" class="h-64 mx-auto" />
   <p class="mt-2 font-bold">Non-Causal Attention</p>
-  <p class="text-sm text-gray-400">앞/뒤 모든 단어를 고려 (양방향)</p>
+  <p class="text-sm text-gray-500 dark:text-gray-400">앞/뒤 모든 단어를 고려 (양방향)</p>
 </div>
 <div class="text-center">
   <img src="/images/06/slide07_2.png" alt="Causal Attention: 이전 단어만 고려하는 단방향 attention 구조" class="h-64 mx-auto" />
   <p class="mt-2 font-bold">Causal Attention</p>
-  <p class="text-sm text-gray-400">이전 단어만 고려 (단방향)</p>
+  <p class="text-sm text-gray-500 dark:text-gray-400">이전 단어만 고려 (단방향)</p>
 </div>
 </div>
 
@@ -226,14 +228,37 @@ Prefill 쪽도 개념적으로는 거의 같습니다. Decoder-Only LLM이 할 �
 
 <PrefillDecodeDiagram />
 
-#### Q&A 정리 (강의 중 질의응답)
+#### Q&A
 
-- Q. Transformer의 디코더와 다른 아키텍처인가요? Prefill·Decode를 두 모델로 만든다면 (Encoder–Decoder) Transformer와 비슷한 것 아닌가요?
-  → 아니요. Decoder-Only LLM 자체가 Transformer decoder만으로 구성된 구조라고 보면 됩니다. Prefill과 Decode를 개념적으로 두 모델처럼 다루는 이유는 여러 토큰을 한 번에 처리할 때의 병렬 가능성 양상이 다르기 때문이지, Encoder–Decoder 구조와는 다른 결의 구분입니다.
-- Q. 리벨리온이 Prefill·Decode를 두 번 컴파일한다고 했는데, 컴파일러 옵션을 달리 주는 건가요?
-  → 옵션 차이가 아니라 실제 생성되는 계산 자체가 다릅니다. 배치 사이즈도 다르고, Prefill은 한 토큰의 출력이 옆 토큰의 입력이 될 필요가 없어 모양 자체가 달라지므로, 결과적으로 별도의 binary로 빌드해 사용합니다.
-- Q. Prefill 그림의 화살표는 attention을 뜻하나요?
-  → 네, 여기서의 화살표는 attention을 의미합니다.
+강의 중 나온 질문들을 정리합니다.
+
+> **Q. Transformer의 디코더와 다른 아키텍처인가요? Prefill·Decode를 두 모델로 만든다면 (Encoder–Decoder) Transformer와 비슷한 것 아닌가요?**
+> 아니요. Decoder-Only LLM 자체가 Transformer decoder만으로 구성된 구조라고 보면 됩니다. Prefill과 Decode를 개념적으로 두 모델처럼 다루는 이유는 여러 토큰을 한 번에 처리할 때의 병렬 가능성 양상이 다르기 때문이지, Encoder–Decoder 구조와는 다른 결의 구분입니다.
+
+> **Q. 리벨리온이 Prefill·Decode를 두 번 컴파일한다고 했는데, 컴파일러 옵션을 달리 주는 건가요?**
+> 옵션 차이가 아니라 실제 생성되는 계산 자체가 다릅니다. 배치 사이즈도 다르고, Prefill은 한 토큰의 출력이 옆 토큰의 입력이 될 필요가 없어 모양 자체가 달라지므로, 결과적으로 별도의 binary로 빌드해 사용합니다.
+
+> **Q. Prefill 그림의 화살표는 attention을 뜻하나요?**
+> 네, 여기서의 화살표는 attention을 의미합니다.
+
+### KV Cache: 재계산을 저장으로 바꾸기
+
+Decode 이야기에서 계속 등장할 개념 하나를 여기서 분명히 해 두겠습니다. 새 토큰 하나의 attention을 계산하려면 그 토큰의 query를 이전 모든 토큰의 key·value와 곱해야 합니다. 그런데 이전 토큰들의 K·V는 한 번 계산되고 나면 스텝이 지나도 변하지 않는 값입니다. 아무것도 저장해 두지 않는다면 새 토큰을 만들 때마다 시퀀스 전체를 첫 레이어부터 다시 통과시켜 같은 K·V를 재계산해야 하는데, 이는 매 스텝마다 prefill 하나를 통째로 다시 하는 것과 맞먹는 낭비입니다.
+
+<div class="flex justify-center mt-4">
+  <img src="/images/06/nvidia-kv-cache.gif" alt="KV cache가 없으면 매 스텝 모든 토큰의 Q·K·V 행렬을 다시 계산하지만, KV cache가 있으면 마지막 query 하나와 cache에서 가져온 K·V만으로 attention을 계산하는 비교 애니메이션" class="max-w-3xl w-full mx-auto" />
+</div>
+
+**KV cache**는 이 재계산을 저장으로 바꾼 것입니다. 위 그림처럼 cache가 있으면 새 토큰의 query 하나만 가지고, K·V는 cache에서 가져와 attention을 계산할 수 있습니다. 핵심은 cache의 동작이 **append-only**라는 점입니다. 매 스텝 새 토큰의 K·V만 계산해 cache 끝에 append하고, 기존 항목은 수정 없이 읽기만 합니다(retrieve). 이 관점에서 Prefill을 다시 보면, 프롬프트를 통과시켜 첫 토큰을 만드는 것과 동시에 프롬프트 전체의 KV cache를 만들어 두는 단계이기도 합니다(뒤에서 볼 PD Disaggregation에서 Prefill 풀이 Decode 풀로 넘겨주는 것이 바로 이 KV cache입니다).
+
+<div class="flex justify-center mt-4">
+  <img src="/images/06/nvidia-kv-cache-append.png" alt="Decode 한 스텝의 데이터 흐름: 새 토큰의 K·V를 계산해 KV cache에 append하고, attention은 cache에서 K·V를 retrieve해 계산하는 구조" class="max-w-3xl w-full mx-auto" />
+  </div>
+<div class="text-sm text-center mt-2">매 스텝 새 토큰의 K·V만 cache에 append하고, attention은 cache에서 retrieve</div>
+
+> 출처: [Optimizing Inference for Long-Context and Large Batch Sizes with NVFP4 KV Cache (NVIDIA)](https://developer.nvidia.com/blog/optimizing-inference-for-long-context-and-large-batch-sizes-with-nvfp4-kv-cache/)
+
+다만 공짜는 아닙니다. 계산을 아낀 대신, (1) 시퀀스 길이에 비례해 자라는 메모리 용량을 차지하고(얼마나 커지는지는 뒤의 Paged Attention 절에서 계산합니다), (2) 매 decode 스텝마다 지금까지 쌓인 cache 전체를 HBM에서 다시 읽어야 합니다. 결국 Decode는 매 스텝 "weight 전체 + 계속 자라는 KV cache 전체"를 메모리에서 스트리밍하면서 정작 연산은 토큰 하나 분량만 하는 구조가 되고, 이것이 바로 다음 절에서 볼 "Decode는 Memory Bound"라는 진단의 실체입니다. 그래서 위 그림의 출처처럼 KV cache 자체를 FP8·NVFP4 같은 저정밀 포맷으로 양자화해 용량과 읽기 트래픽을 줄이는 것도 최근에는 표준적인 최적화 축이 되었습니다.
 
 ### Roofline Analysis
 
@@ -250,7 +275,7 @@ Prefill 쪽도 개념적으로는 거의 같습니다. Decoder-Only LLM이 할 �
 - **왼쪽 영역 (Memory Bound)** - 연산기는 아직 여유가 있는데, 데이터를 들여오고 내보내는 속도가 따라오지 못해 칩이 자기 풀스펙 연산력을 다 못 쓰는 상황
 - **오른쪽 영역 (Compute Bound)** - 연산기 자체가 이미 꽉 차 있어, 아무리 Arithmetic Intensity가 더 높아져도 더는 빨라지지 않는 상황
 
-X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모리에서 한 번 들고 온 데이터로 몇 번의 연산을 수행하는가"를 뜻합니다.
+X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모리에서 한 번 들고 온 데이터로 몇 번의 연산을 수행하는가"를 뜻합니다. (이 그래프와 판별 기준을 수식으로 정리한 내용은 강의 끝의 **보충: Roofline을 수식으로 정리하기**에서 다룹니다.)
 
 이걸 Prefill·Decode에 대입하면 차이가 명확합니다. Prefill에서 `I like my cat`처럼 4개 토큰을 횡적으로 동시에 처리할 때, 한 레이어의 weight는 한 번만 들고 와서 4번 재사용됩니다. 즉 메모리 접근당 연산량이 4배라 Arithmetic Intensity가 높습니다. 반면 Decode에서 `lot` 한 토큰을 만들 때는 같은 weight를 들고 오지만 연산은 1번뿐이라 Intensity가 1/4 수준이 됩니다.
 
@@ -261,8 +286,26 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 연산기 활용도 측면에서 보면 Prefill은 이미 이상적인 상황이고, 사람들이 보통 이 그래프를 보면 "메모리 대역폭을 더 늘려야 하나?"보다는 "Decode 쪽이 프로세서 성능을 다 못 쓰고 있다"는 결론을 내립니다. 즉 LLM 추론 최적화의 진짜 전장은 Decode 단계입니다.
 
-> Q. Sparse Matrix 연산처럼 "의미 없는 계산"이 많이 끼는 경우 Arithmetic Intensity 자체가 의미가 있을까요?
-> → 그런 경우 intensity가 다소 희석되긴 합니다. 다만 머신러닝에서는 모델이 본질적으로 가져야 할 "유효 곱셈(effective multiplication)" 수와, 프로세서가 그 관점에서 얼마나 빠르게 처리하는지를 따로 측정하는 별도 용어가 있습니다. 덴스(dense) 계산이고 무의미한 연산 비중이 충분히 작다면 Arithmetic Intensity는 여전히 유효한 지표입니다.
+> **Q. Sparse Matrix 연산처럼 "의미 없는 계산"이 많이 끼는 경우 Arithmetic Intensity 자체가 의미가 있을까요?**
+> 그런 경우 intensity가 다소 희석되긴 합니다. 다만 머신러닝에서는 모델이 본질적으로 가져야 할 "유효 곱셈(effective multiplication)" 수와, 프로세서가 그 관점에서 얼마나 빠르게 처리하는지를 따로 측정하는 별도 용어가 있습니다. 덴스(dense) 계산이고 무의미한 연산 비중이 충분히 작다면 Arithmetic Intensity는 여전히 유효한 지표입니다.
+
+### 한 걸음 더: Prefill–Decode Disaggregation
+
+이 비대칭을 끝까지 밀어붙이면 자연스러운 질문 하나에 도달합니다. Prefill은 Compute Bound이고 Decode는 Memory Bound라서 필요로 하는 하드웨어 자원의 프로파일 자체가 다른데, 굳이 같은 GPU에서 번갈아 돌려야 할까요? 실제로 한 GPU에 둘을 같이 두면 서로를 방해합니다. 긴 프롬프트의 Prefill이 들어오는 순간 그 GPU에서 돌던 Decode들이 밀려 토큰 생성 간격이 튀고, 반대로 Decode만 돌 때는 연산기가 놉니다. TTFT와 TPS라는 두 지표를 한 머신 위에서 동시에 최적화하기가 구조적으로 어렵다는 뜻입니다.
+
+그래서 최근 서빙 시스템들은 아예 Prefill 전용 인스턴스와 Decode 전용 인스턴스를 풀(pool)로 분리하고, Prefill이 만들어 낸 KV cache를 인터커넥트(NVLink·RDMA 등)를 통해 Decode 쪽으로 넘겨주는 **Prefill–Decode Disaggregation**(PD 분리) 구조로 가고 있습니다. 두 풀을 독립적으로 스케일하고, 각자의 지표(Prefill 풀은 TTFT, Decode 풀은 TPS)에 맞춰 따로 튜닝할 수 있게 됩니다. DistServe 같은 연구에서 출발해, Kimi를 서빙하는 Mooncake, NVIDIA Dynamo, 그리고 vLLM·SGLang의 disaggregated serving 지원으로 이어지며 현재 대규모 서빙에서는 사실상 표준 아키텍처로 자리 잡았습니다.
+
+앞서 Prefill과 Decode를 "weight를 공유하는 두 개의 별도 모델"로 보는 편이 자연스럽다고 했고, 리벨리온이 둘을 별도 binary로 컴파일한다는 이야기도 했습니다. Disaggregation은 같은 관점을 시스템 레벨로 확장한 것입니다. 컴파일 단위에서 갈라졌던 두 단계가, 이제는 아예 서로 다른 머신 풀에서 돌아가는 셈입니다.
+
+<div class="flex justify-center mt-4">
+  <img src="/images/06/vllm-anatomy-pd.png" alt="Prefill 인스턴스와 Decode 인스턴스를 분리하고 KV cache를 커넥터로 전달하는 disaggregated serving 구조" class="h-[32rem]" />
+</div>
+
+> 출처: [Inside vLLM: Anatomy of a High-Throughput LLM Inference System](https://vllm.ai/blog/2025-09-05-anatomy-of-vllm)
+
+> 참고: [DistServe: Disaggregating Prefill and Decoding for Goodput-optimized LLM Serving (OSDI '24)](https://arxiv.org/abs/2401.09670)
+>
+> 참고: [vLLM: Easy, Fast, and Cheap LLM Serving for Everyone — Simon Mo](https://www.youtube.com/watch?v=Tv71-g75OgU)
 
 ### Memory Wall
 
@@ -299,6 +342,8 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 대표적인 출발점은 서울대 전병곤 교수님의 [Orca 논문](https://www.usenix.org/conference/osdi22/presentation/yu)이고, 이 기술을 기반으로 설립된 회사가 Friendli AI입니다. 현재 Continuous Batching은 LLM 서빙에서 사실상 필수 기술이 되었습니다.
 
+한 가지 덧붙이면, 배치를 무한정 키우는 것이 답은 아닙니다. 배치가 커져 임계 intensity를 넘어 compute bound에 들어서면 그 뒤로는 throughput 이득이 급격히 줄어드는 반면, 한 스텝에 처리할 일이 많아져 토큰당 지연시간은 계속 늘어납니다. 그래서 실제 서빙에서 배치 크기는 throughput과 latency SLO 사이에서 고르는 트레이드오프 파라미터가 됩니다.
+
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide17_1.png" alt="Dynamic Batching과 Continuous Batching의 배치 슬롯 활용 비교" class="h-60" />
 </div>
@@ -331,6 +376,8 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
   <img src="/images/06/slide18_2.png" alt="Speculative Decoding: 큰 Main 모델이 draft 토큰들을 한 번의 forward pass로 검증하는 단계" class="h-48" />
 </div>
 </div>
+
+한 가지 덧붙이면, 별도의 작은 Draft Model을 두는 방식은 speculative decoding의 고전적인 형태이고, 초안을 만드는 쪽은 계속 진화하고 있습니다. 최근에는 별도 모델 대신 타깃 모델 자체에 다음 여러 토큰을 미리 예측하는 head를 붙여 draft로 쓰는 **MTP**(Multi-Token Prediction, DeepSeek-V3 계열이 대표적)나, semi-autoregressive draft에 서빙 부하에 따라 검증량을 조절하는 confidence-scheduled verification을 결합한 DeepSeek의 [DSpark](https://arxiv.org/abs/2607.05147) 같은 변형이 등장했습니다. 형태는 달라져도 "빠르게 초안 생성 → 큰 모델이 병렬 검증"이라는 골격은 그대로이고, draft의 품질(accept율)과 검증 효율을 끌어올리는 방향으로 발전하고 있다는 정도만 짚어 둡니다.
 
 ### Attention의 비용 문제
 
@@ -368,6 +415,8 @@ Flash Attention은 이를 타일 단위로 쪼개서(tiling), 한 타일을 처�
 ### Paged Attention
 
 **Paged Attention**도 비슷한 결의 문제(긴 시퀀스를 다룰 때의 비효율)를 다른 각도에서 풀어 줍니다. 이번에는 연산이 아니라 KV cache의 메모리 할당 자체가 문제의 출발점입니다.
+
+KV cache가 실제로 얼마나 큰지 감을 잡아 보면, 토큰 하나당 저장량은 $2 \times \text{bytes} \times K \times H \times L$ 입니다($K$ = KV head 수, $H$ = head dimension, $L$ = layer 수, 앞의 2는 K와 V). 예를 들어 LLaMA-13B(MHA)를 bf16으로 8K 컨텍스트까지 돌리면 시퀀스 하나의 KV cache가 약 6.7GB로, 배치 4면 이미 모델 weight(26GB)보다 커집니다. 이런 크기의 버퍼를 어떻게 잡아두느냐가 그대로 서빙 용량을 좌우합니다.
 
 KV cache를 그냥 잡아두려면 기본적으로 max sequence length 기준으로 한 번에 다 할당해 둬야 합니다. 그런데 실제 들어오는 request들은 시퀀스 길이가 제각각이어서, max에 한참 못 미치는 짧은 request들에서는 잡아만 놓고 안 쓰는 메모리 공간이 잔뜩 생깁니다. 이런 "낭비된 슬롯들" 때문에 같은 GPU 메모리(HBM)에서 동시에 처리할 수 있는 request 수가 줄어들어 처리량이 바운드됩니다.
 
@@ -552,7 +601,7 @@ Online algorithm이란 모든 데이터를 한 번에 보고 처리하는 게 �
 알고리즘을 의사코드로 적으면 다음과 같습니다. (설명을 위해 한 번에 key 하나, 즉 column 하나씩 처리하는 형태로 적었으며, 실제 FlashAttention은 같은 recurrence를 column들의 블록(tile) 단위로 수행합니다. 초기값은 $m_0 = -\infty$, $d_0' = 0$입니다.)
 
 <div class="grid grid-cols-1 md:grid-cols-[1.2fr_1fr] gap-6 items-start mt-6">
-  <div class="rounded border border-slate-600 bg-slate-800/30 p-5" style="font-size:1.05rem">
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 p-5" style="font-size:1.05rem">
     <p class="font-bold mb-2">Algorithm FlashAttention</p>
     <div class="pl-4">
       <p>for $i \leftarrow 1, N$ do</p>
@@ -568,82 +617,94 @@ Online algorithm이란 모든 데이터를 한 번에 보고 처리하는 게 �
   </div>
 
   <div class="flex flex-col gap-2">
-    <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
-      <p class="text-sm font-bold text-slate-100">Q는 모든 step에 동일</p>
-      <p class="text-xs text-slate-300 mt-1">$Q[k,:]$, query는 한 row 고정</p>
+    <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/40 p-3">
+      <p class="text-sm font-bold text-slate-900 dark:text-slate-100">Q는 모든 step에 동일</p>
+      <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">$Q[k,:]$, query는 한 row 고정</p>
     </div>
-    <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
-      <p class="text-sm font-bold text-slate-100">K는 $i$번째 column만 읽어들임</p>
-      <p class="text-xs text-slate-300 mt-1">$K^T[:, i]$, 순차 streaming load (실제 구현은 tile 단위)</p>
+    <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/40 p-3">
+      <p class="text-sm font-bold text-slate-900 dark:text-slate-100">K는 $i$번째 column만 읽어들임</p>
+      <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">$K^T[:, i]$, 순차 streaming load (실제 구현은 tile 단위)</p>
     </div>
-    <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
-      <p class="text-sm font-bold text-slate-100">매 step마다 max값 update</p>
-      <p class="text-xs text-slate-300 mt-1">$m_i \leftarrow \max(m_{i-1}, x_i)$</p>
+    <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/40 p-3">
+      <p class="text-sm font-bold text-slate-900 dark:text-slate-100">매 step마다 max값 update</p>
+      <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">$m_i \leftarrow \max(m_{i-1}, x_i)$</p>
     </div>
-    <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
-      <p class="text-sm font-bold text-slate-100">Update된 max값으로 보정</p>
-      <p class="text-xs text-slate-300 mt-1">$d_i', o_i'$를 $e^{m_{i-1}-m_i}$로 rescale</p>
+    <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/40 p-3">
+      <p class="text-sm font-bold text-slate-900 dark:text-slate-100">Update된 max값으로 보정</p>
+      <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">$d_i', o_i'$를 $e^{m_{i-1}-m_i}$로 rescale</p>
     </div>
-    <div class="rounded border border-slate-600 bg-slate-800/40 p-3">
-      <p class="text-sm font-bold text-slate-100">최종 결과를 DRAM에 저장</p>
-      <p class="text-xs text-slate-300 mt-1">$O[k,:] \leftarrow o_N'$, single write</p>
+    <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/40 p-3">
+      <p class="text-sm font-bold text-slate-900 dark:text-slate-100">최종 결과를 DRAM에 저장</p>
+      <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">$O[k,:] \leftarrow o_N'$, single write</p>
     </div>
   </div>
 </div>
 
-결과적으로 softmax의 수치 안정성을 유지하면서도 single-pass + tiled/fused한 알고리듬이 완성됩니다.
+결과적으로 softmax의 수치 안정성을 유지하면서도 single-pass + tiled/fused한 알고리즘이 완성됩니다.
 
 이 과정 전체를 한 줄로 요약하면, FlashAttention은 attention 계산 자체를 restructuring해서 메모리 read/write 횟수를 크게 줄인 알고리즘이고, 이를 처음 제안한 사람이 당시 Stanford PhD 학생이던 Tri Dao입니다. 비교를 위해 기존 방식을 보면, Standard Attention은 모든 단계를 PyTorch op으로 표현하고 그 안에서 cuBLAS 같은 가속 라이브러리를 호출합니다. PyTorch op 단위로는 앞서 본 tiling·fusion을 표현할 수 없기 때문에, 개별 GEMM은 빠르더라도 전체 GPU utilization은 낮은 상태로 남습니다. FlashAttention v1은 정확히 이 한계를 깨고 속도를 끌어올린 첫 버전입니다.
 
-### FlashAttention의 진화: v1 → v2 → v3
+### FlashAttention의 진화: v1 → v2 → v3 → v4
 
 버전별 진화는 다음과 같이 정리할 수 있습니다.
 
-<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-6 text-center">
-  <div class="rounded border border-slate-600 bg-slate-800/30 p-4 flex flex-col">
-    <p class="font-bold text-slate-100 mb-3">Standard attention</p>
+<div class="grid grid-cols-1 md:grid-cols-5 gap-3 mt-6 text-center">
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 p-4 flex flex-col">
+    <p class="font-bold text-slate-900 dark:text-slate-100 mb-3">Standard attention</p>
     <div class="flex flex-col items-center gap-1 mb-3">
-      <span class="px-2 py-1 rounded bg-slate-700 text-xs">PyTorch</span>
-      <span class="px-2 py-1 rounded bg-slate-700 text-xs">cuBLAS</span>
+      <span class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-xs">PyTorch</span>
+      <span class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-xs">cuBLAS</span>
     </div>
-    <p class="text-xs text-slate-300 flex-1"></p>
-    <p class="text-sm font-semibold text-slate-100 mt-3">Low utilization</p>
+    <p class="text-xs text-slate-600 dark:text-slate-300 flex-1"></p>
+    <p class="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-3">Low utilization</p>
   </div>
 
-  <div class="rounded border border-slate-600 bg-slate-800/30 p-4 flex flex-col">
-    <p class="font-bold text-slate-100 mb-3">FlashAttention v1</p>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 p-4 flex flex-col">
+    <p class="font-bold text-slate-900 dark:text-slate-100 mb-3">FlashAttention v1</p>
     <div class="flex flex-col items-center gap-1 mb-3">
-      <span class="px-2 py-1 rounded bg-slate-700 text-xs">NVIDIA CUDA</span>
+      <span class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-xs">NVIDIA CUDA</span>
     </div>
-    <div class="text-xs text-slate-300 flex-1 space-y-1">
+    <div class="text-xs text-slate-600 dark:text-slate-300 flex-1 space-y-1">
       <p>Tiling</p>
       <p>Fusion</p>
     </div>
-    <p class="text-sm font-semibold mt-3" style="color:#7ba9dd">~25% utilization</p>
+    <p class="text-sm font-semibold mt-3 text-[#2c5ea0] dark:text-[#7ba9dd]">~25% utilization</p>
   </div>
 
-  <div class="rounded border border-slate-600 bg-slate-800/30 p-4 flex flex-col">
-    <p class="font-bold text-slate-100 mb-3">FlashAttention v2</p>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 p-4 flex flex-col">
+    <p class="font-bold text-slate-900 dark:text-slate-100 mb-3">FlashAttention v2</p>
     <div class="flex flex-col items-center gap-1 mb-3">
       <span class="px-2 py-1 rounded text-white text-xs font-semibold" style="background-color:#3a7bd5">NVIDIA / cutlass</span>
     </div>
-    <div class="text-xs text-slate-300 flex-1 space-y-1">
+    <div class="text-xs text-slate-600 dark:text-slate-300 flex-1 space-y-1">
       <p>Removal of non-matmuls</p>
       <p>Better warp partitioning</p>
     </div>
-    <p class="text-sm font-semibold mt-3" style="color:#7ba9dd">50–70% utilization</p>
+    <p class="text-sm font-semibold mt-3 text-[#2c5ea0] dark:text-[#7ba9dd]">50–70% utilization</p>
   </div>
 
-  <div class="rounded border border-slate-600 bg-slate-800/30 p-4 flex flex-col">
-    <p class="font-bold text-slate-100 mb-3">FlashAttention v3</p>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 p-4 flex flex-col">
+    <p class="font-bold text-slate-900 dark:text-slate-100 mb-3">FlashAttention v3</p>
     <div class="flex flex-col items-center gap-1 mb-3">
       <span class="px-2 py-1 rounded text-white text-xs font-semibold" style="background-color:#3a7bd5">NVIDIA / cutlass</span>
     </div>
-    <div class="text-xs text-slate-300 flex-1 space-y-1">
+    <div class="text-xs text-slate-600 dark:text-slate-300 flex-1 space-y-1">
       <p>Optimized for Hopper</p>
       <p>(async copy · low-precision)</p>
     </div>
-    <p class="text-sm font-semibold mt-3" style="color:#7ba9dd">~75% utilization</p>
+    <p class="text-sm font-semibold mt-3 text-[#2c5ea0] dark:text-[#7ba9dd]">~75% utilization</p>
+  </div>
+
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 p-4 flex flex-col">
+    <p class="font-bold text-slate-900 dark:text-slate-100 mb-3">FlashAttention v4</p>
+    <div class="flex flex-col items-center gap-1 mb-3">
+      <span class="px-2 py-1 rounded text-white text-xs font-semibold" style="background-color:#3a7bd5">CuTe DSL</span>
+    </div>
+    <div class="text-xs text-slate-600 dark:text-slate-300 flex-1 space-y-1">
+      <p>Optimized for Blackwell</p>
+      <p>(softmax 재설계 · 새 pipelining)</p>
+    </div>
+    <p class="text-sm font-semibold mt-3 text-[#2c5ea0] dark:text-[#7ba9dd]">v3 대비 2–3×</p>
   </div>
 </div>
 
@@ -658,6 +719,18 @@ Tri Dao가 다음으로 주목한 것은 **CUTLASS**입니다. CUTLASS는 CUDA �
 #### v3: Hopper의 새 기능 활용
 
 이후 NVIDIA Hopper 아키텍처가 등장하면서 새로운 기능들이 추가됐습니다. 저정밀(low-precision) 연산 지원 강화, 비동기 데이터 복사(TMA)와 비동기 Tensor Core 연산(WGMMA) 등이 그 예입니다. 그런데 v2를 그대로 Hopper에서 돌리면 이 새 기능들을 활용하지 못해 utilization이 오히려 30%대로 떨어집니다. 이를 다시 끌어올리려고 새로 짠 것이 FlashAttention v3이고, Hopper에서 utilization을 약 75%까지 회복했습니다.
+
+#### v4: Blackwell 세대, 그리고 CuTe DSL
+
+같은 일이 Blackwell 세대에서 한 번 더 반복됩니다. **FlashAttention v4**는 Blackwell(그리고 Hopper)을 타깃으로 다시 작성된 버전으로, Hot Chips 2025에서 처음 공개되었습니다. 흥미로운 점 하나는 구현 언어입니다. C++ CUTLASS가 아니라 CUTLASS의 Python 프론트엔드인 **CuTe DSL**로 작성되었습니다. 또 softmax의 `exp` 계산을 특수 함수 유닛(SFU) 대신 일반 연산 유닛의 다항식 근사로 옮기는 등, 알고리즘 자체를 새 하드웨어의 자원 밸런스에 맞춰 재설계했습니다. 그 결과 Blackwell에서 v3 대비 2–3배 빠른 attention을 달성해, attention이 같은 크기의 행렬곱에 가까운 속도로 돌게 되었습니다. 세대마다 "하드웨어가 바뀌면 커널을 다시 짜야 한다"는 패턴이 그대로 이어지고 있는 셈입니다.
+
+> 출처: [FlashAttention-4: Algorithm and Kernel Pipelining Co-Design for Asymmetric Hardware Scaling](https://arxiv.org/abs/2603.05451)
+
+#### 서빙 현장의 기본값이 되어가는 FlashInfer
+
+한 가지 더 짚어 둘 것은, 실제 LLM 서빙에서는 FlashAttention 커널을 그대로 쓰기보다 **FlashInfer**를 거치는 경우가 점점 많아지고 있다는 점입니다. 앞서 Prefill/Decode 의존성 그림의 출처이기도 한 FlashInfer는, FlashAttention 계열의 아이디어(tiling·fusion·online softmax)를 계승하면서 paged KV cache, 가변 길이 배치, prefill/decode 커널 분리 같은 서빙 특유의 요구에 맞춰 attention 커널을 JIT으로 생성·커스터마이즈할 수 있게 만든 attention 엔진입니다(MLSys 2025 best paper). NVIDIA가 프로젝트를 지원하며 TensorRT-LLM의 Blackwell 커널까지 흡수했고, 현재 vLLM은 Blackwell에서 FlashInfer를 기본 attention backend로 사용합니다(Hopper에서는 여전히 FlashAttention이 기본). SGLang 등 다른 서빙 프레임워크에서도 사실상 표준 선택지에 가깝습니다. 정리하면 FlashAttention이 만든 알고리즘적 기반 위에서, 서빙 레이어의 요구를 흡수한 커널 라이브러리가 그 자리를 이어받는 흐름입니다.
+
+> 출처: [FlashInfer: Efficient and Customizable Attention Engine for LLM Inference Serving](https://arxiv.org/abs/2501.01005)
 
 #### Takeaway: "CUDA 직접 = 저수준 = 빠르다"는 더 이상 자명하지 않다
 
@@ -734,17 +807,27 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 또 한 가지 주목할 점은 Triton이 지원하는 백엔드의 폭입니다. NVIDIA GPU에 한정되지 않고, GPU부터 AI 가속기, CPU까지 사실상 주요 하드웨어 카테고리를 모두 커버합니다. Triton Conference 2024 기준으로 다음 백엔드들이 공식적으로 언급됩니다.
 
 <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
-  <div class="rounded border border-slate-600 bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">Nvidia GPU</div>
-  <div class="rounded border border-slate-600 bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">AMD GPU</div>
-  <div class="rounded border border-slate-600 bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">Intel GPU</div>
-  <div class="rounded border border-slate-600 bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">AWS Trainium</div>
-  <div class="rounded border border-slate-600 bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">Qualcomm Hexagon NPU</div>
-  <div class="rounded border border-slate-600 bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">Azure MAIA</div>
-  <div class="rounded border border-slate-600 bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">ARM CPU</div>
-  <div class="rounded border border-slate-600 bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">x86 CPU</div>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">Nvidia GPU</div>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">AMD GPU</div>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">Intel GPU</div>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">AWS Trainium</div>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">Qualcomm Hexagon NPU</div>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">Azure MAIA</div>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">ARM CPU</div>
+  <div class="rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/30 px-3 py-2 text-center text-sm font-semibold">x86 CPU</div>
 </div>
 
 즉 같은 Triton 코드가 NVIDIA·AMD·Intel·AWS·Qualcomm·Azure·ARM·x86 위에서 모두 돌 수 있다는 뜻이고, 이는 Triton이 오픈소스 + 하드웨어 중립 커널 프로그래밍 모델을 지향하고 있음을 보여줍니다.
+
+### NVIDIA의 응답: CUDA Tile과 cuTile
+
+이 tile/block programming이라는 방향이 맞다는 것은 NVIDIA 스스로도 인정한 셈이 되었습니다. CUDA 13.1(2025년 말)부터 기존 SIMT 모델 위에 **CUDA Tile**이라는 타일 기반 프로그래밍 모델이 새로 얹혔고, 이를 Python에서 쓰는 DSL인 **cuTile**이 함께 나왔습니다(C++ 지원은 CUDA 13.3부터). 발상은 Triton과 같습니다. 개발자는 타일 단위로 "어떻게 묶고 자르는가"만 표현하고, tensor core·shared memory·TMA 같은 하드웨어 세부 활용은 컴파일러(Tile IR)가 알아서 처리합니다.
+
+재미있는 것은 두 진영이 수렴하고 있다는 점입니다. Triton도 NVIDIA GPU에서 CUDA Tile IR을 백엔드로 쓸 수 있게 되어, 오픈소스 프론트엔드(Triton)와 NVIDIA 공식 스택(Tile IR)이 같은 중간 표현 위에서 만나는 구도가 만들어지고 있습니다. 정리하면 "타일 수준 추상화 + 컴파일러가 하드웨어 디테일 처리"라는 패러다임이 오픈소스만의 실험이 아니라 NVIDIA 공식 프로그래밍 모델의 1급 시민이 된 것이고, 커널 프로그래밍의 무게중심이 CUDA C++에서 이런 타일 추상화 쪽으로 옮겨가고 있다는 신호로 읽을 수 있습니다.
+
+> 출처: [Focus on Your Algorithm—NVIDIA CUDA Tile Handles the Hardware](https://developer.nvidia.com/blog/focus-on-your-algorithm-nvidia-cuda-tile-handles-the-hardware/)
+>
+> 출처: [Advancing GPU Programming with the CUDA Tile IR Backend for OpenAI Triton](https://developer.nvidia.com/blog/advancing-gpu-programming-with-the-cuda-tile-ir-backend-for-openai-triton/)
 
 
 ## Serving 최적화 Framework
@@ -759,7 +842,7 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 
 ### vLLM: LLM Serving의 업계 표준
 
-이런 흐름의 대표 주자가 바로 **vLLM**입니다. vLLM은 앞서 다룬 PagedAttention을 만든 PhD 학생들이 시작한 프로젝트로 출발했고, 오픈소스 생태계에서 빠르게 성장하면서 지금은 거의 업계 표준(industry standard)처럼 쓰이고 있습니다.
+이런 흐름의 대표 주자가 바로 **vLLM**입니다. vLLM은 앞서 다룬 PagedAttention을 만든 UC Berkeley의 PhD 학생들이 시작한 프로젝트로 출발했고, 오픈소스 생태계에서 빠르게 성장하면서 지금은 거의 업계 표준(industry standard)처럼 쓰이고 있습니다. 2025년에는 PyTorch Foundation 산하 프로젝트로 합류해 PyTorch 생태계의 공식적인 일원이 되었고, Meta·LinkedIn·Mistral을 비롯한 여러 회사가 프로덕션 서빙에 vLLM을 그대로 사용하고 있습니다. "오픈소스 LLM 서빙을 한다면 일단 vLLM에서 시작한다"가 사실상의 기본값이 된 셈입니다.
 
 ### vLLM에 반영된 주요 최적화 기법
 
@@ -780,6 +863,49 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 </div>
 </div>
 
+그리고 이 목록은 그 뒤로도 계속 늘어나고 있습니다. Continuous batching과 PagedAttention은 물론이고, chunked prefill과 prefix caching은 아예 기본 동작이 되었고, speculative decoding(draft model·EAGLE·MTP), structured output, FP8 등 quantization, TP/PP/EP 분산 서빙, 그리고 앞서 본 PD disaggregation까지 이 강의에서 다룬 기법 거의 전부가 vLLM의 "체크박스 하나로 켜는 기본 기능"으로 흡수되어 있습니다. 개별 최적화 기법을 논문으로 좇던 시대에서, 서빙 프레임워크가 그것들을 통합해 주는 시대로 넘어온 것입니다.
+
+### vLLM V1: 엔진 재설계, 그리고 torch.compile
+
+vLLM이 흥미로운 또 하나의 이유는 이 강의 시리즈에서 다뤄 온 PyTorch 컴파일 스택과 정면으로 만난다는 점입니다. vLLM은 2025년에 코어 엔진을 **V1**로 갈아엎었는데(스케줄러 오버헤드 제거, chunked prefill·prefix caching 기본화 등), 이때 **`torch.compile`이 기본으로 켜지는 구조**가 되었습니다. 모델을 처음 띄울 때 FX graph를 캡처해 컴파일하고(Inductor가 Triton 커널 생성), 그 아티팩트를 캐시에 저장해 두 번째 기동부터는 곧바로 불러 씁니다. attention처럼 손으로 짠 커널이 필요한 부분은 custom op으로 남기고 그래프를 조각내 컴파일하는(piecewise) 방식으로, 수작업 커널과 컴파일러 생성 커널을 한 시스템 안에서 섞어 씁니다.
+
+Week 3에서 본 그래프 모드·Inductor 이야기가 "서빙 프레임워크의 기본 경로"에 그대로 들어와 있는 셈이고, 반대로 하드웨어 벤더 입장에서는 `torch.compile` 백엔드만 잘 받쳐 두면 vLLM의 컴파일 경로에 자연스럽게 올라탈 수 있다는 뜻이기도 합니다.
+
+> 참고: [vLLM V1: A Major Upgrade to vLLM's Core Architecture](https://blog.vllm.ai/2025/01/27/v1-alpha-release.html)
+>
+> 참고: [Introduction to torch.compile and How It Works with vLLM](https://vllm.ai/blog/2025-08-20-torch-compile)
+>
+> 참고: [vLLM: Easy, Fast, and Cheap LLM Serving for Everyone — Simon Mo, PyTorch Conference 2025](https://www.youtube.com/watch?v=Tv71-g75OgU)
+
+### vLLM 내부 구조: 이 강의의 기법들이 코드로 만나는 곳
+
+vLLM의 내부를 한 층만 들춰 보면, 이 강의에서 다룬 개념들이 그대로 구현 컴포넌트로 등장합니다. 엔진의 심장은 단순한 루프입니다. Scheduler가 이번 스텝에 처리할 요청들을 고르고 → 모델이 forward를 한 번 돌고 → 결과를 후처리해 각 요청에 나눠 주는 세 단계를 무한히 반복합니다.
+
+- **Scheduler와 token budget** - V1 스케줄러는 Prefill과 Decode를 별개의 경로로 두지 않고, "이번 스텝에 처리할 토큰 예산" 하나로 통합했습니다. 매 스텝 running 큐에 있는 요청들의 decode 토큰을 먼저 배정하고, 남은 예산에 waiting 큐의 prefill 토큰을 채워 넣습니다. 긴 프롬프트는 예산에 맞게 잘라 여러 스텝에 나눠 처리합니다(chunked prefill). 이것이 곧 continuous batching의 실제 구현입니다.
+- **패딩 없는 배칭** - 선택된 요청들의 토큰은 padding 없이 하나의 긴 "super sequence"로 이어 붙여 단 한 번의 forward로 처리합니다. position 인덱스와 attention 커널의 가변 길이 지원이 시퀀스 간 경계를 지켜 줍니다.
+- **KV cache manager** - KV cache는 고정 크기 블록(기본 16토큰) 단위로 관리되고, free block pool에서 필요한 만큼만 그때그때 할당됩니다. Paged Attention 그 자체입니다. 여기에 블록 단위 해시로 같은 prefix를 가진 요청끼리 KV 블록을 재사용하는 prefix caching이 얹힙니다.
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-start">
+  <div class="text-center">
+    <img src="/images/06/vllm-anatomy-engine_loop.png" alt="vLLM 엔진 코어 루프: scheduler가 요청을 고르고 forward를 돌린 뒤 결과를 후처리하는 반복 구조" class="h-96 mx-auto" />
+    <div class="text-sm mt-2">엔진 코어 루프: schedule → forward → postprocess</div>
+  </div>
+  <div class="text-center">
+    <img src="/images/06/vllm-anatomy-kv_cache_blocks.png" alt="vLLM KV cache manager가 고정 크기 블록 단위로 KV cache를 할당·관리하는 구조" class="h-96 mx-auto" />
+    <div class="text-sm mt-2">블록 단위로 관리되는 KV cache (Paged Attention의 구현)</div>
+  </div>
+</div>
+
+> 출처: [Inside vLLM: Anatomy of a High-Throughput LLM Inference System](https://vllm.ai/blog/2025-09-05-anatomy-of-vllm)
+
+한 층 더 아래의 실행 코어도 계속 다시 쓰이고 있습니다. 2026년의 **Model Runner V2**는 배치 상태 관리 같은 CPU 쪽 북키핑이 새로운 병목이 되는 문제를 풀기 위해, 입력 텐서 준비와 sampler까지 Triton 커널로 GPU에 올리고 CPU–GPU 실행을 겹치는 async-first 구조로 재설계되었고, 작은 모델에서 throughput을 50% 이상 끌어올렸습니다. 모델 forward가 빨라질수록 그 사이사이의 프레임워크 오버헤드가 다음 병목으로 떠오른다는, roofline과 같은 결의 이야기가 서빙 레이어 안에서도 반복되는 셈입니다.
+
+커널 레이어와의 연결 고리도 있습니다. vLLM의 attention 백엔드 중 하나는 Triton만으로 작성되어 있는데, H100에서 FlashAttention 3와 대등한 성능을 내면서 같은 커널 코드가 AMD GPU에서도 그대로 돕니다. 앞서 커널 프로그래밍 절에서 본 "타일 수준 추상화 + 컴파일러가 하드웨어 디테일 처리"라는 접근이 서빙 프레임워크의 실전 커널에서 이미 통하고 있다는 증거입니다.
+
+> 참고: [vLLM Model Runner V2](https://vllm.ai/blog/2026-03-24-mrv2)
+>
+> 참고: [vLLM Triton Attention Backend Deep Dive](https://vllm.ai/blog/2026-03-04-vllm-triton-backend-deep-dive)
+
 ### vLLM의 PyTorch 중심 전략
 
 여기서 한 가지 재미있는 점은, vLLM이 PyTorch 기반으로 만들어져 있다는 사실 그 자체보다도, 다양한 하드웨어를 직접 붙이지 않겠다고 명시적으로 선언했다는 점입니다. vLLM 측의 입장은 *"하드웨어는 일단 PyTorch에 잘 붙여 오기만 하면, 그 위에서 vLLM이 동작하도록 우리가 만들겠다"* 에 가깝습니다.
@@ -791,6 +917,20 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide44_1.png" alt="vLLM의 계층 구조: 하드웨어 위에 PyTorch가 추상화 레이어로 놓이고 그 위에 vLLM이 올라가는 구성" class="h-64" />
 </div>
+
+이 구조는 그 후 **하드웨어 플러그인 시스템**으로 공식화되었습니다. vLLM 코어는 특정 하드웨어를 하드코딩하지 않고 platform plugin 인터페이스만 정의해 두고, 각 하드웨어 벤더가 자기 플러그인을 별도 패키지(out-of-tree)로 유지하는 방식입니다. 실제로 리벨리온도 [vllm-rbln](https://github.com/rebellions-sw/vllm-rbln) 플러그인을 오픈소스로 공개해 ATOM·REBEL에서 vLLM 서빙을 지원하고 있습니다. FlashAttention·PagedAttention 같은 기법을 NPU의 메모리 계층에 맞게 재구현해 플러그인 밑에 깔아 두면, 사용자는 기존 vLLM 워크플로를 그대로 쓰면서 백엔드만 NPU로 갈아 끼울 수 있습니다. "PyTorch만 잘 붙여 오면 그 위에서 vLLM이 돌게 하겠다"던 방향이, 이제는 벤더가 직접 꽂을 수 있는 표준 인터페이스로 자리 잡은 셈입니다.
+
+### 모델 코드는 어디서 오는가: 자체 구현과 Transformers Backend
+
+하드웨어 반대편, 모델 정의 쪽에도 같은 질문을 던질 수 있습니다. vLLM에서 Llama나 Qwen을 서빙할 때 그 모델 코드는 어디서 올까요? 기본적으로 vLLM은 주요 아키텍처마다 **자체 최적화 구현**을 유지합니다. Hugging Face의 모델 코드를 그대로 쓰는 것이 아니라, tensor parallel용 병렬 linear 레이어와 vLLM의 attention 인터페이스에 맞춰 다시 작성한 구현이고(`vllm/model_executor/models/`), checkpoint(weight)만 Hugging Face Hub에서 받아 그 위에 얹습니다.
+
+그럼 이 지원 목록에 없는 모델이 들어오면 어떻게 될까요? 이때 vLLM은 **Transformers backend**로 자동으로 넘어갑니다(fallback). Hugging Face `transformers`의 모델 코드를 그대로 가져오되, attention은 vLLM의 paged attention 커널로 바꿔 끼우고 linear 레이어는 병렬 레이어로 치환해서, transformers의 모델 정의 위에 vLLM의 서빙 최적화를 얹는 방식입니다. `--model-impl transformers` 플래그로 명시적으로 선택할 수도 있습니다.
+
+흥미로운 것은 최근의 방향입니다. 처음에는 "자체 구현이 없을 때의 fallback"이었던 Transformers backend가 계속 최적화되면서(torch.compile·CUDA graph 호환 유지, fused kernel 치환 등), 2026년 기준 여러 아키텍처에서 자체 구현과 대등하거나 더 빠른 수준에 도달했고, 일부 모델은 아예 Transformers backend로만 지원됩니다. 450개가 넘는 아키텍처를 가진 transformers를 모델 정의의 reference로 삼고, vLLM은 모델 구현을 점점 transformers 쪽에 위임하는 흐름입니다. 정리하면 vLLM은 모델 정의는 위쪽의 transformers에, 하드웨어 지원은 아래쪽의 PyTorch에 위임하고, 자신은 그 사이의 서빙 최적화(스케줄링, KV cache 관리, 커널)에 집중하는 구조로 수렴하고 있습니다. 강의 도입부에서 본 "Open Pretrained LLM → Hugging Face 배포 → PyTorch → 커널·서빙" 그림의 각 층이 실제 소프트웨어 구조로도 그대로 맞물리는 셈입니다.
+
+> 참고: [Transformers modeling backend integration in vLLM](https://blog.vllm.ai/2025/04/11/transformers-backend.html)
+>
+> 참고: [Native-speed vLLM transformers modeling backend](https://huggingface.co/blog/native-speed-vllm-transformers-backend)
 
 ### 기타 상용 프레임워크
 
@@ -808,8 +948,79 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 
 먼저 batching: 여러 request를 묶어 처리하는 기본 발상에서 출발해, 시퀀스 길이가 들쭉날쭉해도 높은 utilization을 유지하기 위한 continuous batching이 등장했습니다. 시퀀스가 길어지면서 attention 자체가 dominant한 비용이 되는 문제는 Flash Attention, Paged Attention 같은 기법으로 풀고, 한 request 안 Decode 단계의 sequential dependency는 speculative decoding으로 검증 문제로 전환해 풀어냅니다.
 
-Flash Attention을 깊이 들여다보면서 *왜 이런 알고리듬을 PyTorch op으로는 표현할 수 없고 kernel programming이 필요한지*를 짚었고, 마지막으로는 요즘 보편적으로 쓰이는 서빙 프레임워크(vLLM 등)를 깊이 들어가지는 않고 broad하게 훑어봤습니다.
+Flash Attention을 깊이 들여다보면서 *왜 이런 알고리즘을 PyTorch op으로는 표현할 수 없고 kernel programming이 필요한지*를 짚었고, 마지막으로는 요즘 보편적으로 쓰이는 서빙 프레임워크(vLLM 등)를 깊이 들어가지는 않고 broad하게 훑어봤습니다.
 
 결국 오늘 강조하고 싶었던 한 가지는, LLM이 등장하면서 모델 최적화에 대한 needs가 점점 더 커졌고, 이 needs를 PyTorch가 분명히 핵심에 자리하지만 PyTorch만으로는 다 해결할 수 없어, PyTorch를 보완하는 커널 프로그래밍과 고수준 서빙 프레임워크 두 가지가 함께 개발자들에 의해 만들어지고 있는 상황이라는 점입니다.
 
 도입에서 본 그림으로 다시 돌아가면, 결국 LLM 추론 스택은 Open Pretrained LLM → Hugging Face 배포 → PyTorch → 커널 프로그래밍 + 서빙 최적화라는 구성으로 정리되고, 추론 특화 AI 반도체를 만드는 입장에서는 이 전체 스택을 빠짐없이 잘 받쳐주는 것이 결국 성능의 관건입니다.
+
+
+## 보충: Roofline을 수식으로 정리하기
+
+본문에서 그림으로 본 Roofline 분석은 간단한 수식 몇 개로 정리할 수 있습니다. 어떤 연산(커널)이 수행해야 하는 총 연산량을 FLOPs, 메모리와 주고받아야 하는 총 데이터량을 Bytes라고 하면, Arithmetic Intensity는 그 비율입니다.
+
+$$
+\text{Arithmetic Intensity} = \frac{\text{Computation FLOPs}}{\text{Memory Bytes}}
+$$
+
+이 연산을 실제 하드웨어에서 돌렸을 때, 연산에 걸리는 시간과 메모리 접근에 걸리는 시간은 각각 다음과 같습니다.
+
+$$
+T_{\text{math}} = \frac{\text{Computation FLOPs}}{\text{Peak FLOPs/s}}, \qquad
+T_{\text{mem}} = \frac{\text{Memory Bytes}}{\text{Peak Bandwidth}}
+$$
+
+하드웨어가 계산과 메모리 접근을 잘 겹쳐서(overlap) 실행한다고 가정하면 전체 실행 시간은 대략 $\max(T_{\text{math}}, T_{\text{mem}})$이 되고, $T_{\text{math}} > T_{\text{mem}}$이면 Compute Bound, 반대면 Memory Bound입니다. 이 경계를 하드웨어 쪽 숫자로 옮기면, 칩마다 "이 intensity를 넘어야 연산기를 풀로 쓸 수 있다"는 임계값이 하나 정해져 있는 셈입니다. Roofline 그래프에서 사선과 가로선이 만나는 터닝 포인트가 바로 이 값입니다.
+
+$$
+\text{Critical Intensity} = \frac{\text{Peak FLOPs/s}}{\text{Peak Bandwidth}}
+$$
+
+예를 들어 H100의 bf16 기준 임계값은 약 300 FLOPs/byte 수준입니다. 메모리에서 1 byte를 들고 올 때마다 300번 가까이 연산을 해야 연산기가 놀지 않는다는 뜻입니다.
+
+### Counting Dots: 행렬곱의 FLOPs 세는 법
+
+$2BDF$의 2는 내적(dot product)에서 옵니다.
+
+- 길이 $D$ 벡터의 내적 = 곱셈 $D$번 + 덧셈 $D$번 = $2D$ FLOPs
+- $X[B, D] \times W[D, F]$ = 내적 $B \times F$개 = $2BDF$ FLOPs
+
+즉 행렬곱의 FLOPs는 "관여하는 차원의 곱 × 2"이고, FLOPs 계산은 결국 내적의 개수를 세는(counting dots) 문제입니다. Transformer는 행렬곱의 연쇄이므로, 아래 그림처럼 각 행렬곱의 shape만 적으면 전체 FLOPs와 파라미터 수를 기계적으로 셀 수 있습니다. "파라미터 $P$개 모델의 forward pass ≈ 토큰당 $2P$ FLOPs (학습은 backward까지 $6P$)"라는 근사도 여기서 나옵니다.
+
+<div class="flex justify-center mt-4">
+  <img src="/images/06/transformer-diagram.png" alt="Transformer 한 layer를 구성하는 모든 행렬곱의 shape과 파라미터·FLOPs를 정리한 다이어그램" class="max-w-3xl w-full mx-auto" />
+</div>
+
+> 출처: [All the Transformer Math You Need to Know (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/transformers/)
+
+### 행렬곱의 intensity는 배치 크기에 비례한다
+
+이걸 LLM의 지배적 연산인 행렬곱에 대입해 보면 왜 Decode가 문제인지 숫자로 드러납니다. $B$개 토큰을 한 번에 처리하는 행렬곱 $X[B, D] \times W[D, F]$는 연산량이 $2BDF$ FLOPs입니다. 메모리 쪽은 입력 $X$($BD$개 원소)와 weight $W$($DF$개)를 읽고 결과 $Z[B, F]$($BF$개)를 써야 하는데, bf16은 원소당 2 bytes이므로 접근량은 $2BD + 2DF + 2BF$ bytes입니다(FLOPs의 2는 곱셈+덧셈, bytes의 2는 원소 크기로, 서로 다른 2입니다). 따라서,
+
+$$
+\text{Intensity} = \frac{2BDF}{2BD + 2DF + 2BF} \approx B \quad (B \ll D, F)
+$$
+
+즉 행렬곱의 intensity는 한 번에 처리하는 토큰 수 $B$에 거의 비례합니다. 임계값을 넘기려면 수백 개 토큰을 한 번에 처리해야 한다는 계산이 나옵니다. Prefill이 Compute Bound이고 한 토큰씩 처리하는 Decode가 Memory Bound인 이유가 이 한 줄에 담겨 있습니다.
+
+### 예외: attention은 배치로도 구제되지 않는다
+
+다만 이 "배치를 키우면 compute bound로 넘어간다"는 계산에는 중요한 예외가 하나 있습니다. weight는 배치 안의 모든 시퀀스가 공유하므로 배치가 커질수록 재사용이 늘어나지만, attention이 읽어야 하는 KV cache는 시퀀스마다 고유해서 배치를 아무리 키워도 재사용이 생기지 않습니다. 즉 Decode의 행렬곱(MLP·projection)은 배치로 compute bound까지 끌어올릴 수 있어도, attention 부분은 구조적으로 memory bound에 남습니다. GQA/MQA(여러 query head가 KV head를 공유)나 DeepSeek 계열의 MLA(latent 압축)처럼 KV cache 자체를 줄이는 아키텍처 레벨의 기법이 별도의 축으로 발전해 온 이유가 여기에 있습니다.
+
+이 관점에서 Decode 한 스텝이 넘을 수 없는 하한선도 바로 나옵니다. 매 스텝 모델 weight 전체와 배치에 담긴 KV cache 전체를 HBM에서 읽어야 하므로,
+
+$$
+T_{\text{step}} \ge \frac{\text{Param Bytes} + B \times \text{KV Cache Bytes}}{\text{Peak Bandwidth}}
+$$
+
+작은 배치에서 decode의 토큰당 지연시간은 사실상 "모델 weight를 HBM에서 한 번 스트리밍하는 시간"이 하한이라는 뜻입니다.
+
+참고: [Rooflines (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/roofline/)
+
+참고: [All About Transformer Inference (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/inference/)
+
+여기서는 맛만 본 transformer 수식 계산의 전체 그림 - layer별 FLOPs·파라미터·KV cache 세기, 토큰 하나가 forward pass를 통과하는 여정 - 은 아래 두 자료가 잘 정리하고 있습니다.
+
+참고: [All the Transformer Math You Need to Know (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/transformers/)
+
+참고: [Inside the Transformer: The Life of a Token — Aleksa Gordić](https://www.aleksagordic.com/blog/transformer)
