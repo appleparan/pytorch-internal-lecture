@@ -769,6 +769,61 @@ https://pytorch.org/tutorials/intermediate/TP_tutorial.html
 > Hadoop/MapReduce도 본질적으로는 shared memory를 가정하지 않는 분산 모델이라 MPI와 크게 다르지 않습니다. 다만 MapReduce는 storage 위 데이터 처리에 가깝고 collective의 종류가 제한적인 반면, MPI는 다양한 collective를 표준적으로 정의해 둬서 분산 학습에서 필요한 통신 패턴을 표현하기에 더 자연스러운 모델입니다.
 
 
+## 보충: ZeRO, DeepSpeed, 그리고 Accelerate
+
+강의에서는 PyTorch가 직접 제공하는 병렬화 패키지까지만 다뤘지만, 실무에서는 DeepSpeed, Hugging Face Accelerate 같은 이름이 항상 함께 등장합니다. "그냥 Accelerate를 쓰면 알아서 다 되는 것 같은데, 안에서 뭐가 어떻게 쓰이는 건지" 혼란스럽기 쉬운 지점이라, 강의에는 없었던 내용이지만 이들의 관계를 정리하는 보충 섹션을 추가합니다.
+
+### ZeRO: DDP에서 FSDP로 가는 길
+
+먼저 DDP의 메모리 구조를 다시 보면, 각 GPU는 모델 전체의 복제본을 들고 있습니다. 이때 GPU가 실제로 들고 있는 것은 parameter만이 아니라 **parameter + gradient + optimizer state**입니다. mixed precision으로 Adam을 쓰는 경우 parameter는 fp16으로 2 byte지만, optimizer state로 fp32 master weight(4 byte)·momentum(4 byte)·variance(4 byte)를 추가로 들고 있어야 해서, parameter 1개당 총 16 byte 수준의 메모리가 필요합니다. 즉 모델이 커질수록 "계산에 쓰는 것"보다 "중복으로 복제해 둔 학습 상태"가 메모리를 잡아먹는 구조입니다.
+
+Microsoft의 **ZeRO**(Zero Redundancy Optimizer, 2019) 논문은 이 중복을 단계적으로 제거하자는 제안입니다:
+
+- **Stage 1**: optimizer state만 rank들에 나누어 sharding
+- **Stage 2**: gradient까지 sharding
+- **Stage 3**: parameter까지 sharding — 계산 직전에 all-gather로 모았다가 끝나면 버림
+
+Stage 3이 바로 앞에서 본 FSDP의 동작 방식입니다. 계보를 그려 보면: ZeRO 논문 → Microsoft가 **DeepSpeed** 라이브러리로 구현 → Meta가 FairScale에서 같은 아이디어를 FSDP로 구현 → PyTorch 본체로 upstream(FSDP1) → FSDP2로 재설계, 순서입니다. 즉 **DeepSpeed와 FSDP는 같은 논문에서 출발한 두 구현**이고, DeepSpeed는 "partitioning", FSDP는 "sharding"이라고 부를 뿐 하는 일은 같습니다. 대응 관계는 대략 DDP ≈ ZeRO-0, FSDP1의 `SHARD_GRAD_OP` ≈ ZeRO-2, `FULL_SHARD` ≈ ZeRO-3이며, FSDP2에서는 `reshard_after_forward=True/False`가 각각 ZeRO-3/ZeRO-2에 해당합니다.
+
+### FSDP vs. DeepSpeed
+
+그렇다면 실무에서 무엇이 다를까요? 둘 다 c10d(NCCL)의 collective communication 위에서 all-gather/reduce-scatter를 수행한다는 바닥은 동일하고, 차이는 구현 세부에 있습니다:
+
+- **Precision 처리**: DeepSpeed는 parameter를 준비하는 시점에 항상 fp32 master weight로 upcast하고 optimizer도 fp32로 돕니다. FSDP는 모델의 `torch_dtype`을 존중해서, mixed precision을 끄면 optimizer까지 low precision으로 돌리는 것도 가능합니다. GPU 수가 적을 때는 이 upcast 오버헤드가 체감될 수 있습니다.
+- **Offload**: FSDP는 parameter/gradient/optimizer state를 전부 CPU로 내리거나 전부 GPU에 두는 all-or-nothing인 반면, DeepSpeed는 parameter와 optimizer state를 따로따로 내릴 수 있고 NVMe offload까지 지원합니다.
+- **설정 노출 방식**: FSDP는 wrapping 단위(FSDP2에서는 `fully_shard` 호출 위치) 등을 사용자가 명시하는 반면, DeepSpeed는 JSON config 하나를 주면 내부에서 알아서 처리하는 스타일입니다.
+
+### Accelerate는 무엇을 하는가
+
+**Accelerate는 새로운 병렬화 구현이 아닙니다.** DDP, FSDP, DeepSpeed를 코드 수정 없이 갈아끼울 수 있게 해 주는 통합 frontend입니다. "알아서 다 되는" 것처럼 보이는 흐름을 뜯어 보면:
+
+1. `accelerate launch --config_file ...`이 config를 읽고 process들을 띄웁니다. 앞에서 본 torchrun과 같은 역할로, world/rank/rendezvous 개념이 그대로 적용됩니다.
+2. 스크립트 안에서 `Accelerator()`를 생성하면 `AcceleratorState`가 환경 변수를 분석해 지금이 어떤 분산 세팅(단일 GPU, DDP, FSDP, DeepSpeed, …)인지 파악합니다.
+3. `accelerator.prepare(model, optimizer, scheduler, dataloader)`가 실제 변환을 수행합니다. config에 따라 model을 DDP 컨테이너로 감싸거나, FSDP를 적용하거나, DeepSpeed engine으로 초기화합니다. optimizer와 scheduler는 `AcceleratedOptimizer` 같은 얇은 wrapper로 감싸는 정도지만, dataloader는 rank마다 서로 다른 batch를 받도록 batch sampler를 교체해 **재생성**하고, shuffle 등이 rank 간에 일관되도록 random number generator도 동기화합니다.
+
+즉 사용자가 보는 training loop는 하나지만, 실제로 all-gather와 reduce-scatter를 수행하는 것은 여전히 이 강의에서 본 PyTorch 분산 스택(또는 DeepSpeed)입니다. Accelerate는 그 앞의 스위치보드일 뿐입니다. `transformers`의 Trainer도 내부적으로 Accelerate를 사용하므로, "Trainer에 config만 바꿔 끼우면 FSDP↔DeepSpeed 전환이 되는" 것도 같은 원리입니다.
+
+### Big Model Inference: 학습 밖의 sharding
+
+Accelerate에는 학습용 병렬화와 헷갈리기 쉬운 기능이 하나 더 있는데, `device_map="auto"`로 대표되는 **Big Model Inference**입니다. `init_empty_weights()`로 meta device 위에 빈 모델을 만들고(FSDP2의 meta device 초기화와 같은 트릭입니다), `load_checkpoint_and_dispatch()`가 checkpoint를 읽으면서 layer를 GPU → CPU RAM → disk 순으로 배치합니다. forward 시에는 hook이 각 layer의 weight를 실행 직전에 GPU로 올렸다가 끝나면 다시 내립니다.
+
+겉보기에는 FSDP와 비슷하지만 목적이 다릅니다. 이것은 **inference 전용**이고, 여러 GPU에 걸쳐 있어도 계산은 naive하게 순차 실행됩니다(한 GPU가 계산하는 동안 나머지는 idle). "리소스가 부족한 환경에서 어쨌든 돌게 만드는" 편의 기능이지, 병렬로 빨라지는 기능이 아닙니다.
+
+### 그래서 요즘은 무엇을 쓰나
+
+- **Fine-tuning / post-training**: Hugging Face 생태계(Trainer, TRL)에서 Accelerate를 frontend로 쓰고, backend로 FSDP 또는 DeepSpeed를 선택하는 구성이 일반적입니다. Accelerate도 `fsdp_version=2`로 FSDP2 사용을 권장하는 방향으로 가고 있습니다.
+- **대규모 pretraining**: PyTorch native 스택인 **torchtitan**이 FSDP2 + TP + PP를 DTensor 위에서 조합하는(3D parallelism) 대표 사례이고, Megatron-LM / NeMo 계열도 여전히 널리 쓰입니다.
+- **Inference / serving**: 학습용 sharding이 아니라 vLLM, SGLang 같은 전용 엔진(TP 중심)을 씁니다. 다음 강의에서 다룰 vLLM이 바로 이 영역입니다.
+
+정리하면, 어떤 프레임워크를 고르든 바닥에서 돌아가는 것은 이 강의에서 다룬 c10d collective 위의 ZeRO 스타일 sharding입니다. Accelerate는 그것을 고르는 스위치이고, DeepSpeed와 FSDP는 같은 아이디어의 두 구현이며, 트렌드는 PyTorch native(FSDP2 + DTensor) 쪽으로 수렴하는 중입니다.
+
+<div class="text-xs mt-2 text-center">
+
+참고: [FSDP vs DeepSpeed](https://huggingface.co/docs/accelerate/concept_guides/fsdp_and_deepspeed) · [Accelerate's internal mechanisms](https://huggingface.co/docs/accelerate/concept_guides/internal_mechanism) · [Big Model Inference](https://huggingface.co/docs/accelerate/concept_guides/big_model_inference)
+
+</div>
+
+
 ## Next Week Preview: Beyond PyTorch
 
 지금까지 5주에 걸쳐 PyTorch 안에 기본으로 들어 있는 주요 기능들을 살펴봤습니다. 다음 주에는 PyTorch만으로 해결되지 않는 영역을 한 시간 정도 다룹니다.
