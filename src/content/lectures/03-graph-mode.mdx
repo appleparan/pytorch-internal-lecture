@@ -425,6 +425,14 @@ Dynamo 자체가 CPython에 직접 integration 되어 있기 때문에, Python V
 
 Dynamo는 CPython 소스를 수정하는 대신, CPython이 제공하는 **frame evaluation API(PEP 523)** 를 이용해 C 확장에서 frame 실행 함수를 교체하는 방식으로 구현되어 있습니다. 덕분에 CPython 내부 코드를 수정할 필요 없이 frame 단위로 개입하여 bytecode를 분석하고 변환할 수 있습니다.
 
+이때 frame 실행 함수가 항상 교체되어 있는 것은 아닙니다. `torch.compile`로 감싼 함수가 호출되는 순간에 교체되고 그 호출이 끝나면 원래대로 복원되므로, Dynamo는 **compile된 함수의 호출 범위 안에서 만들어지는 frame에만** 개입합니다. 그 밖의 일반 Python 코드는 영향을 받지 않습니다.
+
+개입한 frame이라고 해서 모두 tracing을 시도하는 것도 아닙니다. Frame마다 다음과 같이 판별합니다:
+
+- 이미 tracing되어 cache된 code object → guard 검사 후 transformed bytecode를 재사용
+- Tracing할 이득이 없거나 불가능한 코드(내장 함수, stdlib, torch 내부 구현 등) → skip 목록에 따라 원래 방식으로 실행
+- 그 외 → tracing 시도. 이때 trace 중에 만나는 함수 호출은 가능하면 부모 trace에 inline되며, graph break로 생긴 resumed function처럼 별도 frame 단위 컴파일이 필요한 경우에만 새로운 tracing이 시작됩니다.
+
 <img src="/images/03/slide22_1.png" alt="Bytecode 분석부터 guard 삽입까지 Dynamo의 내부 흐름 다이어그램" class="h-96 diagram-bg" />
 
 > 참고: https://depyf.readthedocs.io/en/latest/walk_through.html
