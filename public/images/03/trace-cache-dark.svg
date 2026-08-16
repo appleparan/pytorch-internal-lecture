@@ -53,5 +53,9 @@
   <!-- Label -->
   <text x="177" y="66" font-size="12" fill="#DFA84E" text-anchor="middle" dominant-baseline="central">반복되는 구간</text>
   <line x1="177" y1="73" x2="177" y2="84" stroke="#C8872A" stroke-width="0.5" stroke-dasharray="2,2"/>
+  <text x="359" y="66" font-size="12" fill="#DFA84E" text-anchor="middle" dominant-baseline="central">반복되는 구간</text>
+  <line x1="359" y1="73" x2="359" y2="84" stroke="#C8872A" stroke-width="0.5" stroke-dasharray="2,2"/>
+  <text x="541" y="66" font-size="12" fill="#DFA84E" text-anchor="middle" dominant-baseline="central">반복되는 구간</text>
+  <line x1="541" y1="73" x2="541" y2="84" stroke="#C8872A" stroke-width="0.5" stroke-dasharray="2,2"/>
 
 </svg>
