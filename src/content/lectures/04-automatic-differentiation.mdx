@@ -718,9 +718,6 @@ print(p.grad)
 
 > 출처: [How does torch.compile work with autograd? - PyTorch Dev Discussions](https://dev-discuss.pytorch.org/t/how-does-torch-compile-work-with-autograd/1621/14)
 
-<div class="grid grid-cols-2 gap-4 mt-2 items-start">
-<div>
-
 **[B-1] Dynamo가 만들어낸 FX Graph (forward만 있음)**
 
 ```python
@@ -743,9 +740,6 @@ def joint_fw_bw(fw_inputs, grad_outs):
 
 `f()`를 수행한 뒤 곧바로 `torch.autograd.grad()`를 호출하여 backward까지 같이 수행하는 하나의 함수로 묶어 둡니다. (위 코드는 원문 슬라이드의 pseudocode를 그대로 옮긴 것으로, 실제 `torch.autograd.grad`의 인자 이름은 `inputs=`, `grad_outputs=`입니다.) 겉보기에는 forward를 한 번 부른 것처럼 보이지만, 그 안에서 backward가 forward의 연장선처럼 자연스럽게 이어져 실행됩니다.
 
-</div>
-<div>
-
 **[D] joint 함수를 trace하여 Joint Graph 생성**
 
 `joint_fw_bw`를 (내부의 `torch.autograd.grad` 호출이 동작하는 상태 그대로) C++ dispatcher 수준에서 trace하면, autograd가 만들어내는 backward 계산 경로까지 함께 기록되어 forward와 backward가 모두 포함된 joint graph가 한 번에 만들어집니다.
@@ -767,9 +761,6 @@ to give us the forwards pass and the backwards pass.
 ```
 
 이렇게 얻어진 joint graph를 적절한 기준(이후 절에서 다룰 Min-Cut 알고리즘)으로 partition하면 forward pass와 backward pass로 다시 분리할 수 있습니다.
-
-</div>
-</div>
 
 > **[참고] 원문(PyTorch Dev Discussions) 기준 보충 사항**
 >
