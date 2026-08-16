@@ -99,7 +99,7 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
     - 그래서 필요한 더 낮은 레벨: CUDA, CUTLASS, Triton, 그리고 최근의 CUDA Tile(cuTile)
     - Flash Attention v1 → v2 → v3 → v4로 이어지는 GPU utilization 개선의 역사, 그리고 서빙 쪽 기본값이 되어가는 FlashInfer
 - Serving 최적화 framework - 이 최적화들을 하나로 묶는 layer
-    - vLLM: paged attention을 만든 팀이 시작해 업계 표준이 된 서빙 프레임워크
+    - vLLM: paged attention을 만든 팀이 시작해 업계 표준이 된 서빙 프레임워크 - V1 엔진의 torch.compile 통합, 하드웨어 플러그인 시스템까지
     - 결론: LLM 추론 스택은 PyTorch 하나로 완성되지 않고, 커널 프로그래밍과 서빙 최적화라는 층이 함께 필요
 
 
@@ -843,7 +843,7 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 
 ### vLLM: LLM Serving의 업계 표준
 
-이런 흐름의 대표 주자가 바로 **vLLM**입니다. vLLM은 앞서 다룬 PagedAttention을 만든 PhD 학생들이 시작한 프로젝트로 출발했고, 오픈소스 생태계에서 빠르게 성장하면서 지금은 거의 업계 표준(industry standard)처럼 쓰이고 있습니다.
+이런 흐름의 대표 주자가 바로 **vLLM**입니다. vLLM은 앞서 다룬 PagedAttention을 만든 UC Berkeley의 PhD 학생들이 시작한 프로젝트로 출발했고, 오픈소스 생태계에서 빠르게 성장하면서 지금은 거의 업계 표준(industry standard)처럼 쓰이고 있습니다. 2025년에는 PyTorch Foundation 산하 프로젝트로 합류해 PyTorch 생태계의 공식적인 일원이 되었고, Meta·LinkedIn·Mistral을 비롯한 여러 회사가 프로덕션 서빙에 vLLM을 그대로 사용하고 있습니다. "오픈소스 LLM 서빙을 한다면 일단 vLLM에서 시작한다"가 사실상의 기본값이 된 셈입니다.
 
 ### vLLM에 반영된 주요 최적화 기법
 
@@ -864,6 +864,20 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 </div>
 </div>
 
+그리고 이 목록은 그 뒤로도 계속 늘어나고 있습니다. Continuous batching과 PagedAttention은 물론이고, chunked prefill과 prefix caching은 아예 기본 동작이 되었고, speculative decoding(draft model·EAGLE·MTP), structured output, FP8 등 quantization, TP/PP/EP 분산 서빙, 그리고 앞서 본 PD disaggregation까지 이 강의에서 다룬 기법 거의 전부가 vLLM의 "체크박스 하나로 켜는 기본 기능"으로 흡수되어 있습니다. 개별 최적화 기법을 논문으로 좇던 시대에서, 서빙 프레임워크가 그것들을 통합해 주는 시대로 넘어온 것입니다.
+
+### vLLM V1: 엔진 재설계, 그리고 torch.compile
+
+vLLM이 흥미로운 또 하나의 이유는 이 강의 시리즈에서 다뤄 온 PyTorch 컴파일 스택과 정면으로 만난다는 점입니다. vLLM은 2025년에 코어 엔진을 **V1**로 갈아엎었는데(스케줄러 오버헤드 제거, chunked prefill·prefix caching 기본화 등), 이때 **`torch.compile`이 기본으로 켜지는 구조**가 되었습니다. 모델을 처음 띄울 때 FX graph를 캡처해 컴파일하고(Inductor가 Triton 커널 생성), 그 아티팩트를 캐시에 저장해 두 번째 기동부터는 곧바로 불러 씁니다. attention처럼 손으로 짠 커널이 필요한 부분은 custom op으로 남기고 그래프를 조각내 컴파일하는(piecewise) 방식으로, 수작업 커널과 컴파일러 생성 커널을 한 시스템 안에서 섞어 씁니다.
+
+Week 3에서 본 그래프 모드·Inductor 이야기가 "서빙 프레임워크의 기본 경로"에 그대로 들어와 있는 셈이고, 반대로 하드웨어 벤더 입장에서는 `torch.compile` 백엔드만 잘 받쳐 두면 vLLM의 컴파일 경로에 자연스럽게 올라탈 수 있다는 뜻이기도 합니다.
+
+> 참고: [vLLM V1: A Major Upgrade to vLLM's Core Architecture](https://blog.vllm.ai/2025/01/27/v1-alpha-release.html)
+>
+> 참고: [Introduction to torch.compile and How It Works with vLLM](https://vllm.ai/blog/2025-08-20-torch-compile)
+>
+> 참고: [vLLM: Easy, Fast, and Cheap LLM Serving for Everyone — Simon Mo, PyTorch Conference 2025](https://www.youtube.com/watch?v=Tv71-g75OgU)
+
 ### vLLM의 PyTorch 중심 전략
 
 여기서 한 가지 재미있는 점은, vLLM이 PyTorch 기반으로 만들어져 있다는 사실 그 자체보다도, 다양한 하드웨어를 직접 붙이지 않겠다고 명시적으로 선언했다는 점입니다. vLLM 측의 입장은 *"하드웨어는 일단 PyTorch에 잘 붙여 오기만 하면, 그 위에서 vLLM이 동작하도록 우리가 만들겠다"* 에 가깝습니다.
@@ -875,6 +889,8 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide44_1.png" alt="vLLM의 계층 구조: 하드웨어 위에 PyTorch가 추상화 레이어로 놓이고 그 위에 vLLM이 올라가는 구성" class="h-64" />
 </div>
+
+이 구조는 그 후 **하드웨어 플러그인 시스템**으로 공식화되었습니다. vLLM 코어는 특정 하드웨어를 하드코딩하지 않고 platform plugin 인터페이스만 정의해 두고, 각 하드웨어 벤더가 자기 플러그인을 별도 패키지(out-of-tree)로 유지하는 방식입니다. 실제로 리벨리온도 [vllm-rbln](https://github.com/rebellions-sw/vllm-rbln) 플러그인을 오픈소스로 공개해 ATOM·REBEL에서 vLLM 서빙을 지원하고 있습니다. FlashAttention·PagedAttention 같은 기법을 NPU의 메모리 계층에 맞게 재구현해 플러그인 밑에 깔아 두면, 사용자는 기존 vLLM 워크플로를 그대로 쓰면서 백엔드만 NPU로 갈아 끼울 수 있습니다. "PyTorch만 잘 붙여 오면 그 위에서 vLLM이 돌게 하겠다"던 방향이, 이제는 벤더가 직접 꽂을 수 있는 표준 인터페이스로 자리 잡은 셈입니다.
 
 ### 기타 상용 프레임워크
 
