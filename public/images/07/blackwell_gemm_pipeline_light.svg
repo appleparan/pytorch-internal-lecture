@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="300" viewBox="0 0 880 300"
+  font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif">
+
+  <!-- time axis -->
+  <g stroke="#5F5E5A" stroke-width="1.2" fill="none">
+    <line x1="200" y1="30" x2="820" y2="30"/>
+  </g>
+  <polygon points="820,25 832,30 820,35" fill="#5F5E5A"/>
+  <text x="840" y="34" font-size="13" fill="#5F5E5A">time</text>
+
+  <!-- row labels -->
+  <g>
+    <text x="20" y="82" font-size="14" fill="#2C2C2A">TMA (Load Engine)</text>
+    <text x="20" y="99" font-size="11" fill="#73726c">GMEM → SMEM</text>
+
+    <text x="20" y="144" font-size="14" fill="#2C2C2A">Tensor Core (tcgen05)</text>
+    <text x="20" y="161" font-size="11" fill="#73726c">SMEM → TMEM 누적</text>
+
+    <text x="20" y="206" font-size="14" fill="#2C2C2A">Epilogue Warp-Group</text>
+    <text x="20" y="223" font-size="11" fill="#73726c">TMEM → GMEM</text>
+  </g>
+
+  <!-- TMA row: green tiles -->
+  <g>
+    <rect x="200" y="60" width="120" height="44" rx="4" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="1.5"/>
+    <rect x="328" y="60" width="120" height="44" rx="4" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="1.5"/>
+    <rect x="456" y="60" width="120" height="44" rx="4" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="1.5"/>
+    <rect x="584" y="60" width="120" height="44" rx="4" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="1.5"/>
+    <rect x="712" y="60" width="120" height="44" rx="4" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="1.5"/>
+    <g font-size="13" fill="#0F6E56" text-anchor="middle">
+      <text x="260" y="87">tile k−1</text>
+      <text x="388" y="87">tile k</text>
+      <text x="516" y="87">tile k+1</text>
+      <text x="644" y="87">tile k+2</text>
+      <text x="772" y="87">tile k+3</text>
+    </g>
+  </g>
+
+  <!-- Tensor Core row: blue tiles, shifted by one slot -->
+  <g>
+    <rect x="328" y="122" width="120" height="44" rx="4" fill="#E7F0FA" stroke="#378ADD" stroke-width="1.5"/>
+    <rect x="456" y="122" width="120" height="44" rx="4" fill="#E7F0FA" stroke="#378ADD" stroke-width="1.5"/>
+    <rect x="584" y="122" width="120" height="44" rx="4" fill="#E7F0FA" stroke="#378ADD" stroke-width="1.5"/>
+    <rect x="712" y="122" width="120" height="44" rx="4" fill="#E7F0FA" stroke="#378ADD" stroke-width="1.5"/>
+    <g font-size="13" fill="#175A96" text-anchor="middle">
+      <text x="388" y="149">tile k−1</text>
+      <text x="516" y="149">tile k</text>
+      <text x="644" y="149">tile k+1</text>
+      <text x="772" y="149">tile k+2</text>
+    </g>
+  </g>
+
+  <!-- Epilogue row: orange tiles, shifted by two slots -->
+  <g>
+    <rect x="456" y="184" width="120" height="44" rx="4" fill="#FAEEDA" stroke="#EF9F27" stroke-width="1.5"/>
+    <rect x="584" y="184" width="120" height="44" rx="4" fill="#FAEEDA" stroke="#EF9F27" stroke-width="1.5"/>
+    <rect x="712" y="184" width="120" height="44" rx="4" fill="#FAEEDA" stroke="#EF9F27" stroke-width="1.5"/>
+    <g font-size="13" fill="#854F0B" text-anchor="middle">
+      <text x="516" y="211">tile k−1</text>
+      <text x="644" y="211">tile k</text>
+      <text x="772" y="211">tile k+1</text>
+    </g>
+  </g>
+
+  <!-- steady-state column highlight -->
+  <rect x="450" y="52" width="132" height="184" rx="6" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-dasharray="6 3"/>
+
+  <!-- caption -->
+  <text x="440" y="266" text-anchor="middle" font-size="13" fill="#5F5E5A">같은 시각, TMA는 tile k+1을 나르고 · Tensor Core는 tile k를 계산하고 · Epilogue는 tile k−1을 써 낸다</text>
+  <text x="440" y="286" text-anchor="middle" font-size="12" fill="#73726c">단계 사이의 완료 통지는 mbarrier가 전달</text>
+</svg>
