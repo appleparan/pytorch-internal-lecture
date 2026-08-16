@@ -654,7 +654,7 @@ Microsoft의 **ZeRO**(Zero Redundancy Optimizer, 2019) 논문은 이 중복을 �
 - **2019**: Microsoft가 ZeRO 논문 발표
 - **2020**: Microsoft가 ZeRO의 구현체인 **DeepSpeed** 라이브러리 공개
 - **2021**: Meta가 FairScale 라이브러리에서 같은 아이디어를 FSDP라는 이름으로 구현
-- **2022**: FairScale의 FSDP가 PyTorch 1.11 본체로 upstream — 이것이 FSDP1
+- **2022**: FairScale의 FSDP가 PyTorch 1.11에 정식 편입됨. 이 버전이 FSDP1
 - **2024**: per-parameter sharding으로 재설계한 FSDP2(`fully_shard`) 공개
 
 즉 DeepSpeed와 FSDP는 같은 논문에서 출발한 두 구현입니다. DeepSpeed는 "partitioning", FSDP는 "sharding"이라 부를 뿐 하는 일은 같고, ZeRO stage와는 다음과 같이 대응됩니다:
@@ -747,9 +747,7 @@ for param in model.parameters():
 
 <div class="text-xs mt-2 text-center">
 
-(PyTorch FSDP2 Tutorial)
-
-https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html
+그림 출처: [PyTorch FSDP2 Tutorial](https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html)
 
 </div>
 
@@ -764,13 +762,13 @@ https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html
 이 변화가 왜 중요한지는 한 가지 사실에서 출발합니다. `requires_grad`와 `dtype`은 tensor 하나당 하나씩만 존재하는 속성인데, FlatParameter는 여러 parameter를 한 tensor로 합쳐 버렸으니 그 안의 모든 parameter가 이 속성들을 강제로 공유해야 했습니다. per-parameter sharding은 이 제약을 풀면서 다음을 가능하게 합니다:
 
 - **부분 freeze(LoRA 등)**: LoRA는 base weight를 freeze하고 작은 adapter만 학습하는데, FSDP1에서는 둘이 같은 FlatParameter에 묶이면 `requires_grad`가 하나뿐이라 "일부만 freeze"를 표현할 수 없었습니다(frozen끼리, trainable끼리 wrapping을 나누는 우회가 필요). FSDP2는 parameter마다 flag를 따로 유지하므로 그대로 동작하고, frozen parameter에는 gradient 메모리도 잡히지 않습니다.
-- **dtype 혼합(fp8 등)**: 같은 논리의 dtype 버전입니다. 하나의 연속 버퍼로 이어붙이려면 전부 같은 dtype이어야 했지만, FSDP2에서는 큰 matmul weight만 fp8로 두고 LayerNorm처럼 민감한 부분은 bf16으로 남기는 혼합 구성이 자연스럽습니다.
+- **dtype 혼합(fp8 등)**: 하나의 연속 버퍼로 이어붙이려면 모든 parameter가 같은 dtype이어야 했지만, parameter가 각자 독립된 tensor인 FSDP2에서는 큰 matmul weight만 fp8로 두고 LayerNorm처럼 민감한 부분은 bf16으로 남기는 혼합 구성이 자연스럽습니다.
 - **통신 없는 sharded checkpointing**: FSDP1의 shard는 이어붙인 1D 버퍼를 world_size로 등분한 조각이라 parameter 경계와 어긋납니다. 한 parameter의 절반이 rank 0에, 나머지가 rank 1에 걸칠 수 있으니 조각 자체로는 의미가 없고, 저장하려면 조각을 모으는 통신이 필요했습니다(FULL_STATE_DICT 저장 시 rank 0에 메모리가 몰리는 원인). FSDP2의 shard는 parameter를 dim-0으로 자른 조각에 원래 shape·placement metadata가 붙어 있어, 각 rank가 자기 조각을 그대로 저장해도 어느 parameter의 어느 부분인지 자명합니다. `torch.distributed.checkpoint`의 sharded state dict가 통신 없이 병렬로 저장·로드되는 근거입니다.
 - **결정적(deterministic) 메모리 관리**: all-gather는 별도 CUDA stream에서 돌고 계산은 default stream에서 도는데, 통신 stream이 할당한 unsharded 버퍼를 계산이 다 쓰기 전에 allocator가 재사용하지 못하게 막아야 합니다. FSDP1이 쓰던 `record_stream()`은 GPU가 실제로 작업을 끝냈는지를 보고 메모리를 반환하므로, 해제 시점이 GPU 실행 타이밍에 따라 달라져 같은 코드의 peak memory가 실행마다 달라지고 간헐적 OOM의 원인이 됐습니다. FSDP2는 stream 간 event 동기화로 해제 시점을 프로그램 순서에 고정해서, 메모리 사용량이 매 실행 동일하게 예측 가능합니다.
 
 DTensor는 바로 뒤에서 다룰 Tensor Parallel에서도 동일하게 쓰이는 추상화라서, FSDP2와 TP를 조합하는 것도 같은 표현 위에서 자연스럽게 이루어집니다.
 
-<div class="text-xs mt-2 text-center">
+<div class="text-xs mt-2">
 
 참고: [FSDP1 vs FSDP2 (Hugging Face Accelerate)](https://huggingface.co/docs/accelerate/concept_guides/fsdp1_vs_fsdp2)
 
@@ -782,13 +780,15 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 
 **Initialization** 단계에서는 `fully_shard`가 호출된 module 단위로 parameter들을 dim-0 기준으로 쪼개 DTensor로 바꾸고, 각 rank는 자신의 shard에 해당하는 memory만 유지합니다. 그리고 forward/backward 실행 시 자동으로 호출될 hook들을 등록합니다. pre hook에서는 `all_gather`(unsharding)를, post hook에서는 resharding(모아 온 전체 parameter를 해제)을 수행하도록 설정합니다. 큰 모델의 경우 meta device 위에서 모델을 정의하고 `fully_shard` 적용 후 `to_empty()` + `reset_parameters()`로 shard만 materialize하면, 어떤 rank도 전체 모델을 memory에 올리지 않고 초기화할 수 있습니다.
 
-**Forward** 단계에서는 `fully_shard` 단위마다 `all_gather`로 sharded parameter를 복원(unsharding)하고, computation을 수행한 뒤, 다시 resharding하는 과정을 반복합니다. 한 layer의 계산이 끝나면 해당 layer의 전체 parameter를 다시 버려서 메모리를 절약합니다. 이때 CPU thread가 다음 layer의 `all_gather`를 미리 발행(implicit prefetching)하기 때문에 통신과 계산이 겹쳐져(overlap) 수행되며, `set_modules_to_forward_prefetch` 같은 API로 이 스케줄을 명시적으로 제어할 수도 있습니다.
+**Forward** 단계에서는 `fully_shard` 단위마다 `all_gather`로 sharded parameter를 복원(unsharding)하고, computation을 수행한 뒤, 다시 resharding하는 과정을 반복합니다. 한 layer의 계산이 끝나면 해당 layer의 전체 parameter를 다시 버려서 메모리를 절약합니다.
+
+이 구조를 그대로 실행하면 layer마다 "all-gather가 끝나기를 기다렸다가 계산"하는 직렬 흐름이 되어 통신 시간이 전부 노출됩니다. 이를 피하는 기법이 **prefetch**입니다. layer i를 계산하는 동안 다음 layer i+1의 all-gather를 미리 시작해 두는 것으로, 통신이 계산과 별도의 CUDA stream에서 돌기 때문에 둘이 동시에 진행될 수 있고, layer i의 계산이 끝날 때쯤이면 layer i+1의 parameter가 이미 도착해 있어 통신 시간이 계산 뒤로 숨습니다. FSDP2에서는 CPU thread가 GPU 실행보다 앞서 kernel들을 stream에 enqueue하는 것만으로 이것이 자동으로 일어나며(implicit prefetching), `set_modules_to_forward_prefetch` 같은 API로 스케줄을 명시적으로 제어할 수도 있습니다.
 
 <img src="/images/05/fsdp2_implicit_prefetch.png" alt="Implicit prefetching: all-gather stream이 layer i+1, i+2의 all-gather를 미리 발행해 default stream의 layer 계산과 겹쳐지는 타임라인" class="h-40 mt-4 mx-auto diagram-bg p-2 rounded" />
 
 <div class="text-xs mt-2 text-center">
 
-(PyTorch FSDP2 Tutorial)
+그림 출처: PyTorch FSDP2 Tutorial
 
 </div>
 
@@ -810,7 +810,7 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 
 <div class="text-xs mt-2 text-center">
 
-(PyTorch FSDP2 Tutorial)
+그림 출처: PyTorch FSDP2 Tutorial
 
 </div>
  FSDP가 추가로 내는 비용은 forward의 all-gather(P)뿐인데, forward에는 그만큼의 계산이 함께 있어서 prefetch로 겹치면 "계산 대비 통신" 비율은 forward와 backward 모두 DDP와 같아집니다. 즉 per-device batch가 충분히 커서 계산 시간이 통신 시간을 넘는 영역(compute-bound)이라면, FSDP는 DDP와 거의 같은 속도로 돕니다.
@@ -861,9 +861,7 @@ for transformer_block in model.layers:
 
 <div class="text-xs mt-2 text-center">
 
-(Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism)
-
-https://docs.pytorch.org/tutorials/intermediate/TP_tutorial.html
+그림 출처: Megatron-LM 논문 (Training Multi-Billion Parameter Language Models Using Model Parallelism) · [PyTorch TP Tutorial](https://docs.pytorch.org/tutorials/intermediate/TP_tutorial.html)
 
 </div>
 
@@ -903,7 +901,7 @@ fully_shard(model, mesh=mesh_2d["dp"])
 
 그래서 통신이 잦고 degree가 제한된 TP를 가장 빠른 링크(노드 안)에 가두고, 그 바깥을 FSDP로 펴고, 대역폭이 좁은 클러스터 사이는 통신이 가장 적은 순수 DP로 잇는 계층 구조가 됩니다. 이런 정량 분석은 JAX scaling book의 training 챕터가 잘 정리해 두었습니다(TPU 기준이지만 GPU에도 같은 논리가 적용됩니다).
 
-<div class="text-xs mt-2 text-center">
+<div class="text-xs mt-2">
 
 참고: [How to Parallelize a Transformer for Training (JAX Scaling Book)](https://jax-ml.github.io/scaling-book/training/)
 
@@ -1101,7 +1099,7 @@ Accelerate에는 학습용 병렬화와 헷갈리기 쉬운 기능이 하나 더
 
 정리하면, 어떤 프레임워크를 고르든 바닥에서 돌아가는 것은 이 강의에서 다룬 c10d collective 위의 ZeRO 스타일 sharding입니다. Accelerate는 그것을 고르는 스위치이고, DeepSpeed와 FSDP는 같은 아이디어의 두 구현이며, 트렌드는 PyTorch native(FSDP2 + DTensor) 쪽으로 수렴하는 중입니다.
 
-<div class="text-xs mt-2 text-center">
+<div class="text-xs mt-2">
 
 참고: [FSDP vs DeepSpeed](https://huggingface.co/docs/accelerate/concept_guides/fsdp_and_deepspeed) · [Accelerate's internal mechanisms](https://huggingface.co/docs/accelerate/concept_guides/internal_mechanism) · [Big Model Inference](https://huggingface.co/docs/accelerate/concept_guides/big_model_inference) · [Distributed Training with Ray](https://docs.pytorch.org/tutorials/beginner/distributed_training_with_ray_tutorial.html)
 
