@@ -746,7 +746,7 @@ Tensor가 소멸된다고 해서 storage까지 바로 소멸되지는 않습니�
   - 명시적으로 객체를 제거 (`del` keyword 사용)
   - 또는 garbage collection에 의해 자연스럽게 소멸
 - Python 측 객체가 소멸되면 C++ `at::Tensor`와 내부 포인터들도 함께 해제
-- `THPVariable_subclass_dealloc`이 entry point
+- `THPVariable_dealloc`이 entry point (구버전에서는 `THPVariable_subclass_dealloc`)
 
 **`c10::Storage`의 소멸:**
 - `intrusive_ptr`의 reference count가 감소하지만, 다른 tensor(view 등)가 공유 중이면 바로 소멸되지 않음
@@ -833,8 +833,8 @@ at::Tensor my_add_cuda(const at::Tensor& ta, const at::Tensor& tb) {
     auto result = at::empty_like(ta);
     auto iter = at::TensorIteratorConfig()
         .add_output(result)
-        .add_input(ta)
-        .add_input(tb)
+        .add_const_input(ta)
+        .add_const_input(tb)
         .build();
     at::native::gpu_kernel(iter, []GPU_LAMBDA(float a, float b) {
         return a + b;
@@ -885,7 +885,7 @@ Operator 실행과 관련된 핵심 개념들은 다음과 같습니다:
 
 <div class="text-sm text-center mb-2">
 
-Generated Autograd Kernel for `add`
+Generated Autograd Kernel for `add` (old style, PyTorch 1.10 이전)
 
 </div>
 
@@ -978,7 +978,7 @@ Dispatch table에서 어떤 dispatch key로 index할지를 결정하는 핵심 �
 |---|---|
 | **Tensor input** | 각 입력 tensor가 자신의 dispatch key set을 기여 (예: CPU tensor → CPU key) |
 | **Local include set** | tensor와 무관한 **modal 기능** (예: tracing) - thread-local로 특정 scope 내에서 on/off |
-| **Global set** | 항상 고려되는 dispatch key (참고: Autograd는 이후 global set에서 tensor로 이동됨) |
+| **Global set** | 항상 고려되는 dispatch key (참고: Autograd key는 현재 tensor의 dispatch key set에 포함되어 있음 - 과거에는 global set에 있었음) |
 | **Local exclude set** | dispatch에서 **제외**할 key를 지정. handler가 자신의 key를 처리한 후 mask off하여 재처리를 방지하는 패턴에 사용 |
 
 #### Dispatch Key Set이 정해지는 과정
@@ -1316,9 +1316,9 @@ Common methods for all generators:
 
 ### Build System 전환: setup.py에서 PEP 517로
 
-오랫동안 PyTorch는 `python setup.py develop` / `python setup.py install`로 빌드했지만, 이 방식은 공식적으로 deprecated 되었습니다. 이제 PyTorch는 **scikit-build-core**를 통해 표준 **PEP 517** 인터페이스(`pyproject.toml`)로 빌드되며, `setup.py`는 빌드에 전혀 관여하지 않는 forwarding stub만 남았습니다.
+오랫동안 PyTorch는 `python setup.py develop` / `python setup.py install`로 빌드했으며, 이 방식은 공식적으로 deprecated 되었습니다. **PyTorch 2.14부터 scikit-build-core 기반 PEP 517**(`pyproject.toml`)로 전환되어 `setup.py`가 빌드에 관여하지 않는 forwarding stub이 될 예정이지만, 이 강의 기준 최신 버전인 **2.13까지는 `pyproject.toml`이 여전히 `setuptools.build_meta`를 사용하고 `setup.py`가 실제 빌드를 수행**합니다.
 
-제거 일정:
+제거 일정 (2.14 이후):
 
 | PyTorch 버전 | `python setup.py <command>` 동작 |
 |------|------|
@@ -1326,17 +1326,17 @@ Common methods for all generators:
 | 2.16–2.17 | 모든 명령이 안내 메시지와 함께 실패 |
 | 2.18 | `setup.py` 파일 자체가 제거됨 |
 
-대체 명령어:
+대체 명령어 (2.14+):
 
 | 기존 (deprecated) | 대체 명령 |
 |------|------|
-| `python setup.py develop` | `spin develop` 또는 `python -m pip install --no-build-isolation -v -e .` |
-| `python setup.py install` | `spin install` 또는 `python -m pip install --no-build-isolation -v .` |
+| `python setup.py develop` | `spin develop`(2.14+) 또는 `python -m pip install --no-build-isolation -v -e .` |
+| `python setup.py install` | `spin install`(2.14+) 또는 `python -m pip install --no-build-isolation -v .` |
 | `python setup.py bdist_wheel` | `python -m build --wheel --no-isolation` |
 | `python setup.py sdist` | `python -m build --sdist` |
 
-- `spin`은 scientific-python 프로젝트들이 쓰는 developer CLI로, `pip install --group dev` 시 함께 설치됨
-- 환경변수를 통한 빌드 커스터마이즈(`DEBUG=1`, `USE_CUDA=0`, `MAX_JOBS=...` 등)는 대체 명령에서도 그대로 동작
+- `spin`은 scientific-python 프로젝트들이 쓰는 developer CLI로, 2.14부터 `pip install --group dev` 시 함께 설치될 예정입니다. 2.13 기준으로는 `spin`이 clean/lint/regenerate 정도만 제공하며 `develop`/`install` subcommand는 아직 없습니다.
+- 환경변수를 통한 빌드 커스터마이즈(`DEBUG=1`, `USE_CUDA=0`, `MAX_JOBS=...` 등)는 대체 명령에서도 그대로 동작할 예정입니다
 - 배경: [pytorch/pytorch#152276](https://github.com/pytorch/pytorch/issues/152276)
 
 ### How to Build from Source
@@ -1371,7 +1371,7 @@ export CMAKE_PREFIX_PATH="${CONDA_PREFIX:-'$(dirname $(which conda))/../'}:${CMA
 
 # Build & Install (editable mode)
 python -m pip install --no-build-isolation -v -e .
-# 또는 동일한 작업을 하는 developer CLI:
+# 또는 (PyTorch 2.14+) 동일한 작업을 하는 developer CLI:
 # spin develop
 ```
 
@@ -1404,9 +1404,9 @@ Forwarding 규칙:
 | `CFLAGS` | C와 C++ 파일 컴파일에 적용할 플래그 (`CXXFLAGS` 설정 시 C++는 그쪽을 따름) |
 | `CC` / `CXX` | 사용할 C/C++ 컴파일러 |
 
-setup.py와 함께 제거된 변수들:
+2.14에서 setup.py와 함께 제거 예정인 변수들 (2.13까지는 정상 동작):
 
-| 변수 | 대체 방법 |
+| 변수 | 대체 방법 (2.14+) |
 |------|------|
 | `CMAKE_FRESH` | `build/` 디렉토리를 삭제하고 다시 빌드 |
 | `CMAKE_ONLY` | 대체 없음 (setup.py 전용 디버깅 기능이었음) |
@@ -1467,11 +1467,11 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
 `_awaits` `_custom_op` `_decomp` `_dispatch` **`_dynamo`** `_export`
 `_functorch` `_higher_order_ops` **`_inductor`** `_lazy` `_library`
 `_logging` `_numpy` **`_prims`** `_prims_common` `_refs` `_strobelight`
-`_subclasses` `_vendor` `amp` `ao` **`autograd`** `backends` `compiler` `contrib`
+`_subclasses` `_vendor` **`accelerator`** `amp` `ao` **`autograd`** `backends` `compiler` `contrib`
 **`cpu`** **`cuda`** **`distributed`** `distributions` `export` `fft` `func` `futures`
 **`fx`** **`jit`** **`linalg`** `masked` `monitor` **`mps`** **`mtia`** `multiprocessing` `nested` `nn`
 `onnx` `optim` `package` `profiler` `quantization` `signal` `sparse`
-`special` `testing` **`torch`** `utils` **`xpu`**
+`special` `testing` `utils` **`xpu`**
 
 ### Eager Mode의 Shared Object들
 
@@ -1598,7 +1598,7 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
 - `Operators.cpp`
 - `Register{backend}.cpp`
 
-**`torch/include/torch/csrc/autograd/generated/`** : `gen_variable_type.py` (input: `derivatives.yaml`)
+**`torch/include/torch/csrc/autograd/generated/`** : `tools/autograd`의 생성 스크립트들 (`gen_autograd.py`가 orchestration; input: `derivatives.yaml`, `native_functions.yaml`)
 - `Functions.h`
 - `python_functions.h`
 - `python_return_types.h`
