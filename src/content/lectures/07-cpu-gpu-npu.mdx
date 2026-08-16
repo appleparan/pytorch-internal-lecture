@@ -18,11 +18,23 @@ PyTorch + NPU 온라인 모임 #7 | 2025-02-12
 
 지금까지의 강의는 주로 소프트웨어적인 측면(PyTorch, 컴파일러, 모델 최적화 등)을 다뤘습니다. 이번 시간은 시리즈 전체에서 처음으로 하드웨어에 초점을 맞추는 강의이며, 다음 주에는 그동안 다룬 내용들을 실무와 연결지으며 시리즈를 마무리할 예정입니다.
 
-오늘의 주제는 CPU, GPU, NPU가 어떻게 다른가입니다. "GPU가 병렬 처리에 좋다"는 수준을 넘어, 프로세서 설계 철학의 차이를 이해하는 것이 목표입니다. Latency hiding이라는 공통 문제를 CPU, GPU, NPU가 각각 어떤 방식으로 접근하는지를 추적하면, 왜 NPU가 GPU와 다른 프로그래밍 모델을 요구하는지 자연스럽게 이해할 수 있습니다.
 
-디테일로 들어가기 전에 한 가지 짚어둘 점이 있습니다. 프로세서의 세계는 생각보다 훨씬 다양합니다. 같은 종류의 프로세서 안에서도 여러 접근법이 공존하고, ISCA·MICRO·HPCA 같은 컴퓨터 아키텍처 학회에서는 매년 새로운 제안들이 쏟아져 나옵니다. 따라서 이 강의에서 다루는 CPU/GPU/NPU의 구분은 절대적인 것이 아니라, 설계 철학을 이해하기 위한 하나의 큰 틀로 받아들이는 것이 좋습니다.
+## 오늘 다룰 주제들
 
-강의 흐름은 다음과 같습니다. 먼저 프로세서의 기본 구조와 설계 철학을 짚고, Latency와 Throughput 개념을 정리합니다. 이어서 Instruction-level pipelining부터 시작하여 Loop-level pipelining(OOO Processor와 VLIW), 그리고 Thread-level pipelining(Multi-core, GPU, NPU)까지 점진적으로 확장해 나갑니다.
+오늘 강의는 "CPU, GPU, NPU가 어떻게 다른가"라는 질문에서 출발합니다. "GPU가 병렬 처리에 좋다"는 수준의 답을 넘어 프로세서 설계 철학의 차이를 이해하는 것이 목표이며, 강의 전체를 관통하는 주제는 latency hiding - 느린 하드웨어 구간(특히 메모리 접근)을 감추며 throughput을 끌어올리는 방법 - 입니다. Pipelining의 단위를 instruction → loop → thread로 키워가며 이 질문에 답합니다.
+
+- Processor stack - 개발자의 코드가 datapath까지 도달하는 구조, 그리고 "하드웨어 디테일을 어디까지 개발자에게 노출할 것인가"라는 설계의 핵심 질문
+- Latency, throughput, latency hiding - 강의 전체를 관통하는 개념 정리
+- Instruction-level pipelining - 5-stage pipeline과 branch prediction으로 보는 latency hiding의 첫 사례
+- Loop-level pipelining - 같은 문제를 푸는 두 갈래의 등장
+    - OOO(Out-Of-Order) Processor: 하드웨어가 동적으로 스케줄링
+    - VLIW: 소프트웨어(컴파일러)가 정적으로 스케줄링
+- Thread-level pipelining - OOO vs. VLIW의 대비가 그대로 이어지는 지점
+    - Multi-Core로 전환한 CPU를 거쳐, massive parallelism과 warp 스케줄링으로 latency를 하드웨어가 동적으로 숨기는 GPU(OOO의 갈래)
+    - 실행 계획을 컴파일러가 정적으로 미리 짜 두는 NPU(VLIW의 갈래)
+    - OOO : VLIW = GPU : NPU 비례식으로 이해하는, NPU가 GPU와 다른 프로그래밍 모델을 요구하는 이유
+
+다만 프로세서의 세계는 실제로는 훨씬 다양하므로, 이 강의의 CPU/GPU/NPU 구분은 절대적인 정답이 아니라 설계 철학을 이해하기 위한 하나의 큰 틀로 받아들이는 편이 좋습니다.
 
 
 ## Processor Stack: 개발자에서 Datapath까지

@@ -15,12 +15,7 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
 
 ## 소개
 
-이번 강의에서는 PyTorch를 넘어서(Beyond PyTorch) LLM 추론에 필요한 기술들을 다룹니다. 크게 네 가지 주제로 구성됩니다:
-
-1. **LLM inference의 성능 문제** - Prefill과 Decode의 차이, Roofline analysis, Memory wall
-2. **Memory overhead를 줄이기 위한 기술들** - Continuous batching, Speculative decoding, Flash Attention, Paged Attention, Quantization
-3. **Kernel Programming** - CUDA, CUTLASS, OpenAI Triton
-4. **Serving 최적화 Framework** - vLLM과 기타 상용 프레임워크
+이번 강의에서는 PyTorch를 넘어서(Beyond PyTorch) LLM 추론에 필요한 기술들을 다룹니다.
 
 ### 오늘의 질문
 
@@ -85,6 +80,26 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
     </div>
   </div>
 </div>
+
+
+## 오늘 다룰 주제들
+
+위의 세 가지 질문을 그대로 따라, 문제 진단 → 해결 기법 → 커널 프로그래밍 → 서빙 프레임워크 순으로 나아갑니다.
+
+- LLM inference의 성능 문제 - Decode가 memory wall에 부딪히는 이유
+    - Prefill vs. Decode: 계산 구조와 병렬성의 비대칭
+    - Roofline analysis: Decode는 매 스텝 같은 weight를 읽으면서 연산량은 적어 arithmetic intensity가 낮음 → 연산기가 아니라 메모리 대역폭에 발목이 잡히는 구조
+- Memory overhead를 줄이기 위한 기술들
+    - Continuous batching: 여러 request를 동적으로 묶어 lock-step의 낭비 제거
+    - Speculative decoding: 생성을 검증 문제로 바꿔 순차적인 decode를 병렬처럼 처리
+    - Flash Attention과 Paged Attention: attention 연산과 KV cache 메모리 할당이라는 서로 다른 각도의 공략
+- Kernel programming - 위 기법들을 PyTorch만으로 구현할 수 없는 이유
+    - PyTorch op 하나하나가 DRAM read-compute-write로 고정된 커널로 매핑되어, tiling과 fusion으로 DRAM 왕복을 줄이려는 시도가 op 레벨에서는 불가능
+    - 그래서 필요한 더 낮은 레벨: CUDA, CUTLASS, Triton
+    - Flash Attention v1 → v2 → v3로 이어지는 GPU utilization 개선의 역사
+- Serving 최적화 framework - 이 최적화들을 하나로 묶는 layer
+    - vLLM: paged attention을 만든 팀이 시작해 업계 표준이 된 서빙 프레임워크
+    - 결론: LLM 추론 스택은 PyTorch 하나로 완성되지 않고, 커널 프로그래밍과 서빙 최적화라는 층이 함께 필요
 
 
 ## LLM Inference의 성능 문제
