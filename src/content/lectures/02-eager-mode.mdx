@@ -238,9 +238,11 @@ Call stack은 밑에서 위로 진입합니다. 크게 두 영역으로 나뉘�
     DB2 --> DR2`}
 </Mermaid>
 
-실제 op을 수행하면 먼저 Python에서 시작하여 C++에 해당하는 Front-End 부분으로 넘어갑니다.
-Front-End는 op을 **Dispatcher**에게 전달하고,
-Dispatcher는 dispatch key set에서 우선순위가 가장 높은 key를 선택하여 해당 kernel을 호출합니다.
+다이어그램의 **Front-End**는 사용자가 호출하는 API 표면에서 Dispatcher 직전까지의 구간을 가리킵니다.
+`torch.matmul(y, z)`를 호출하면 Python API에서 시작해, 자동 생성된 Python binding(`THPVariable_matmul`, call stack #38)을 거쳐
+op별 C++ 진입점(`at::_ops::matmul::call`, #35 — call stack 표에서 "C++ frontend"로 표시된 부분)에 도달합니다.
+Front-End의 역할은 여기까지입니다: Python 인자를 C++ 타입으로 변환하고, dispatch key set을 계산해서 op을 **Dispatcher**에게 전달합니다.
+어떤 kernel이 실행될지는 Front-End가 아니라 Dispatcher가 결정하며, Dispatcher는 전달받은 key set에서 우선순위가 가장 높은 key를 선택하여 해당 kernel을 호출합니다.
 
 핵심은 kernel이 실행 도중에 다시 Dispatcher를 호출하여 redispatch한다는 점입니다.
 이 dispatch → kernel → redispatch의 중첩이 call stack의 depth가 깊어지는 이유입니다.
