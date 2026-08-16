@@ -17,12 +17,12 @@ PyTorch + NPU 온라인 모임 #3 | 2024-12-18
 
 이번 강의는 "graph mode는 왜, 그리고 어떻게 필요해졌는가"라는 질문에서 출발해, tracing 개념의 뿌리에서 PyTorch 2.0의 컴파일 파이프라인 전체까지 따라갑니다.
 
-- PyTorch의 역사와 2.0의 변화 - eager mode 중심이던 PyTorch에 graph mode가 더해지기까지의 배경
+- PyTorch의 역사와 2.0의 변화 - eager mode 중심이던 PyTorch에 graph mode가 더해지기까지의 배경, 그리고 2.0 전체 아키텍처에서 이번 강의가 다루는 범위
 - Graph capturing - graph mode의 근간이 되는 tracing
-    - 컴퓨터 구조 분야의 고전 사례로 정리하는 tracing 개념: out-of-order execution, trace cache, partial evaluation
-    - PyTorch 1.0의 시도와 한계: `jit.trace`(입력 의존성 검증 부재), `jit.script`(Python subset 처리 범위의 한계)
-    - 2.0의 해법 Dynamo: CPython bytecode 수준의 trace 생성, guard를 통한 안전성 검증, graph break를 통한 trace 불가 구간 자동 분할
-- IR lowering - Dynamo가 만든 FxGraph가 Torch IR → Aten/Prims IR → Inductor Loop-Level IR로 낮아지는 과정
+    - Tracing 개념 - 컴퓨터 구조 분야의 고전 사례로 정리: out-of-order execution, trace cache, partial evaluation
+    - PyTorch 1.0의 시도와 한계 - `jit.trace`(입력 의존성 검증 부재), `jit.script`(Python subset 처리 범위의 한계)
+    - 2.0의 해법 Dynamo - 오늘의 핵심 주제. CPython bytecode 수준의 trace 생성, guard를 통한 안전성 검증, graph break를 통한 trace 불가 구간 자동 분할
+- IR lowering - 컴파일러 구조에 가까워진 2.0에서 정립된 IR 개념과, Dynamo가 만든 FxGraph가 Torch IR → Aten/Prims IR → Inductor Loop-Level IR로 낮아지는 과정
 - Device backend 통합 - `torch.compile` 컴파일 파이프라인에 사용자 정의 device backend를 연결하는 방법
 
 
@@ -71,12 +71,7 @@ https://pytorch.org/get-started/pytorch-2.0/
 - **AOTAutograd** - 다음 주(Week #4)에서 다루는 것이 더 적절
 - **Codegen backends** - NVIDIA GPU 관련 이야기를 할 때 함께 다루는 것이 더 적절
 
-따라서 이번 강의에서는 나머지 부분을 중심으로 다음 내용을 다룹니다:
-
-1. **Tracing 개념** - Graph mode의 근간이 되는 tracing의 기본 개념을 먼저 정리
-2. **Dynamo** - 오늘의 핵심 주제. 대부분의 시간을 Dynamo의 동작 원리를 설명하는 데 할애
-3. **IR과 Lowering** - PyTorch 2.0에서 컴파일러 구조에 가까워지면서 Intermediate Representation(IR) 개념이 정립되고, 여러 단계로 IR이 분할되는 lowering 과정이 추가됨
-4. **Device Backend 통합** - `torch.compile`을 통해 다양한 디바이스 백엔드를 어떻게 연결하는지 간략히 소개
+따라서 이번 강의에서는 나머지 부분 - tracing 개념과 Dynamo를 중심으로 한 graph capturing, IR lowering, device backend 통합 - 을 다룹니다. 세부 흐름은 앞의 "오늘 다룰 주제들"과 같으며, 대부분의 시간은 오늘의 핵심 주제인 Dynamo의 동작 원리를 설명하는 데 할애합니다.
 
 
 ## Graph Capturing
@@ -85,7 +80,7 @@ Graph mode의 근간이 되는 tracing을 세 단계로 살펴봅니다. 먼저 
 
 ### Tracing 개념: 컴퓨터 구조의 고전 사례들
 
-Tracing은 프로그램의 실행 경로를 기록하는 기법입니다. 그 바탕이 되는 Control Flow Graph(CFG)와 Trace의 개념부터 정리하겠습니다.
+Tracing은 프로그램을 실제로 실행하면서, 어떤 코드가 어떤 순서로 실행되었는지를 기록하는 기법입니다. 그 바탕이 되는 Control Flow Graph(CFG)와 Trace의 개념부터 정리하겠습니다.
 
 #### 소스 코드 (Pseudo Code)
 
