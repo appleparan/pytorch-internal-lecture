@@ -29,8 +29,8 @@ PyTorch + NPU 온라인 모임 #5 | 2025-01-15
     - 그 위에 자리잡는 process group과 c10d 통신 계층의 아키텍처
 - torchrun을 활용한 distributed matmul 예제 - 프로세스 시작 → rendezvous → `all_reduce`로 결과 수집 → 종료까지의 전체 흐름을 코드 수준에서 확인
 - Device와 연결: CUDA 예제 - device 선택, 동기화, process group 생성/제거라는 접점으로 쪼개어 c10d 내부 동작 분석
-- 모델 병렬화 패키지들 - 무엇이 GPU 메모리를 차지하는지에서 출발해, Data Parallel 축(DDP → ZeRO → FSDP)과 Model Parallel 축(TP, SP, PP), 그리고 새로 생긴 축(EP, CP)이 각각 어떤 문제를 어떤 전략으로 푸는지, 그리고 이들이 결국 c10d의 collective communication 위에서 동작한다는 점
-- (보충) DeepSpeed와 Accelerate - 같은 training loop가 프레임워크마다 어떻게 달라지고, 그 안에서 실제로 무엇이 도는지에 대한 강의 이후 정리
+- 모델 병렬화 패키지들 - 무엇이 GPU 메모리를 차지하는지에서 출발해, Data Parallel 축(DDP → ZeRO → FSDP)과 Model Parallel 축(TP, SP, PP)이 각각 어떤 문제를 어떤 전략으로 푸는지, 그리고 이들이 결국 c10d의 collective communication 위에서 동작한다는 점
+- (보충) 새로운 축(EP, CP)과 DeepSpeed·Accelerate - MoE와 long context가 만든 새 병렬화 축, 그리고 같은 training loop가 프레임워크마다 어떻게 달라지는지에 대한 강의 이후 정리
 
 
 ## MPI vs. OpenMP
@@ -622,7 +622,7 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 ## PyTorch가 제공하는 모델 병렬화 패키지들
 
-여기까지가 c10d 레벨의 저수준 분산 통신입니다. 실제 모델 학습에서는 이런 저수준 API를 직접 사용하기보다, PyTorch가 제공하는 고수준 병렬화 패키지를 사용하는 경우가 대부분입니다. 병렬화 기법의 이름이 많아(DDP, FSDP, ZeRO, TP, SP, PP, …) 헷갈리기 쉬운데, "무엇을 복제하고 무엇을 쪼개는가"를 기준으로 보면 지도가 그려집니다. 계산은 그대로 두고 학습 상태(parameter·gradient·optimizer state)를 어떻게 배치할지의 축이 **Data Parallel 계열**(DDP → ZeRO → FSDP)이고, 계산 자체를 쪼개는 축이 **Model Parallel 계열**(TP, SP, PP)입니다. 최근 모델 구조의 변화로 여기에 **Expert Parallel**(EP)과 **Context Parallel**(CP)이라는 축이 추가로 등장했는데, 이것도 뒤에서 다룹니다.
+여기까지가 c10d 레벨의 저수준 분산 통신입니다. 실제 모델 학습에서는 이런 저수준 API를 직접 사용하기보다, PyTorch가 제공하는 고수준 병렬화 패키지를 사용하는 경우가 대부분입니다. 병렬화 기법의 이름이 많아(DDP, FSDP, ZeRO, TP, SP, PP, …) 헷갈리기 쉬운데, "무엇을 복제하고 무엇을 쪼개는가"를 기준으로 보면 지도가 그려집니다. 계산은 그대로 두고 학습 상태(parameter·gradient·optimizer state)를 어떻게 배치할지의 축이 **Data Parallel 계열**(DDP → ZeRO → FSDP)이고, 계산 자체를 쪼개는 축이 **Model Parallel 계열**(TP, SP, PP)입니다. 최근 모델 구조의 변화로 여기에 **Expert Parallel**(EP)과 **Context Parallel**(CP)이라는 축이 추가로 등장했는데, 이것은 강의 뒤의 보충 섹션에서 다룹니다.
 
 ### 무엇이 GPU 메모리를 차지하는가
 
@@ -664,18 +664,6 @@ FSDP에는 두 세대의 구현이 있습니다. 초기 구현인 **FSDP1**(`Ful
 >
 > **Q. 랑데뷰 역할을 하는 머신이 따로 있나요?**
 > 랑데뷰 host는 `--rdzv_endpoint`로 사용자가 지정한 노드가 맡습니다 (앞의 예제에서는 `192.168.0.2`). 별도의 전용 머신일 필요는 없고, 연산 노드 중 하나가 겸하는 것이 일반적입니다. 랑데뷰는 프로세스들이 서로를 찾고 world를 구성하기 위한 과정일 뿐이므로, 특정 물리 머신에 본질적으로 묶여 있는 것은 아닙니다.
-
-### 새로운 축: Expert Parallel과 Context Parallel
-
-최근 모델 구조의 변화가 축을 두 개 더 만들었습니다. 미리 답부터 하면, 둘 다 inference 전용이 아니라 학습에서 먼저 필요해진 기법입니다.
-
-**Expert Parallel**(EP)은 MoE(Mixture of Experts) 모델 전용 축입니다. MoE는 FFN 자리에 expert를 수십~수백 개 두고, token마다 router가 고른 일부(top-k)만 계산합니다. parameter 수는 dense 모델의 몇 배인데 실제 계산은 일부만 쓰므로, "계산은 감당되는데 weight가 안 들어가는" 메모리 병목이 극단적으로 커집니다. EP는 expert들을 GPU에 나눠 배치하고, 각 token을 담당 expert가 있는 GPU로 보냈다가(all-to-all dispatch) 계산이 끝나면 되돌려 받습니다(all-to-all combine). 지금까지 본 all-gather/reduce-scatter가 아니라 all-to-all이 주역이라는 점, 그리고 어떤 token이 어느 GPU로 갈지가 데이터(router 출력)에 따라 매 step 달라지는 동적 통신이라는 점에서 앞의 정적인 병렬화들과 성격이 다릅니다. GShard/Switch Transformer의 학습에서 나온 기법이고, DeepSeek-V3처럼 MoE가 주류가 되면서 학습·inference 양쪽의 표준 축이 됐습니다. dense 모델에는 필요 없습니다.
-
-**Context Parallel**(CP)은 sequence가 너무 길 때의 축입니다. activation 메모리는 sequence 길이에 비례하므로, context가 100k token쯤 되면 batch 1개의 activation조차 GPU 한 장에 들어가지 않습니다. CP는 한 sequence를 잘라 여러 GPU에 나누는데, 문제는 attention이 sequence 전체를 봐야 한다는 점입니다. Ring Attention 계열 기법은 각 rank가 자기 구간의 Q를 들고 있고, K/V block들을 ring 형태의 P2P 통신으로 이웃 rank에 돌려 가며 부분 attention을 누적해서 전체 attention을 정확히 계산합니다. 앞에서 "high-level 패키지가 P2P를 실제로 얼마나 활용하는지는 명확하지 않다"고 했는데, CP가 P2P가 주역이 되는 대표 사례입니다. Llama 3의 long-context 학습 단계에 쓰였고, PyTorch에도 experimental API(`torch.distributed.tensor.experimental.context_parallel`)로 들어와 있습니다.
-
-이름이 비슷한 Sequence Parallel과의 구분도 해 두겠습니다. Megatron 계열에서 말하는 SP는 TP의 보조 기법으로, TP가 쪼개지 못하는 구간(LayerNorm, Dropout)의 activation을 sequence 방향으로 나눠 메모리를 아끼는 것입니다. attention 계산 자체를 sequence로 쪼개는 독립된 축인 CP와는 다른 기법입니다.
-
-정리하면 필요 조건이 명확합니다. EP는 "모델이 MoE인가", CP는 "context 길이가 activation 메모리를 지배하는가"로 결정됩니다. 특히 CP는 backward를 위해 activation을 들고 있어야 하는 학습 쪽에서 오히려 더 절실하고, inference에서도 MoE serving(EP)과 long prompt prefill(CP)에 같은 기법이 그대로 쓰입니다.
 
 ### DDP 예제 코드
 
@@ -867,7 +855,7 @@ for block in model.layers:
 fully_shard(model, mesh=mesh_2d["dp"])
 ```
 
-이 조합이 자연스럽게 동작하는 이유는 FSDP2와 TP가 같은 DTensor 추상화 위에 있기 때문입니다. 한 parameter가 tp 축으로는 연산 방향으로, dp 축으로는 dim-0으로 sharding된 2D DTensor가 되고, 각 축의 collective는 해당 축의 process group 안에서만 일어납니다. 여기에 Pipeline Parallel까지 얹으면 소위 3D parallelism이 되고, long context 학습이라면 Context Parallel 축이, MoE 모델이라면 Expert Parallel 축이 더해집니다. PyTorch native로 이런 조합(FSDP + TP + PP + CP)을 구현해 둔 대표 사례가 **torchtitan**입니다. FSDP1의 FlatParameter 시절에는 이런 조합이 어색했지만(모든 parameter가 1D로 뭉개져 있어 다른 병렬화와 합성 불가), FSDP2가 DTensor로 재설계되면서 조합 가능성이 핵심 장점이 됐습니다.
+이 조합이 자연스럽게 동작하는 이유는 FSDP2와 TP가 같은 DTensor 추상화 위에 있기 때문입니다. 한 parameter가 tp 축으로는 연산 방향으로, dp 축으로는 dim-0으로 sharding된 2D DTensor가 되고, 각 축의 collective는 해당 축의 process group 안에서만 일어납니다. 여기에 Pipeline Parallel까지 얹으면 소위 3D parallelism이 되고, long context 학습이라면 Context Parallel 축이, MoE 모델이라면 Expert Parallel 축이 더해집니다(뒤의 보충 참고). PyTorch native로 이런 조합(FSDP + TP + PP + CP)을 구현해 둔 대표 사례가 **torchtitan**입니다. FSDP1의 FlatParameter 시절에는 이런 조합이 어색했지만(모든 parameter가 1D로 뭉개져 있어 다른 병렬화와 합성 불가), FSDP2가 DTensor로 재설계되면서 조합 가능성이 핵심 장점이 됐습니다.
 
 "TP는 노드 안, FSDP는 그 위"라는 배치가 표준이 된 것도 통신 구조로 설명됩니다:
 
@@ -906,6 +894,19 @@ fully_shard(model, mesh=mesh_2d["dp"])
 
 > **Q. 대용량 분산 처리는 보통 Hadoop/MapReduce를 쓰는데, PyTorch는 왜 MPI 형태를 골랐나요?**
 > Hadoop/MapReduce도 본질적으로는 shared memory를 가정하지 않는 분산 모델이라 MPI와 크게 다르지 않습니다. 다만 MapReduce는 storage 위 데이터 처리에 가깝고 collective의 종류가 제한적인 반면, MPI는 다양한 collective를 표준적으로 정의해 둬서 분산 학습에서 필요한 통신 패턴을 표현하기에 더 자연스러운 모델입니다.
+
+
+## 보충: 새로운 축, Expert Parallel과 Context Parallel
+
+최근 모델 구조의 변화가 축을 두 개 더 만들었습니다. 미리 답부터 하면, 둘 다 inference 전용이 아니라 학습에서 먼저 필요해진 기법입니다.
+
+**Expert Parallel**(EP)은 MoE(Mixture of Experts) 모델 전용 축입니다. MoE는 FFN 자리에 expert를 수십~수백 개 두고, token마다 router가 고른 일부(top-k)만 계산합니다. parameter 수는 dense 모델의 몇 배인데 실제 계산은 일부만 쓰므로, "계산은 감당되는데 weight가 안 들어가는" 메모리 병목이 극단적으로 커집니다. EP는 expert들을 GPU에 나눠 배치하고, 각 token을 담당 expert가 있는 GPU로 보냈다가(all-to-all dispatch) 계산이 끝나면 되돌려 받습니다(all-to-all combine). 지금까지 본 all-gather/reduce-scatter가 아니라 all-to-all이 주역이라는 점, 그리고 어떤 token이 어느 GPU로 갈지가 데이터(router 출력)에 따라 매 step 달라지는 동적 통신이라는 점에서 앞의 정적인 병렬화들과 성격이 다릅니다. GShard/Switch Transformer의 학습에서 나온 기법이고, DeepSeek-V3처럼 MoE가 주류가 되면서 학습·inference 양쪽의 표준 축이 됐습니다. dense 모델에는 필요 없습니다.
+
+**Context Parallel**(CP)은 sequence가 너무 길 때의 축입니다. activation 메모리는 sequence 길이에 비례하므로, context가 100k token쯤 되면 batch 1개의 activation조차 GPU 한 장에 들어가지 않습니다. CP는 한 sequence를 잘라 여러 GPU에 나누는데, 문제는 attention이 sequence 전체를 봐야 한다는 점입니다. Ring Attention 계열 기법은 각 rank가 자기 구간의 Q를 들고 있고, K/V block들을 ring 형태의 P2P 통신으로 이웃 rank에 돌려 가며 부분 attention을 누적해서 전체 attention을 정확히 계산합니다. 앞에서 "high-level 패키지가 P2P를 실제로 얼마나 활용하는지는 명확하지 않다"고 했는데, CP가 P2P가 주역이 되는 대표 사례입니다. Llama 3의 long-context 학습 단계에 쓰였고, PyTorch에도 experimental API(`torch.distributed.tensor.experimental.context_parallel`)로 들어와 있습니다.
+
+이름이 비슷한 Sequence Parallel과의 구분도 해 두겠습니다. Megatron 계열에서 말하는 SP는 TP의 보조 기법으로, TP가 쪼개지 못하는 구간(LayerNorm, Dropout)의 activation을 sequence 방향으로 나눠 메모리를 아끼는 것입니다. attention 계산 자체를 sequence로 쪼개는 독립된 축인 CP와는 다른 기법입니다.
+
+정리하면 필요 조건이 명확합니다. EP는 "모델이 MoE인가", CP는 "context 길이가 activation 메모리를 지배하는가"로 결정됩니다. 특히 CP는 backward를 위해 activation을 들고 있어야 하는 학습 쪽에서 오히려 더 절실하고, inference에서도 MoE serving(EP)과 long prompt prefill(CP)에 같은 기법이 그대로 쓰입니다.
 
 
 ## 보충: DeepSpeed와 Accelerate
