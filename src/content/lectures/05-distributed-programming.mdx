@@ -614,13 +614,13 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 ## PyTorch가 제공하는 모델 병렬화 패키지들
 
-> TODO: FSDP2로 업데이트 필요
-
 여기까지가 c10d 레벨의 저수준 분산 통신입니다. 실제 모델 학습에서는 이런 저수준 API를 직접 사용하기보다, PyTorch가 제공하는 고수준 병렬화 패키지를 사용하는 경우가 대부분입니다. 각 패키지는 서로 다른 병렬화 전략을 구현하고 있습니다.
 
 **Distributed Data Parallel**(DDP)은 모델을 잘게 나누는 게 아니라 동일한 모델을 여러 GPU에 복제해 두고 데이터를 GPU별로 분배하는 Data Parallel 방식입니다. 각 GPU가 서로 다른 데이터 배치를 처리해서 throughput을 끌어올리고, 매 step마다 gradient를 `all_reduce`로 모아 평균한 뒤 모든 GPU의 모델 파라미터를 동일하게 업데이트합니다.
 
 **Fully Sharded Data Parallel**(FSDP)은 모델이 너무 커서 한 머신에 통째로 올릴 수 없을 때 사용합니다. parameter(weight, bias)를 world_size로 나누어 각 GPU에 sharding해 두고, 어떤 op을 실행하기 직전에 그 op에 필요한 weight 조각을 다른 GPU들로부터 모아 완전한 weight를 구성한 뒤 계산합니다. 계산이 끝나면 받아 온 조각들은 다시 버리고, 다음 op에서 필요한 다른 조각을 또 모으는 식입니다. FSDP는 parameter뿐 아니라 gradient와 optimizer state까지 sharding하여 메모리를 절약하며, 계산 자체는 각 GPU가 자신의 데이터 배치에 대해 온전히 수행합니다.
+
+FSDP에는 두 세대의 구현이 있습니다. 초기 구현인 **FSDP1**(`FullyShardedDataParallel` wrapper)은 deprecated 상태이고, 현재는 `fully_shard` API 기반의 **FSDP2**를 사용하는 것이 권장됩니다. 개념적인 동작(sharding → all-gather → 계산 → reshard)은 동일하지만 내부 표현이 크게 달라졌는데, 이는 아래 "FSDP1 vs. FSDP2"에서 자세히 다룹니다.
 
 **Tensor Parallel**(TP)은 한 layer의 연산조차 한 머신에서 처리하지 못할 만큼 클 때 사용하는, FSDP보다 더 복잡한 병렬화입니다. weight뿐 아니라 연산 자체를 여러 GPU로 쪼개서 row parallel 또는 column parallel 방식으로 분할 계획(plan)을 따라 처리한 뒤, 결과를 다시 합쳐 최종 output을 만듭니다.
 
@@ -636,44 +636,31 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 ### FSDP 예제 코드
 
-FSDP는 사용법 자체는 간단합니다. 일반적인 PyTorch 모델을 정의한 뒤, `FSDP()`로 감싸기만 하면 됩니다.
+FSDP2는 사용법 자체는 간단합니다. 일반적인 PyTorch 모델을 정의한 뒤, sharding하고 싶은 단위(보통 transformer block 같은 layer)마다 `fully_shard`를 호출하고, 마지막으로 모델 전체에 한 번 더 호출하면 됩니다.
 
 ```python
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
-        self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 10)
+from torch.distributed.fsdp import fully_shard, FSDPModule
 
-    def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        x = self.dropout1(x)
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout2(x)
-        x = self.fc2(x)
-        return F.log_softmax(x, dim=1)
+model = Transformer()
+for layer in model.layers:
+    fully_shard(layer)
+fully_shard(model)
 ```
 
-모델 자체는 일반적인 CNN과 동일합니다. FSDP를 적용하려면 다음 두 줄이면 충분합니다:
+이렇게 layer 단위로 나누어 적용하는 이유는 메모리 효율 때문입니다. forward에서 layer i를 계산하는 동안 나머지 layer들은 sharded 상태로 남아 있고, 필요한 layer의 parameter만 그때그때 all-gather됩니다. FSDP1에서는 `auto_wrap_policy`로 이 wrapping 단위를 지정했지만, FSDP2에서는 이렇게 명시적으로 `fully_shard`를 호출하는 방식으로 바뀌었습니다.
+
+`fully_shard`를 적용하고 나면 각 parameter는 일반 `torch.Tensor`가 아니라 dim-0 기준으로 sharding된 **DTensor**(Distributed Tensor)가 됩니다:
 
 ```python
-def fsdp_main(rank, world_size, args):
-    setup(rank, world_size)
-    ……
-    model = Net().to(rank)
-    model = FSDP(model)
-    ……
+from torch.distributed.tensor import DTensor, Shard
+
+for param in model.parameters():
+    assert isinstance(param, DTensor)
+    assert param.placements == (Shard(0),)
+    # param.to_local()로 이 rank가 가진 shard를 확인할 수 있습니다
 ```
+
+또한 `fully_shard(model)`은 model의 클래스를 원래 클래스와 `FSDPModule`을 합친 새 클래스(예: `FSDPTransformer`)로 바꿔치기합니다. 덕분에 모델은 여전히 `nn.Module`처럼 동작하면서도, `unshard()`처럼 all-gather 시점을 수동으로 제어하는 FSDP 전용 API를 추가로 갖게 됩니다.
 
 <img src="/images/05/slide33_1.png" alt="FSDP 동작 다이어그램 (PyTorch FSDP: Experiences on Scaling Fully Sharded Data Parallel)" class="h-40 mt-4 mx-auto" />
 
@@ -681,19 +668,40 @@ def fsdp_main(rank, world_size, args):
 
 (PyTorch FSDP: Experiences on Scaling Fully Sharded Data Parallel)
 
-https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html
+https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html
+
+</div>
+
+### FSDP1 vs. FSDP2
+
+내부 동작을 보기 전에, 두 세대가 parameter를 표현하는 방식의 차이를 먼저 짚고 넘어가겠습니다.
+
+**FSDP1**은 하나의 FSDP module에 속한 모든 parameter를 **FlatParameter**라는 단일 1D tensor로 이어 붙인(flatten) 뒤, 그것을 rank들에 나누어 sharding했습니다. 구현은 단순하지만 여러 parameter가 하나의 tensor로 뭉개지기 때문에, parameter별 metadata(`dtype`, `requires_grad` 등)를 온전히 유지하기 어렵다는 근본적인 한계가 있었습니다.
+
+**FSDP2**는 FlatParameter를 버리고 parameter 하나하나를 dim-0 기준으로 sharding하는 **per-parameter sharding**을 채택했습니다. 각 parameter는 원본 tensor의 shape·metadata와 sharding 방식(placement)을 함께 들고 있는 DTensor가 됩니다. 이 변화 덕분에:
+
+- parameter 단위로 `requires_grad`를 다룰 수 있어 일부 parameter만 freeze하는 기법(LoRA 등)이 그대로 동작합니다
+- fp8 등 서로 다른 dtype의 parameter를 한 모델 안에 섞을 수 있습니다
+- 각 rank가 자기 shard만 저장하는 sharded state dict 방식의 checkpointing이 추가 통신 없이 이루어집니다
+- 내부적으로 `recordStream`을 쓰지 않고 stream 간 동기화로 대체하여 memory 사용량이 결정적(deterministic)으로 관리됩니다
+
+DTensor는 바로 뒤에서 다룰 Tensor Parallel에서도 동일하게 쓰이는 추상화라서, FSDP2와 TP를 조합하는 것도 같은 표현 위에서 자연스럽게 이루어집니다.
+
+<div class="text-xs mt-2 text-center">
+
+참고: [FSDP1 vs FSDP2 (Hugging Face Accelerate)](https://huggingface.co/docs/accelerate/concept_guides/fsdp1_vs_fsdp2)
 
 </div>
 
 ### FSDP 내부 동작
 
-FSDP의 내부 동작은 initialization, forward, backward 세 단계로 나눌 수 있습니다.
+FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌 수 있습니다.
 
-**Initialization** 단계에서는 먼저 FlatParameter를 설정합니다. 이 과정에서 개별 process의 sharding 정보를 결정하고, sharded memory를 할당하며, 불필요한 unsharded memory를 해제합니다. 그리고 forward/backward 실행 시 자동으로 호출될 hook들을 등록합니다. pre hook에서는 `all_gather`(unsharding)를, post hook에서는 resharding(모아 온 전체 parameter를 해제)을 수행하도록 설정합니다.
+**Initialization** 단계에서는 `fully_shard`가 호출된 module 단위로 parameter들을 dim-0 기준으로 쪼개 DTensor로 바꾸고, 각 rank는 자신의 shard에 해당하는 memory만 유지합니다. 그리고 forward/backward 실행 시 자동으로 호출될 hook들을 등록합니다. pre hook에서는 `all_gather`(unsharding)를, post hook에서는 resharding(모아 온 전체 parameter를 해제)을 수행하도록 설정합니다. 큰 모델의 경우 meta device 위에서 모델을 정의하고 `fully_shard` 적용 후 `to_empty()` + `reset_parameters()`로 shard만 materialize하면, 어떤 rank도 전체 모델을 memory에 올리지 않고 초기화할 수 있습니다.
 
-**Forward** 단계에서는 각 layer마다 `all_gather`로 sharded parameter를 복원(unsharding)하고, computation을 수행한 뒤, 다시 resharding하는 과정을 반복합니다. 한 layer의 계산이 끝나면 해당 layer의 전체 parameter를 다시 버려서 메모리를 절약합니다.
+**Forward** 단계에서는 `fully_shard` 단위마다 `all_gather`로 sharded parameter를 복원(unsharding)하고, computation을 수행한 뒤, 다시 resharding하는 과정을 반복합니다. 한 layer의 계산이 끝나면 해당 layer의 전체 parameter를 다시 버려서 메모리를 절약합니다. 이때 CPU thread가 다음 layer의 `all_gather`를 미리 발행(implicit prefetching)하기 때문에 통신과 계산이 겹쳐져(overlap) 수행되며, `set_modules_to_forward_prefetch` 같은 API로 이 스케줄을 명시적으로 제어할 수도 있습니다.
 
-**Backward** 단계에서는 forward와 유사하게 각 layer에서 `all_gather` → computation → resharding 과정을 거치지만, 추가로 gradient를 동기화하기 위한 `reduce_scatter` 연산이 수행됩니다. 이 hook은 `_register_post_backward_hook`을 통해 등록됩니다.
+**Backward** 단계에서는 forward와 유사하게 각 layer에서 `all_gather` → computation → resharding 과정을 layer 역순으로 거치지만, 추가로 gradient를 동기화하기 위한 `reduce_scatter` 연산이 수행됩니다. local gradient들이 `reduce_scatter`를 거치면 각 rank는 자신의 shard에 해당하는 gradient만 갖게 되고, optimizer도 sharded parameter와 sharded gradient 위에서 그대로 동작합니다.
 
 ### Tensor Parallel 예제 코드
 
