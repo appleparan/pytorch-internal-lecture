@@ -434,7 +434,7 @@ Graph mode에서는 fake tensor를 이용하여 forward를 빠르게 에뮬레�
 | **Backward 실행** | `loss.backward()` 호출 시 Autograd engine이 미리 등록된 backward graph를 따라가며 gradient를 계산. 호출할 때마다 준비 과정이 반복됨 | `loss.backward()` 호출 시 compiled backward가 **하나의 큰 Op**으로서 실행됨. Backend compiler로 이미 최적화된 코드가 수행됨 |
 | **사용자 코드 차이** | 기존 방식 그대로 | `torch.compile(model)` 한 줄 추가 정도 |
 
-겉에서 볼 때는 두 코드의 차이가 거의 없습니다. 오른쪽 코드만 봐서는 위 표의 복잡한 과정들이 일어난다는 것이 obvious하지 않지만, `torch.compile()`이 모델을 컴파일해 두었기 때문에 그냥 `model`을 쓰는 대신 `compiled_model`을 쓰는 것만으로 내부에서 알아서 최적화된 방식으로 forward와 backward가 처리됩니다. 그 "알아서 잘 되도록 하기 위해서 일어나는 과정"이 바로 AOTAutograd입니다.
+겉에서 볼 때는 두 코드의 차이가 거의 없습니다. 오른쪽 코드만 봐서는 위 표의 복잡한 과정들이 일어난다는 것을 알아차리기 어렵지만, `torch.compile()`이 모델을 컴파일해 두었기 때문에 그냥 `model`을 쓰는 대신 `compiled_model`을 쓰는 것만으로 내부에서 알아서 최적화된 방식으로 forward와 backward가 처리됩니다. 그 "알아서 잘 되도록 하기 위해서 일어나는 과정"이 바로 AOTAutograd입니다.
 
 아래는 `torch.compile()`을 적용한 학습 코드의 각 라인에서 실제로 어떤 일이 일어나는지를 번호로 표시한 것입니다. 왼쪽은 사용자가 작성하는 코드, 오른쪽은 AOTAutograd에 의해 생성되어 `torch.autograd.Function`으로 감싸진 compiled forward/backward의 예시입니다.
 
