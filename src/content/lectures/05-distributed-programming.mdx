@@ -29,7 +29,8 @@ PyTorch + NPU 온라인 모임 #5 | 2025-01-15
     - 그 위에 자리잡는 process group과 c10d 통신 계층의 아키텍처
 - torchrun을 활용한 distributed matmul 예제 - 프로세스 시작 → rendezvous → `all_reduce`로 결과 수집 → 종료까지의 전체 흐름을 코드 수준에서 확인
 - Device와 연결: CUDA 예제 - device 선택, 동기화, process group 생성/제거라는 접점으로 쪼개어 c10d 내부 동작 분석
-- 모델 병렬화 패키지들 - DDP, FSDP, Tensor Parallel이 각각 어떤 문제를 어떤 전략으로 푸는지, 그리고 이들이 결국 c10d의 collective communication 위에서 동작한다는 점
+- 모델 병렬화 패키지들 - 무엇이 GPU 메모리를 차지하는지에서 출발해, Data Parallel 축(DDP → ZeRO → FSDP)과 Model Parallel 축(TP, SP, PP)이 각각 어떤 문제를 어떤 전략으로 푸는지, 그리고 이들이 결국 c10d의 collective communication 위에서 동작한다는 점
+- (보충) DeepSpeed와 Accelerate - 같은 training loop가 프레임워크마다 어떻게 달라지고, 그 안에서 실제로 무엇이 도는지에 대한 강의 이후 정리
 
 
 ## MPI vs. OpenMP
@@ -614,17 +615,40 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 ## PyTorch가 제공하는 모델 병렬화 패키지들
 
-여기까지가 c10d 레벨의 저수준 분산 통신입니다. 실제 모델 학습에서는 이런 저수준 API를 직접 사용하기보다, PyTorch가 제공하는 고수준 병렬화 패키지를 사용하는 경우가 대부분입니다. 각 패키지는 서로 다른 병렬화 전략을 구현하고 있습니다.
+여기까지가 c10d 레벨의 저수준 분산 통신입니다. 실제 모델 학습에서는 이런 저수준 API를 직접 사용하기보다, PyTorch가 제공하는 고수준 병렬화 패키지를 사용하는 경우가 대부분입니다. 병렬화 기법의 이름이 많아(DDP, FSDP, ZeRO, TP, SP, PP, …) 헷갈리기 쉬운데, "**무엇을 복제하고 무엇을 쪼개는가**"를 기준으로 보면 지도가 그려집니다. 계산은 그대로 두고 학습 상태(parameter·gradient·optimizer state)를 어떻게 배치할지의 축이 **Data Parallel 계열**(DDP → ZeRO → FSDP)이고, 계산 자체를 쪼개는 축이 **Model Parallel 계열**(TP, SP, PP)입니다.
 
-**Distributed Data Parallel**(DDP)은 모델을 잘게 나누는 게 아니라 동일한 모델을 여러 GPU에 복제해 두고 데이터를 GPU별로 분배하는 Data Parallel 방식입니다. 각 GPU가 서로 다른 데이터 배치를 처리해서 throughput을 끌어올리고, 매 step마다 gradient를 `all_reduce`로 모아 평균한 뒤 모든 GPU의 모델 파라미터를 동일하게 업데이트합니다.
+### 무엇이 GPU 메모리를 차지하는가
 
-**Fully Sharded Data Parallel**(FSDP)은 모델이 너무 커서 한 머신에 통째로 올릴 수 없을 때 사용합니다. parameter(weight, bias)를 world_size로 나누어 각 GPU에 sharding해 두고, 어떤 op을 실행하기 직전에 그 op에 필요한 weight 조각을 다른 GPU들로부터 모아 완전한 weight를 구성한 뒤 계산합니다. 계산이 끝나면 받아 온 조각들은 다시 버리고, 다음 op에서 필요한 다른 조각을 또 모으는 식입니다. FSDP는 parameter뿐 아니라 gradient와 optimizer state까지 sharding하여 메모리를 절약하며, 계산 자체는 각 GPU가 자신의 데이터 배치에 대해 온전히 수행합니다.
+전략을 비교하기 전에, 학습 중 GPU 메모리에 무엇이 올라가 있는지부터 보겠습니다. 학습 상태는 크게 네 가지입니다:
+
+- **Parameter**: 모델 weight 자체. mixed precision이면 fp16/bf16으로 parameter당 2 byte
+- **Gradient**: backward가 만들어내는 값. parameter와 같은 크기로 2 byte
+- **Optimizer state**: Adam 기준 fp32 master weight(4 byte) + momentum(4 byte) + variance(4 byte) = 12 byte
+- **Activation**: forward 중간 결과. batch/sequence 길이에 비례하며, Week 4에서 본 activation checkpointing으로 줄이는 대상
+
+즉 mixed precision Adam 학습에서는 **parameter 1개당 약 16 byte**가 필요합니다. 7B 모델이라면 weight 자체는 14GB지만 학습 상태 전체는 112GB에 달해, 최신 GPU 한 장에도 들어가지 않습니다. inference에는 2 byte면 되는 모델이 학습에는 8배가 필요하다는 것 — 이 격차가 분산 학습 전략의 출발점이고, 각 전략은 "이 중 무엇을 rank들에 나눌 것인가"에 대한 서로 다른 답입니다.
+
+### Data Parallel 축: DDP → ZeRO → FSDP
+
+**Distributed Data Parallel**(DDP)은 모델을 잘게 나누는 게 아니라 동일한 모델을 여러 GPU에 복제해 두고 데이터를 GPU별로 분배하는 Data Parallel 방식입니다. 각 GPU가 서로 다른 데이터 배치를 처리해서 throughput을 끌어올리고, 매 step마다 gradient를 `all_reduce`로 모아 평균한 뒤 모든 GPU의 모델 파라미터를 동일하게 업데이트합니다. 위의 메모리 구조로 보면, DDP는 **16 byte/param 전체를 모든 GPU가 중복해서 들고 있는** 구성입니다.
+
+Microsoft의 **ZeRO**(Zero Redundancy Optimizer, 2019) 논문은 이 중복을 단계적으로 제거하자는 제안입니다:
+
+- **Stage 1**: optimizer state(12 byte)만 rank들에 나누어 sharding
+- **Stage 2**: gradient까지 sharding
+- **Stage 3**: parameter까지 sharding — 계산 직전에 all-gather로 모았다가 끝나면 버림
+
+**Fully Sharded Data Parallel**(FSDP)은 ZeRO Stage 3의 PyTorch 구현입니다. parameter(weight, bias)를 world_size로 나누어 각 GPU에 sharding해 두고, 어떤 op을 실행하기 직전에 그 op에 필요한 weight 조각을 다른 GPU들로부터 모아 완전한 weight를 구성한 뒤 계산합니다. 계산이 끝나면 받아 온 조각들은 다시 버리고, 다음 op에서 필요한 다른 조각을 또 모으는 식입니다. gradient와 optimizer state까지 sharding하여 메모리를 절약하며, 계산 자체는 각 GPU가 자신의 데이터 배치에 대해 온전히 수행합니다. 여전히 "Data Parallel"이라는 이름이 붙는 이유가 이것입니다 — 쪼개는 것은 저장(storage)이지 계산이 아닙니다.
+
+계보를 그려 보면: ZeRO 논문 → Microsoft가 **DeepSpeed** 라이브러리로 구현 → Meta가 FairScale에서 같은 아이디어를 FSDP로 구현 → PyTorch 본체로 upstream(FSDP1) → FSDP2로 재설계, 순서입니다. 즉 DeepSpeed와 FSDP는 같은 논문에서 출발한 두 구현이고, DeepSpeed는 "partitioning", FSDP는 "sharding"이라 부를 뿐 하는 일은 같습니다. 대응 관계는 DDP ≈ ZeRO-0, FSDP1의 `SHARD_GRAD_OP` ≈ ZeRO-2, `FULL_SHARD` ≈ ZeRO-3이며, FSDP2에서는 `reshard_after_forward=True/False`가 각각 ZeRO-3/ZeRO-2에 해당합니다. DeepSpeed와의 실무적 차이는 뒤의 보충 섹션에서 다룹니다.
 
 FSDP에는 두 세대의 구현이 있습니다. 초기 구현인 **FSDP1**(`FullyShardedDataParallel` wrapper)은 deprecated 상태이고, 현재는 `fully_shard` API 기반의 **FSDP2**를 사용하는 것이 권장됩니다. 개념적인 동작(sharding → all-gather → 계산 → reshard)은 동일하지만 내부 표현이 크게 달라졌는데, 이는 아래 "FSDP1 vs. FSDP2"에서 자세히 다룹니다.
 
+### Model Parallel 축: TP, SP, PP
+
 **Tensor Parallel**(TP)은 한 layer의 연산조차 한 머신에서 처리하지 못할 만큼 클 때 사용하는, FSDP보다 더 복잡한 병렬화입니다. weight뿐 아니라 연산 자체를 여러 GPU로 쪼개서 row parallel 또는 column parallel 방식으로 분할 계획(plan)을 따라 처리한 뒤, 결과를 다시 합쳐 최종 output을 만듭니다.
 
-이 외에도 **Sequence Parallel**(SP)과 **Pipeline Parallel**(PP)이 있으며, 실제 대규모 모델 학습에서는 이러한 기법들을 조합하여 사용합니다.
+이 외에도 layer의 연산을 sequence 차원으로 쪼개는 **Sequence Parallel**(SP), 모델을 layer 단위로 잘라 서로 다른 GPU에 이어 붙이고 microbatch를 흘려보내는 **Pipeline Parallel**(PP)이 있으며, 실제 대규모 모델 학습에서는 Data Parallel 축과 Model Parallel 축의 기법들을 조합하여 사용합니다(뒤의 "병렬화 조합" 참고).
 
 > 컴파일러처럼 보이지만 컴파일러는 아닙니다. FSDP나 TP는 모델을 재구성하는 방식이라는 점에서 어떻게 보면 컴파일러가 하는 일과 비슷합니다. 다만 실제 컴파일 과정 같은 건 구현되어 있지 않고, 입력도 출력도 `nn.Module`입니다. Python의 동적 클래스 생성 능력을 활용해 FSDP/TP가 해야 할 일을 함수로 정의하고 그것을 새로운 클래스로 wrap한 뒤 리턴하는 방식으로 "컴파일된 듯한 효과"만 만들어 냅니다.
 
@@ -633,6 +657,37 @@ FSDP에는 두 세대의 구현이 있습니다. 초기 구현인 **FSDP1**(`Ful
 >
 > **Q. 랑데뷰 역할을 하는 머신이 따로 있나요?**
 > 랑데뷰 host는 `--rdzv_endpoint`로 사용자가 지정한 노드가 맡습니다 (앞의 예제에서는 `192.168.0.2`). 별도의 전용 머신일 필요는 없고, 연산 노드 중 하나가 겸하는 것이 일반적입니다. 랑데뷰는 프로세스들이 서로를 찾고 world를 구성하기 위한 과정일 뿐이므로, 특정 물리 머신에 본질적으로 묶여 있는 것은 아닙니다.
+
+### DDP 예제 코드
+
+DDP는 모델을 `DistributedDataParallel`로 감싸기만 하면 되고, training loop는 단일 GPU 코드와 완전히 동일합니다.
+
+```python
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+model = Net().to(rank)
+model = DDP(model, device_ids=[rank])
+
+for batch, target in dataloader:      # rank마다 다른 batch
+    loss = loss_fn(model(batch), target)
+    loss.backward()                   # backward 중에 all_reduce가 자동 수행
+    optimizer.step()                  # 모든 rank가 동일한 update
+    optimizer.zero_grad()
+```
+
+`loss.backward()`와 `optimizer.step()` 사이에 gradient를 동기화하는 코드가 보이지 않는데, 이것이 DDP 내부 동작의 핵심입니다.
+
+### DDP 내부 동작
+
+DDP의 내부 동작도 initialization, forward, backward 단계로 나눌 수 있습니다.
+
+**Initialization** 단계에서는 rank 0의 parameter와 buffer를 모든 rank에 broadcast해서 완전히 동일한 상태에서 출발하도록 맞춥니다. 그리고 **Reducer**라는 내부 객체가 parameter들을 **bucket**(기본 25MB) 단위로 묶어 두고, 각 parameter에 autograd hook을 등록합니다. Week 4에서 본 autograd hook이 여기서 실전으로 쓰이는 것입니다.
+
+**Forward**는 로컬 계산 그대로입니다. 통신이 필요 없습니다.
+
+**Backward** 단계가 핵심입니다. autograd 엔진이 각 parameter의 gradient를 계산할 때마다 hook이 호출되고, 한 bucket에 속한 모든 gradient가 준비되면 그 bucket에 대해 **비동기 `all_reduce`를 즉시 발행**합니다. 나머지 layer들의 backward 계산이 계속되는 동안 앞서 발행된 통신이 뒤에서 진행되므로, 통신과 계산이 겹쳐집니다(overlap). bucket을 parameter 역순(backward에서 gradient가 만들어지는 순서)으로 구성하는 것도 이 overlap을 극대화하기 위해서입니다. backward가 끝나면 모든 gradient가 world_size로 평균된 상태이고, 각 rank가 같은 gradient로 같은 update를 수행하므로 parameter는 별도 동기화 없이도 계속 일치합니다.
+
+정리하면 DDP는 "nn.Module을 감싸고 hook으로 통신을 끼워 넣는" 구조이고, 뒤에서 볼 FSDP도 같은 패턴에서 통신의 종류와 시점만 달라진 것입니다.
 
 ### FSDP 예제 코드
 
@@ -703,6 +758,25 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 
 **Backward** 단계에서는 forward와 유사하게 각 layer에서 `all_gather` → computation → resharding 과정을 layer 역순으로 거치지만, 추가로 gradient를 동기화하기 위한 `reduce_scatter` 연산이 수행됩니다. local gradient들이 `reduce_scatter`를 거치면 각 rank는 자신의 shard에 해당하는 gradient만 갖게 되고, optimizer도 sharded parameter와 sharded gradient 위에서 그대로 동작합니다.
 
+### DDP vs. FSDP: 언제 무엇을 쓰나
+
+가장 헷갈리기 쉬운 질문입니다. "FSDP가 더 새롭고 알아서 해 주니까 좋은 것"이라고 생각하기 쉬운데, **FSDP는 DDP의 상위 호환이 아닙니다**. 둘은 메모리와 통신을 맞바꾸는 trade-off 관계입니다.
+
+내부 동작을 봤으니 step당 통신량을 비교할 수 있습니다. parameter 전체 크기를 P라 하면:
+
+- **DDP**: backward 중 gradient `all_reduce` 한 번뿐입니다. 통신량은 약 2P(ring all-reduce 기준)이고, bucket 단위로 계산과 거의 완전히 겹쳐집니다. forward는 통신이 없습니다.
+- **FSDP**(FULL_SHARD): forward에서 all-gather(P), backward에서 다시 all-gather(P) + `reduce_scatter`(P)로 약 3P입니다. 통신량이 1.5배일 뿐 아니라, all-gather가 끝나야 해당 layer의 계산을 시작할 수 있어서 prefetch로 숨기더라도 DDP보다 통신 의존이 큽니다.
+
+그 대가로 얻는 것이 메모리입니다. DDP는 rank마다 16 byte/param 전체를 복제하지만, FSDP는 그것을 world_size로 나눕니다. 따라서 결정 기준은 하나입니다:
+
+**모델의 학습 상태(≈ 16 byte/param) + activation이 GPU 한 장에 들어가는가?**
+
+- **들어간다** → DDP를 쓰십시오. 통신이 가장 적고, wrapping 단위 같은 결정도 필요 없어서 오히려 DDP 쪽이 "알아서 해 주는" 정도가 높습니다. 80GB GPU 기준으로 mixed precision Adam은 대략 1~3B 파라미터까지가 이 영역입니다.
+- **안 들어간다** → FSDP 외에 선택지가 없습니다. 7B 모델만 되어도 학습 상태가 112GB라 단일 GPU를 넘어섭니다.
+- **애매하다**(모델은 들어가는데 batch를 못 키우거나 아슬아슬하다) → 중간 지점이 있습니다. FSDP2의 `reshard_after_forward=False`(ZeRO-2에 해당)는 forward 후 parameter를 버리지 않아 backward의 all-gather를 아끼면서, gradient와 optimizer state만 sharding해 메모리를 줄입니다.
+
+정리하면 FSDP의 장점은 자동화가 아니라 순전히 메모리이고, 메모리가 문제가 아니라면 DDP가 더 빠르고 단순합니다. 실무에서 "일단 FSDP"가 되어 가는 이유는 요즘 학습 대상 모델이 대부분 DDP 한계를 넘는 크기이기 때문이지, FSDP가 DDP를 대체해서가 아닙니다.
+
 ### Tensor Parallel 예제 코드
 
 Tensor Parallel은 FSDP와 달리 계산 자체를 쪼개기 때문에 자동화가 어려워, 개발자가 모델의 어떤 layer를 어떻게 자를지 분할 계획(plan)을 직접 설계해야 합니다. 어떤 parameter를 column 방향으로, 어떤 것을 row 방향으로 쪼갤지를 명시적으로 지정한 뒤 plan을 함께 넘기면, PyTorch 패키지가 그 plan대로 모델까지 같이 잘라줍니다. 이 추상화는 Megatron-LM 등에서 제안된 분할 기법을 손쉽게 적용할 수 있게 한 것이라고 볼 수 있습니다.
@@ -743,6 +817,35 @@ https://pytorch.org/tutorials/intermediate/TP_tutorial.html
 
 위 코드에서 볼 수 있듯이, feed_forward의 w1은 column 방향으로, w2는 row 방향으로 분할하는 식의 계획을 세웁니다. 이러한 분할 전략은 Megatron-LM 등의 연구에서 제안된 기법을 활용하여 추상화한 것으로, PyTorch의 `parallelize_module` API를 통해 비교적 간결하게 적용할 수 있습니다.
 
+### Tensor Parallel 내부 동작
+
+`parallelize_module`이 하는 일도 결국 DTensor 변환입니다. plan에 따라 각 layer의 weight를 DTensor로 바꾸는데, `ColwiseParallel`은 output 차원(Linear weight의 dim-0)으로, `RowwiseParallel`은 input 차원(dim-1)으로 sharding합니다. FSDP2가 모든 parameter를 dim-0으로 일괄 sharding하는 것과 달리, TP는 연산의 수학적 구조에 맞춰 쪼개는 방향을 고릅니다.
+
+통신 삽입은 DTensor의 sharding propagation이 담당합니다. 각 op 실행 시 입력·출력의 placement를 보고 필요한 collective를 결정하는데, 위 예제처럼 Colwise(w1, w3) → Rowwise(w2)로 이어 붙이면 중간 activation은 sharded 상태 그대로 통신 없이 다음 layer로 넘어가고, row parallel 연산 끝에서 `all_reduce` 한 번으로 결과를 합칩니다. Megatron-LM이 수동으로 설계했던 "통신 최소화 배치"가 DTensor 추상화 위에서 자동으로 재현되는 셈입니다.
+
+### 병렬화 조합: DeviceMesh와 3D Parallelism
+
+실제 대규모 학습에서는 이 기법들을 하나만 쓰지 않고 조합합니다. 예를 들어 노드 안의 GPU들(NVLink로 빠르게 연결)에는 통신이 잦은 TP를, 노드 사이에는 FSDP를 적용하는 식입니다. 이 조합을 표현하는 추상화가 **DeviceMesh**입니다. 앞의 TP 예제에서 1차원 mesh를 만들었다면, 조합할 때는 다차원 mesh를 만들고 축마다 다른 병렬화를 할당합니다:
+
+```python
+from torch.distributed.device_mesh import init_device_mesh
+
+# 32 GPUs = dp 8 x tp 4
+mesh_2d = init_device_mesh("cuda", (8, 4),
+                           mesh_dim_names=("dp", "tp"))
+
+# 1) tp 축: 노드 안 4개 GPU에 연산을 쪼개고
+for block in model.layers:
+    parallelize_module(block, mesh_2d["tp"], layer_tp_plan)
+
+# 2) dp 축: TP로 쪼개진 모델을 다시 FSDP로 sharding
+for block in model.layers:
+    fully_shard(block, mesh=mesh_2d["dp"])
+fully_shard(model, mesh=mesh_2d["dp"])
+```
+
+이 조합이 자연스럽게 동작하는 이유는 FSDP2와 TP가 **같은 DTensor 추상화 위에 있기 때문**입니다. 한 parameter가 tp 축으로는 연산 방향으로, dp 축으로는 dim-0으로 sharding된 2D DTensor가 되고, 각 축의 collective는 해당 축의 process group 안에서만 일어납니다. 여기에 Pipeline Parallel까지 얹으면 소위 3D parallelism이 되는데, PyTorch native로 이 조합을 구현해 둔 대표 사례가 **torchtitan**입니다. FSDP1의 FlatParameter 시절에는 이런 조합이 어색했지만(모든 parameter가 1D로 뭉개져 있어 다른 병렬화와 합성 불가), FSDP2가 DTensor로 재설계되면서 조합 가능성이 핵심 장점이 됐습니다.
+
 ### 분산 프로그래밍 정리 Q&A
 
 지금까지 살펴본 분산 패키지들과 관련해 강의 중 나온 질문들을 정리합니다.
@@ -769,37 +872,100 @@ https://pytorch.org/tutorials/intermediate/TP_tutorial.html
 > Hadoop/MapReduce도 본질적으로는 shared memory를 가정하지 않는 분산 모델이라 MPI와 크게 다르지 않습니다. 다만 MapReduce는 storage 위 데이터 처리에 가깝고 collective의 종류가 제한적인 반면, MPI는 다양한 collective를 표준적으로 정의해 둬서 분산 학습에서 필요한 통신 패턴을 표현하기에 더 자연스러운 모델입니다.
 
 
-## 보충: ZeRO, DeepSpeed, 그리고 Accelerate
+## 보충: DeepSpeed와 Accelerate
 
-강의에서는 PyTorch가 직접 제공하는 병렬화 패키지까지만 다뤘지만, 실무에서는 DeepSpeed, Hugging Face Accelerate 같은 이름이 항상 함께 등장합니다. "그냥 Accelerate를 쓰면 알아서 다 되는 것 같은데, 안에서 뭐가 어떻게 쓰이는 건지" 혼란스럽기 쉬운 지점이라, 강의에는 없었던 내용이지만 이들의 관계를 정리하는 보충 섹션을 추가합니다.
+강의에서는 PyTorch가 직접 제공하는 병렬화 패키지까지만 다뤘지만, 실무에서는 DeepSpeed, Hugging Face Accelerate 같은 이름이 항상 함께 등장합니다. "그냥 Accelerate를 쓰면 알아서 다 되는 것 같은데, 안에서 뭐가 어떻게 쓰이는 건지" 혼란스럽기 쉬운 지점이라, 강의에는 없었던 내용이지만 이 둘도 앞의 패키지들과 같은 방식(예제 코드 → 내부 동작)으로 정리해 둡니다. 본문에서 본 것처럼 DeepSpeed는 FSDP와 같은 ZeRO 논문에서 출발한 형제 구현이고, Accelerate는 병렬화 구현이 아니라 이들을 갈아끼우는 스위치보드입니다.
 
-### ZeRO: DDP에서 FSDP로 가는 길
+### DeepSpeed 예제 코드
 
-먼저 DDP의 메모리 구조를 다시 보면, 각 GPU는 모델 전체의 복제본을 들고 있습니다. 이때 GPU가 실제로 들고 있는 것은 parameter만이 아니라 **parameter + gradient + optimizer state**입니다. mixed precision으로 Adam을 쓰는 경우 parameter는 fp16으로 2 byte지만, optimizer state로 fp32 master weight(4 byte)·momentum(4 byte)·variance(4 byte)를 추가로 들고 있어야 해서, parameter 1개당 총 16 byte 수준의 메모리가 필요합니다. 즉 모델이 커질수록 "계산에 쓰는 것"보다 "중복으로 복제해 둔 학습 상태"가 메모리를 잡아먹는 구조입니다.
+DeepSpeed는 wrapping이 아니라 `deepspeed.initialize()`로 model과 optimizer를 **engine**으로 바꿔치기하고, training loop의 backward/step 호출까지 engine이 가져갑니다.
 
-Microsoft의 **ZeRO**(Zero Redundancy Optimizer, 2019) 논문은 이 중복을 단계적으로 제거하자는 제안입니다:
+```python
+import deepspeed
 
-- **Stage 1**: optimizer state만 rank들에 나누어 sharding
-- **Stage 2**: gradient까지 sharding
-- **Stage 3**: parameter까지 sharding — 계산 직전에 all-gather로 모았다가 끝나면 버림
+model_engine, optimizer, dataloader, _ = deepspeed.initialize(
+    model=model,
+    model_parameters=model.parameters(),
+    config="ds_config.json",
+)
 
-Stage 3이 바로 앞에서 본 FSDP의 동작 방식입니다. 계보를 그려 보면: ZeRO 논문 → Microsoft가 **DeepSpeed** 라이브러리로 구현 → Meta가 FairScale에서 같은 아이디어를 FSDP로 구현 → PyTorch 본체로 upstream(FSDP1) → FSDP2로 재설계, 순서입니다. 즉 **DeepSpeed와 FSDP는 같은 논문에서 출발한 두 구현**이고, DeepSpeed는 "partitioning", FSDP는 "sharding"이라고 부를 뿐 하는 일은 같습니다. 대응 관계는 대략 DDP ≈ ZeRO-0, FSDP1의 `SHARD_GRAD_OP` ≈ ZeRO-2, `FULL_SHARD` ≈ ZeRO-3이며, FSDP2에서는 `reshard_after_forward=True/False`가 각각 ZeRO-3/ZeRO-2에 해당합니다.
+for batch, target in dataloader:
+    loss = loss_fn(model_engine(batch), target)
+    model_engine.backward(loss)   # loss.backward()가 아니라 engine 호출
+    model_engine.step()           # optimizer.step()도 engine이 대신
+```
+
+동작 방식은 코드가 아니라 JSON config에 선언합니다:
+
+```json
+{
+  "train_micro_batch_size_per_gpu": 4,
+  "gradient_accumulation_steps": 4,
+  "zero_optimization": {
+    "stage": 3,
+    "offload_optimizer": { "device": "cpu" }
+  },
+  "bf16": { "enabled": true }
+}
+```
+
+DDP/FSDP가 "모델만 감싸고 loop는 그대로"인 것과 달리 loop 자체가 바뀌는 이유는, gradient accumulation·clipping·loss scaling·partitioning 시점을 전부 engine이 제어하는 설계이기 때문입니다. 사용자는 config에 선언만 하고, 실행 순서는 engine이 결정합니다.
+
+### DeepSpeed 내부 동작
+
+`deepspeed.initialize()`는 `nn.Module`을 **DeepSpeedEngine**으로 감싸고, optimizer를 ZeRO optimizer로 교체합니다. config의 stage에 따라:
+
+- **Stage 1**: optimizer state를 rank별로 partition합니다. backward는 DDP처럼 all-reduce하되, 각 rank는 자기 partition에 해당하는 state만 유지·갱신합니다.
+- **Stage 2**: gradient에 hook을 걸어, backward 중 각 rank가 자신이 담당하는 partition의 gradient만 모아 갖도록 reduce합니다.
+- **Stage 3**: forward/backward 전후로 parameter를 gather/partition하는 hook을 등록합니다 — FSDP의 all-gather → 계산 → reshard와 같은 그림입니다.
+
+`engine.backward(loss)`는 loss scaling을 적용해 backward를 수행하고, gradient accumulation 경계에서만 통신을 발행합니다. `engine.step()`은 accumulation step 수와 clipping을 확인한 뒤 실제 optimizer step을 수행하고 partition 상태를 유지합니다. 결국 바닥에서 도는 것은 FSDP와 동일한 c10d(NCCL) collective이고, 다른 것은 API 스타일과 아래의 구현 세부입니다.
 
 ### FSDP vs. DeepSpeed
 
-그렇다면 실무에서 무엇이 다를까요? 둘 다 c10d(NCCL)의 collective communication 위에서 all-gather/reduce-scatter를 수행한다는 바닥은 동일하고, 차이는 구현 세부에 있습니다:
+실무 관점의 차이는 다음과 같습니다:
 
 - **Precision 처리**: DeepSpeed는 parameter를 준비하는 시점에 항상 fp32 master weight로 upcast하고 optimizer도 fp32로 돕니다. FSDP는 모델의 `torch_dtype`을 존중해서, mixed precision을 끄면 optimizer까지 low precision으로 돌리는 것도 가능합니다. GPU 수가 적을 때는 이 upcast 오버헤드가 체감될 수 있습니다.
 - **Offload**: FSDP는 parameter/gradient/optimizer state를 전부 CPU로 내리거나 전부 GPU에 두는 all-or-nothing인 반면, DeepSpeed는 parameter와 optimizer state를 따로따로 내릴 수 있고 NVMe offload까지 지원합니다.
 - **설정 노출 방식**: FSDP는 wrapping 단위(FSDP2에서는 `fully_shard` 호출 위치) 등을 사용자가 명시하는 반면, DeepSpeed는 JSON config 하나를 주면 내부에서 알아서 처리하는 스타일입니다.
 
-### Accelerate는 무엇을 하는가
+### Accelerate 예제 코드
 
-**Accelerate는 새로운 병렬화 구현이 아닙니다.** DDP, FSDP, DeepSpeed를 코드 수정 없이 갈아끼울 수 있게 해 주는 통합 frontend입니다. "알아서 다 되는" 것처럼 보이는 흐름을 뜯어 보면:
+**Accelerate는 새로운 병렬화 구현이 아닙니다.** DDP, FSDP, DeepSpeed를 코드 수정 없이 갈아끼울 수 있게 해 주는 통합 frontend입니다. 사용자 코드는 어떤 backend를 쓰든 하나입니다:
+
+```python
+from accelerate import Accelerator
+
+accelerator = Accelerator()
+model, optimizer, dataloader = accelerator.prepare(
+    model, optimizer, dataloader
+)
+
+for batch, target in dataloader:
+    loss = loss_fn(model(batch), target)
+    accelerator.backward(loss)    # backend에 맞는 backward로 위임
+    optimizer.step()
+    optimizer.zero_grad()
+```
+
+이 스크립트를 어떤 병렬화로 실행할지는 코드가 아니라 실행 시점의 config가 정합니다:
+
+```bash
+accelerate launch --config_file ddp.yaml   train.py   # DDP로
+accelerate launch --config_file fsdp2.yaml train.py   # FSDP2로
+accelerate launch --config_file ds_z3.yaml train.py   # DeepSpeed ZeRO-3로
+```
+
+앞에서 본 세 프레임워크의 코드 차이(DDP/FSDP는 loop 그대로, DeepSpeed는 engine이 backward/step을 가져감)를 `accelerator.backward()`라는 공통 인터페이스 뒤로 숨긴 것입니다.
+
+### Accelerate 내부 동작
+
+"알아서 다 되는" 것처럼 보이는 흐름을 뜯어 보면:
 
 1. `accelerate launch --config_file ...`이 config를 읽고 process들을 띄웁니다. 앞에서 본 torchrun과 같은 역할로, world/rank/rendezvous 개념이 그대로 적용됩니다.
 2. 스크립트 안에서 `Accelerator()`를 생성하면 `AcceleratorState`가 환경 변수를 분석해 지금이 어떤 분산 세팅(단일 GPU, DDP, FSDP, DeepSpeed, …)인지 파악합니다.
 3. `accelerator.prepare(model, optimizer, scheduler, dataloader)`가 실제 변환을 수행합니다. config에 따라 model을 DDP 컨테이너로 감싸거나, FSDP를 적용하거나, DeepSpeed engine으로 초기화합니다. optimizer와 scheduler는 `AcceleratedOptimizer` 같은 얇은 wrapper로 감싸는 정도지만, dataloader는 rank마다 서로 다른 batch를 받도록 batch sampler를 교체해 **재생성**하고, shuffle 등이 rank 간에 일관되도록 random number generator도 동기화합니다.
+4. `accelerator.backward(loss)`는 backend에 따라 분기합니다. DeepSpeed면 `engine.backward(loss)`를, mixed precision이면 loss scaling을 적용한 `loss.backward()`를, 그 외에는 그냥 `loss.backward()`를 호출합니다. DDP/FSDP의 통신은 어차피 backward hook에서 자동으로 일어나므로 여기서 특별히 할 일이 없습니다.
 
 즉 사용자가 보는 training loop는 하나지만, 실제로 all-gather와 reduce-scatter를 수행하는 것은 여전히 이 강의에서 본 PyTorch 분산 스택(또는 DeepSpeed)입니다. Accelerate는 그 앞의 스위치보드일 뿐입니다. `transformers`의 Trainer도 내부적으로 Accelerate를 사용하므로, "Trainer에 config만 바꿔 끼우면 FSDP↔DeepSpeed 전환이 되는" 것도 같은 원리입니다.
 
