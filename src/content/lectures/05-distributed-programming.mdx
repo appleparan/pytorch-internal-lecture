@@ -30,7 +30,7 @@ PyTorch + NPU 온라인 모임 #5 | 2025-01-15
 - torchrun을 활용한 distributed matmul 예제 - 프로세스 시작 → rendezvous → `all_reduce`로 결과 수집 → 종료까지의 전체 흐름을 코드 수준에서 확인
 - Device와 연결: CUDA 예제 - device 선택, 동기화, process group 생성/제거라는 접점으로 쪼개어 c10d 내부 동작 분석
 - 모델 병렬화 패키지들 - 무엇이 GPU 메모리를 차지하는지에서 출발해, Data Parallel 축(DDP → ZeRO → FSDP)과 Model Parallel 축(TP, SP, PP)이 각각 어떤 문제를 어떤 전략으로 푸는지, 그리고 이들이 결국 c10d의 collective communication 위에서 동작한다는 점
-- (보충) 새로운 축(EP, CP)과 DeepSpeed·Accelerate - MoE와 long context가 만든 새 병렬화 축, 그리고 같은 training loop가 프레임워크마다 어떻게 달라지는지에 대한 강의 이후 정리
+- (보충) 새로운 축(EP, CP)과 DeepSpeed·Accelerate·Ray - MoE와 long context가 만든 새 병렬화 축, 그리고 같은 training loop가 프레임워크마다 어떻게 달라지는지에 대한 강의 이후 정리
 
 
 ## MPI vs. OpenMP
@@ -624,6 +624,8 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 여기까지가 c10d 레벨의 저수준 분산 통신입니다. 실제 모델 학습에서는 이런 저수준 API를 직접 사용하기보다, PyTorch가 제공하는 고수준 병렬화 패키지를 사용하는 경우가 대부분입니다. 병렬화 기법의 이름이 많아(DDP, FSDP, ZeRO, TP, SP, PP, …) 헷갈리기 쉬운데, "무엇을 복제하고 무엇을 쪼개는가"를 기준으로 보면 지도가 그려집니다. 계산은 그대로 두고 학습 상태(parameter·gradient·optimizer state)를 어떻게 배치할지의 축이 **Data Parallel 계열**(DDP → ZeRO → FSDP)이고, 계산 자체를 쪼개는 축이 **Model Parallel 계열**(TP, SP, PP)입니다. 최근 모델 구조의 변화로 여기에 **Expert Parallel**(EP)과 **Context Parallel**(CP)이라는 축이 추가로 등장했는데, 이것은 강의 뒤의 보충 섹션에서 다룹니다.
 
+이 지도는 PyTorch 공식 문서의 계층 구분과도 그대로 대응됩니다. [PyTorch Distributed Overview](https://docs.pytorch.org/tutorials/beginner/dist_overview.html)는 분산 스택을 병렬화 API(DDP, FSDP2, TP, PP) → sharding primitive(DTensor, DeviceMesh) → 통신 계층(c10d) → launcher(torchrun)의 4개 층으로 정리하는데, 이 강의가 아래(c10d)에서 위(병렬화 패키지)로 올라온 순서를 뒤집으면 정확히 그 구조입니다. 모델 크기에 따른 선택 기준(한 GPU에 들어가면 DDP, 안 들어가면 FSDP2, FSDP2로도 한계에 부딪히면 TP/PP)도 공식 권고와 아래에서 볼 내용이 일치합니다.
+
 ### 무엇이 GPU 메모리를 차지하는가
 
 전략을 비교하기 전에, 학습 중 GPU 메모리에 무엇이 올라가 있는지부터 보겠습니다. 학습 상태는 크게 네 가지입니다:
@@ -836,17 +838,17 @@ for transformer_block in model.layers:
     )
 ```
 
-<img src="/images/05/slide35_1.png" alt="Megatron-LM의 Tensor Parallel 분할 다이어그램" class="h-56 mx-auto" />
+위 코드에서 볼 수 있듯이, feed_forward의 w1은 column 방향으로, w2는 row 방향으로 분할하는 식의 계획을 세웁니다. attention도 같은 패턴으로, wq/wk/wv는 `ColwiseParallel`, 출력 projection인 wo는 `RowwiseParallel`로 자르는 것이 공식 TP tutorial의 Llama 예제 구성입니다. 이러한 분할 전략은 Megatron-LM 등의 연구에서 제안된 기법을 활용하여 추상화한 것으로, PyTorch의 `parallelize_module` API를 통해 비교적 간결하게 적용할 수 있습니다.
+
+<img src="/images/05/slide35_1.png" alt="Megatron-LM의 Tensor Parallel 분할 다이어그램" class="h-56 mt-4 mx-auto" />
 
 <div class="text-xs mt-2 text-center">
 
 (Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism)
 
-https://pytorch.org/tutorials/intermediate/TP_tutorial.html
+https://docs.pytorch.org/tutorials/intermediate/TP_tutorial.html
 
 </div>
-
-위 코드에서 볼 수 있듯이, feed_forward의 w1은 column 방향으로, w2는 row 방향으로 분할하는 식의 계획을 세웁니다. 이러한 분할 전략은 Megatron-LM 등의 연구에서 제안된 기법을 활용하여 추상화한 것으로, PyTorch의 `parallelize_module` API를 통해 비교적 간결하게 적용할 수 있습니다.
 
 ### Tensor Parallel 내부 동작
 
@@ -929,9 +931,9 @@ fully_shard(model, mesh=mesh_2d["dp"])
 정리하면 필요 조건이 명확합니다. EP는 "모델이 MoE인가", CP는 "context 길이가 activation 메모리를 지배하는가"로 결정됩니다. 특히 CP는 backward를 위해 activation을 들고 있어야 하는 학습 쪽에서 오히려 더 절실하고, inference에서도 MoE serving(EP)과 long prompt prefill(CP)에 같은 기법이 그대로 쓰입니다.
 
 
-## 보충: DeepSpeed와 Accelerate
+## 보충: DeepSpeed, Accelerate, 그리고 Ray
 
-강의에서는 PyTorch가 직접 제공하는 병렬화 패키지까지만 다뤘지만, 실무에서는 DeepSpeed, Hugging Face Accelerate 같은 이름이 항상 함께 등장합니다. "그냥 Accelerate를 쓰면 알아서 다 되는 것 같은데, 안에서 뭐가 어떻게 쓰이는 건지" 혼란스럽기 쉬운 지점이라, 강의에는 없었던 내용이지만 이 둘도 앞의 패키지들과 같은 방식(예제 코드 → 내부 동작)으로 정리해 둡니다. 본문에서 본 것처럼 DeepSpeed는 FSDP와 같은 ZeRO 논문에서 출발한 형제 구현이고, Accelerate는 병렬화 구현이 아니라 이들을 갈아끼우는 스위치보드입니다.
+강의에서는 PyTorch가 직접 제공하는 병렬화 패키지까지만 다뤘지만, 실무에서는 DeepSpeed, Hugging Face Accelerate, Ray 같은 이름이 항상 함께 등장합니다. "그냥 Accelerate를 쓰면 알아서 다 되는 것 같은데, 안에서 뭐가 어떻게 쓰이는 건지" 혼란스럽기 쉬운 지점이라, 강의에는 없었던 내용이지만 이들도 앞의 패키지들과 같은 방식(예제 코드 → 내부 동작)으로 정리해 둡니다. 본문에서 본 것처럼 DeepSpeed는 FSDP와 같은 ZeRO 논문에서 출발한 형제 구현이고, Accelerate는 병렬화 구현이 아니라 이들을 갈아끼우는 스위치보드이며, Ray는 그보다 바깥에서 클러스터 자원을 관리하는 orchestrator입니다.
 
 ### DeepSpeed 예제 코드
 
@@ -1026,6 +1028,48 @@ accelerate launch --config_file ds_z3.yaml train.py   # DeepSpeed ZeRO-3로
 
 즉 사용자가 보는 training loop는 하나지만, 실제로 all-gather와 reduce-scatter를 수행하는 것은 여전히 이 강의에서 본 PyTorch 분산 스택(또는 DeepSpeed)입니다. Accelerate는 그 앞의 스위치보드일 뿐입니다. `transformers`의 Trainer도 내부적으로 Accelerate를 사용하므로, "Trainer에 config만 바꿔 끼우면 FSDP↔DeepSpeed 전환이 되는" 것도 같은 원리입니다.
 
+### Ray 예제 코드
+
+**Ray**(정확히는 Ray Train)는 앞의 둘과 층이 다릅니다. Accelerate가 한 학습 스크립트 안에서 backend를 갈아끼우는 스위치라면, Ray는 그 스크립트를 클러스터 위에서 돌리는 orchestrator입니다. torchrun 명령 없이, 학습 함수를 `TorchTrainer`에 넘기면 Ray가 process를 띄웁니다.
+
+```python
+import ray.train.torch
+from ray.train import ScalingConfig
+from ray.train.torch import TorchTrainer
+
+def train_func_per_worker(config):
+    train_shard = ray.train.get_dataset_shard("train")
+    model = ray.train.torch.prepare_model(build_model())  # 내부에서 DDP로 wrap
+
+    for batch in train_shard.iter_torch_batches(batch_size=16):
+        loss = loss_fn(model(batch["x"]), batch["y"])
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+        ray.train.report(metrics={"loss": loss.item()})
+
+trainer = TorchTrainer(
+    train_func_per_worker,
+    scaling_config=ScalingConfig(num_workers=4, use_gpu=True),
+    datasets={"train": train_dataset},
+)
+result = trainer.fit()
+```
+
+torchrun을 실행하는 단계가 없다는 점이 눈에 띕니다. GPU 4개에서 여러 노드로 늘리는 것도 `num_workers` 숫자를 바꾸는 것이 전부입니다.
+
+### Ray 내부 동작
+
+`trainer.fit()`이 호출되면 Ray가 클러스터에서 GPU를 가진 worker actor들을 스케줄하고, 각 worker에 rank/local_rank와 MASTER_ADDR 같은 환경을 설정한 뒤 `torch.distributed`를 NCCL backend로 초기화합니다. 즉 torchrun과 rendezvous가 하던 process 관리를 Ray의 actor 스케줄러가 대신하는 것이고, 그 아래의 collective communication은 이 강의에서 본 것과 완전히 동일합니다. `prepare_model()`은 모델을 DDP로 감싸 device에 올리며(`parallel_strategy="fsdp"`로 FSDP도 선택 가능), 병렬화 자체는 여전히 PyTorch 스택입니다.
+
+Ray가 그 위에 더해 주는 것은 클러스터 레벨 기능입니다:
+
+- **데이터 파이프라인**: Ray Data가 dataset을 worker별로 sharding해 나눠 주고, 전처리를 CPU 노드에서 스트리밍으로 돌립니다. GPU 노드는 학습만, CPU 노드는 전처리만 맡는 이기종(heterogeneous) 클러스터 구성이 가능합니다.
+- **Fault tolerance**: 노드가 죽으면 대체 노드를 확보해 최신 checkpoint에서 학습을 재개합니다(`FailureConfig`).
+- **다중 job 조율**: 여러 모델과 역할을 한 클러스터에서 함께 돌립니다. 최근 RLHF/post-training 프레임워크들이 학습 모델, reward 모델, rollout용 inference 엔진을 동시에 조율하기 위해 Ray를 채택하는 이유가 이것입니다.
+
+정리하면 세 도구는 층이 다릅니다. DeepSpeed는 FSDP와 같은 층(병렬화 구현), Accelerate는 그 위(backend 스위치), Ray는 가장 바깥(클러스터 orchestration)이므로 서로 배타적이지 않고, Ray worker 안에서 Accelerate나 DeepSpeed 학습을 돌리는 조합도 실제로 쓰입니다.
+
 ### Big Model Inference: 학습 밖의 sharding
 
 Accelerate에는 학습용 병렬화와 헷갈리기 쉬운 기능이 하나 더 있는데, `device_map="auto"`로 대표되는 **Big Model Inference**입니다. `init_empty_weights()`로 meta device 위에 빈 모델을 만들고(FSDP2의 meta device 초기화와 같은 트릭입니다), `load_checkpoint_and_dispatch()`가 checkpoint를 읽으면서 layer를 GPU → CPU RAM → disk 순으로 배치합니다. forward 시에는 hook이 각 layer의 weight를 실행 직전에 GPU로 올렸다가 끝나면 다시 내립니다.
@@ -1042,7 +1086,7 @@ Accelerate에는 학습용 병렬화와 헷갈리기 쉬운 기능이 하나 더
 
 <div class="text-xs mt-2 text-center">
 
-참고: [FSDP vs DeepSpeed](https://huggingface.co/docs/accelerate/concept_guides/fsdp_and_deepspeed) · [Accelerate's internal mechanisms](https://huggingface.co/docs/accelerate/concept_guides/internal_mechanism) · [Big Model Inference](https://huggingface.co/docs/accelerate/concept_guides/big_model_inference)
+참고: [FSDP vs DeepSpeed](https://huggingface.co/docs/accelerate/concept_guides/fsdp_and_deepspeed) · [Accelerate's internal mechanisms](https://huggingface.co/docs/accelerate/concept_guides/internal_mechanism) · [Big Model Inference](https://huggingface.co/docs/accelerate/concept_guides/big_model_inference) · [Distributed Training with Ray](https://docs.pytorch.org/tutorials/beginner/distributed_training_with_ray_tutorial.html)
 
 </div>
 
