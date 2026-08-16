@@ -724,11 +724,11 @@ for param in model.parameters():
 
 또한 `fully_shard(model)`은 model의 클래스를 원래 클래스와 `FSDPModule`을 합친 새 클래스(예: `FSDPTransformer`)로 바꿔치기합니다. 덕분에 모델은 여전히 `nn.Module`처럼 동작하면서도, `unshard()`처럼 all-gather 시점을 수동으로 제어하는 FSDP 전용 API를 추가로 갖게 됩니다.
 
-<img src="/images/05/slide33_1.png" alt="FSDP 동작 다이어그램 (PyTorch FSDP: Experiences on Scaling Fully Sharded Data Parallel)" class="h-40 mt-4 mx-auto" />
+<img src="/images/05/fsdp2_workflow.png" alt="FSDP2 workflow: forward에서 shard load, all-gather, local forward, full weight 해제를 거치고 backward에서 all-gather, local backward, reduce-scatter, full weight 해제 후 local weight update" class="h-48 mt-4 mx-auto diagram-bg p-2 rounded" />
 
 <div class="text-xs mt-2 text-center">
 
-(PyTorch FSDP: Experiences on Scaling Fully Sharded Data Parallel)
+(PyTorch FSDP2 Tutorial)
 
 https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html
 
@@ -763,6 +763,15 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 
 **Forward** 단계에서는 `fully_shard` 단위마다 `all_gather`로 sharded parameter를 복원(unsharding)하고, computation을 수행한 뒤, 다시 resharding하는 과정을 반복합니다. 한 layer의 계산이 끝나면 해당 layer의 전체 parameter를 다시 버려서 메모리를 절약합니다. 이때 CPU thread가 다음 layer의 `all_gather`를 미리 발행(implicit prefetching)하기 때문에 통신과 계산이 겹쳐져(overlap) 수행되며, `set_modules_to_forward_prefetch` 같은 API로 이 스케줄을 명시적으로 제어할 수도 있습니다.
 
+<img src="/images/05/fsdp2_implicit_prefetch.png" alt="Implicit prefetching: all-gather stream이 layer i+1, i+2의 all-gather를 미리 발행해 default stream의 layer 계산과 겹쳐지는 타임라인" class="h-40 mt-4 mx-auto diagram-bg p-2 rounded" />
+
+<div class="text-xs mt-2 text-center">
+
+(PyTorch FSDP2 Tutorial)
+
+</div>
+
+
 **Backward** 단계에서는 forward와 유사하게 각 layer에서 `all_gather` → computation → resharding 과정을 layer 역순으로 거치지만, 추가로 gradient를 동기화하기 위한 `reduce_scatter` 연산이 수행됩니다. local gradient들이 `reduce_scatter`를 거치면 각 rank는 자신의 shard에 해당하는 gradient만 갖게 되고, optimizer도 sharded parameter와 sharded gradient 위에서 그대로 동작합니다.
 
 ### DDP vs. FSDP: 언제 무엇을 쓰나
@@ -774,7 +783,16 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 - **DDP**: backward 중 gradient `all_reduce` 한 번뿐입니다. 통신량은 약 2P(ring all-reduce 기준)이고, bucket 단위로 계산과 거의 완전히 겹쳐집니다. forward는 통신이 없습니다.
 - **FSDP**(FULL_SHARD): forward에서 all-gather(P), backward에서 다시 all-gather(P) + `reduce_scatter`(P)로 약 3P입니다.
 
-숫자만 보면 FSDP가 1.5배 느려야 할 것 같지만, 실제로는 그렇지 않습니다. ring all-reduce는 내부적으로 all-gather + reduce-scatter와 동치라서(각각 P), backward의 통신량은 DDP와 FSDP가 정확히 같습니다. FSDP가 추가로 내는 비용은 forward의 all-gather(P)뿐인데, forward에는 그만큼의 계산이 함께 있어서 prefetch로 겹치면 "계산 대비 통신" 비율은 forward와 backward 모두 DDP와 같아집니다. 즉 per-device batch가 충분히 커서 계산 시간이 통신 시간을 넘는 영역(compute-bound)이라면, FSDP는 DDP와 거의 같은 속도로 돕니다.
+숫자만 보면 FSDP가 1.5배 느려야 할 것 같지만, 실제로는 그렇지 않습니다. ring all-reduce는 내부적으로 all-gather + reduce-scatter와 동치라서(각각 P), backward의 통신량은 DDP와 FSDP가 정확히 같습니다.
+
+<img src="/images/05/fsdp2_allreduce_decomposition.png" alt="All-Reduce가 Reduce-Scatter와 All-Gather의 조합으로 분해됨을 보여주는 다이어그램" class="h-56 mt-4 mx-auto diagram-bg p-2 rounded" />
+
+<div class="text-xs mt-2 text-center">
+
+(PyTorch FSDP2 Tutorial)
+
+</div>
+ FSDP가 추가로 내는 비용은 forward의 all-gather(P)뿐인데, forward에는 그만큼의 계산이 함께 있어서 prefetch로 겹치면 "계산 대비 통신" 비율은 forward와 backward 모두 DDP와 같아집니다. 즉 per-device batch가 충분히 커서 계산 시간이 통신 시간을 넘는 영역(compute-bound)이라면, FSDP는 DDP와 거의 같은 속도로 돕니다.
 
 반대로 per-device batch가 작으면 둘 다 통신이 병목이 됩니다. 계산 시간은 batch에 비례해 줄어드는데 통신량은 parameter 크기로 고정이기 때문입니다. 이 경계는 "device당 처리하는 token 수가 하드웨어의 FLOPs/bandwidth 비율(arithmetic intensity)을 넘는가"로 정해지는데, JAX scaling book의 분석에 따르면 TPU ICI 기준 대략 device당 2,500 token 수준이고 GPU + NVLink도 같은 자릿수입니다. GPU를 늘릴수록 per-device batch는 줄어들므로, data parallel 계열의 확장 한계는 메모리가 아니라 "global batch를 얼마나 키울 수 있는가"가 정합니다.
 
