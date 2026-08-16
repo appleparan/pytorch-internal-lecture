@@ -96,7 +96,7 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
 - Kernel programming - 위 기법들을 PyTorch만으로 구현할 수 없는 이유
     - PyTorch op 하나하나가 DRAM read-compute-write로 고정된 커널로 매핑되어, tiling과 fusion으로 DRAM 왕복을 줄이려는 시도가 op 레벨에서는 불가능
     - 그래서 필요한 더 낮은 레벨: CUDA, CUTLASS, Triton
-    - Flash Attention v1 → v2 → v3로 이어지는 GPU utilization 개선의 역사
+    - Flash Attention v1 → v2 → v3 → v4로 이어지는 GPU utilization 개선의 역사, 그리고 서빙 쪽 기본값이 되어가는 FlashInfer
 - Serving 최적화 framework - 이 최적화들을 하나로 묶는 layer
     - vLLM: paged attention을 만든 팀이 시작해 업계 표준이 된 서빙 프레임워크
     - 결론: LLM 추론 스택은 PyTorch 하나로 완성되지 않고, 커널 프로그래밍과 서빙 최적화라는 층이 함께 필요
@@ -632,11 +632,11 @@ Online algorithm이란 모든 데이터를 한 번에 보고 처리하는 게 �
 
 이 과정 전체를 한 줄로 요약하면, FlashAttention은 attention 계산 자체를 restructuring해서 메모리 read/write 횟수를 크게 줄인 알고리즘이고, 이를 처음 제안한 사람이 당시 Stanford PhD 학생이던 Tri Dao입니다. 비교를 위해 기존 방식을 보면, Standard Attention은 모든 단계를 PyTorch op으로 표현하고 그 안에서 cuBLAS 같은 가속 라이브러리를 호출합니다. PyTorch op 단위로는 앞서 본 tiling·fusion을 표현할 수 없기 때문에, 개별 GEMM은 빠르더라도 전체 GPU utilization은 낮은 상태로 남습니다. FlashAttention v1은 정확히 이 한계를 깨고 속도를 끌어올린 첫 버전입니다.
 
-### FlashAttention의 진화: v1 → v2 → v3
+### FlashAttention의 진화: v1 → v2 → v3 → v4
 
 버전별 진화는 다음과 같이 정리할 수 있습니다.
 
-<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-6 text-center">
+<div class="grid grid-cols-1 md:grid-cols-5 gap-3 mt-6 text-center">
   <div class="rounded border border-slate-600 bg-slate-800/30 p-4 flex flex-col">
     <p class="font-bold text-slate-100 mb-3">Standard attention</p>
     <div class="flex flex-col items-center gap-1 mb-3">
@@ -682,6 +682,18 @@ Online algorithm이란 모든 데이터를 한 번에 보고 처리하는 게 �
     </div>
     <p class="text-sm font-semibold mt-3" style="color:#7ba9dd">~75% utilization</p>
   </div>
+
+  <div class="rounded border border-slate-600 bg-slate-800/30 p-4 flex flex-col">
+    <p class="font-bold text-slate-100 mb-3">FlashAttention v4</p>
+    <div class="flex flex-col items-center gap-1 mb-3">
+      <span class="px-2 py-1 rounded text-white text-xs font-semibold" style="background-color:#3a7bd5">CuTe DSL</span>
+    </div>
+    <div class="text-xs text-slate-300 flex-1 space-y-1">
+      <p>Optimized for Blackwell</p>
+      <p>(softmax 재설계 · 새 pipelining)</p>
+    </div>
+    <p class="text-sm font-semibold mt-3" style="color:#7ba9dd">v3 대비 2–3×</p>
+  </div>
 </div>
 
 #### v1: CUDA 기반의 첫 구현
@@ -695,6 +707,18 @@ Tri Dao가 다음으로 주목한 것은 **CUTLASS**입니다. CUTLASS는 CUDA �
 #### v3: Hopper의 새 기능 활용
 
 이후 NVIDIA Hopper 아키텍처가 등장하면서 새로운 기능들이 추가됐습니다. 저정밀(low-precision) 연산 지원 강화, 비동기 데이터 복사(TMA)와 비동기 Tensor Core 연산(WGMMA) 등이 그 예입니다. 그런데 v2를 그대로 Hopper에서 돌리면 이 새 기능들을 활용하지 못해 utilization이 오히려 30%대로 떨어집니다. 이를 다시 끌어올리려고 새로 짠 것이 FlashAttention v3이고, Hopper에서 utilization을 약 75%까지 회복했습니다.
+
+#### v4: Blackwell 세대, 그리고 CuTe DSL
+
+같은 일이 Blackwell 세대에서 한 번 더 반복됩니다. **FlashAttention v4**는 Blackwell(그리고 Hopper)을 타깃으로 다시 작성된 버전으로, Hot Chips 2025에서 처음 공개되었습니다. 흥미로운 점 하나는 구현 언어입니다. C++ CUTLASS가 아니라 CUTLASS의 Python 프론트엔드인 **CuTe DSL**로 작성되었습니다. 또 softmax의 `exp` 계산을 특수 함수 유닛(SFU) 대신 일반 연산 유닛의 다항식 근사로 옮기는 등, 알고리즘 자체를 새 하드웨어의 자원 밸런스에 맞춰 재설계했습니다. 그 결과 Blackwell에서 v3 대비 2–3배 빠른 attention을 달성해, attention이 같은 크기의 행렬곱에 가까운 속도로 돌게 되었습니다. 세대마다 "하드웨어가 바뀌면 커널을 다시 짜야 한다"는 패턴이 그대로 이어지고 있는 셈입니다.
+
+> 출처: [FlashAttention-4: Algorithm and Kernel Pipelining Co-Design for Asymmetric Hardware Scaling](https://arxiv.org/abs/2603.05451)
+
+#### 서빙 현장의 기본값이 되어가는 FlashInfer
+
+한 가지 더 짚어 둘 것은, 실제 LLM 서빙에서는 FlashAttention 커널을 그대로 쓰기보다 **FlashInfer**를 거치는 경우가 점점 많아지고 있다는 점입니다. 앞서 Prefill/Decode 의존성 그림의 출처이기도 한 FlashInfer는, FlashAttention 계열의 아이디어(tiling·fusion·online softmax)를 계승하면서 paged KV cache, 가변 길이 배치, prefill/decode 커널 분리 같은 서빙 특유의 요구에 맞춰 attention 커널을 JIT으로 생성·커스터마이즈할 수 있게 만든 attention 엔진입니다(MLSys 2025 best paper). NVIDIA가 프로젝트를 지원하며 TensorRT-LLM의 Blackwell 커널까지 흡수했고, 현재 vLLM은 Blackwell에서 FlashInfer를 기본 attention backend로 사용합니다(Hopper에서는 여전히 FlashAttention이 기본). SGLang 등 다른 서빙 프레임워크에서도 사실상 표준 선택지에 가깝습니다. 정리하면 FlashAttention이 만든 알고리즘적 기반 위에서, 서빙 레이어의 요구를 흡수한 커널 라이브러리가 그 자리를 이어받는 흐름입니다.
+
+> 출처: [FlashInfer: Efficient and Customizable Attention Engine for LLM Inference Serving](https://arxiv.org/abs/2501.01005)
 
 #### Takeaway: "CUDA 직접 = 저수준 = 빠르다"는 더 이상 자명하지 않다
 
