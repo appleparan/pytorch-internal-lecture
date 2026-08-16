@@ -255,50 +255,7 @@ Prefill 쪽도 개념적으로는 거의 같습니다. Decoder-Only LLM이 할 �
 - **왼쪽 영역 (Memory Bound)** - 연산기는 아직 여유가 있는데, 데이터를 들여오고 내보내는 속도가 따라오지 못해 칩이 자기 풀스펙 연산력을 다 못 쓰는 상황
 - **오른쪽 영역 (Compute Bound)** - 연산기 자체가 이미 꽉 차 있어, 아무리 Arithmetic Intensity가 더 높아져도 더는 빨라지지 않는 상황
 
-X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모리에서 한 번 들고 온 데이터로 몇 번의 연산을 수행하는가"를 뜻합니다.
-
-이 그래프는 간단한 수식 몇 개로 정리할 수 있습니다. 어떤 연산(커널)이 수행해야 하는 총 연산량을 FLOPs, 메모리와 주고받아야 하는 총 데이터량을 Bytes라고 하면, Arithmetic Intensity는 그 비율입니다.
-
-$$
-\text{Arithmetic Intensity} = \frac{\text{Computation FLOPs}}{\text{Memory Bytes}}
-$$
-
-이제 이 연산을 실제 하드웨어에서 돌렸을 때, 연산에 걸리는 시간과 메모리 접근에 걸리는 시간은 각각 다음과 같습니다.
-
-$$
-T_{\text{math}} = \frac{\text{Computation FLOPs}}{\text{Peak FLOPs/s}}, \qquad
-T_{\text{mem}} = \frac{\text{Memory Bytes}}{\text{Peak Bandwidth}}
-$$
-
-하드웨어가 계산과 메모리 접근을 잘 겹쳐서(overlap) 실행한다고 가정하면 전체 실행 시간은 대략 $\max(T_{\text{math}}, T_{\text{mem}})$이 되고, $T_{\text{math}} > T_{\text{mem}}$이면 Compute Bound, 반대면 Memory Bound입니다. 이 경계를 하드웨어 쪽 숫자로 옮기면, 칩마다 "이 intensity를 넘어야 연산기를 풀로 쓸 수 있다"는 임계값이 하나 정해져 있는 셈입니다. Roofline 그래프에서 사선과 가로선이 만나는 터닝 포인트가 바로 이 값입니다.
-
-$$
-\text{Critical Intensity} = \frac{\text{Peak FLOPs/s}}{\text{Peak Bandwidth}}
-$$
-
-예를 들어 H100의 bf16 기준 임계값은 약 300 FLOPs/byte 수준입니다. 메모리에서 1 byte를 들고 올 때마다 300번 가까이 연산을 해야 연산기가 놀지 않는다는 뜻입니다.
-
-이걸 LLM의 지배적 연산인 행렬곱에 대입해 보면 왜 Decode가 문제인지 숫자로 드러납니다. $B$개 토큰을 한 번에 처리하는 행렬곱 $X[B, D] \times W[D, F]$는 연산량이 $2BDF$ FLOPs, 메모리 접근량이 (bf16 기준) $2BD + 2DF + 2BF$ bytes이므로,
-
-$$
-\text{Intensity} = \frac{2BDF}{2BD + 2DF + 2BF} \approx B \quad (B \ll D, F)
-$$
-
-즉 행렬곱의 intensity는 한 번에 처리하는 토큰 수 $B$에 거의 비례합니다. 임계값을 넘기려면 수백 개 토큰을 한 번에 처리해야 한다는 계산이 나옵니다.
-
-다만 이 "배치를 키우면 compute bound로 넘어간다"는 계산에는 중요한 예외가 하나 있습니다. weight는 배치 안의 모든 시퀀스가 공유하므로 배치가 커질수록 재사용이 늘어나지만, attention이 읽어야 하는 KV cache는 시퀀스마다 고유해서 배치를 아무리 키워도 재사용이 생기지 않습니다. 즉 Decode의 행렬곱(MLP·projection)은 배치로 compute bound까지 끌어올릴 수 있어도, attention 부분은 구조적으로 memory bound에 남습니다. GQA/MQA(여러 query head가 KV head를 공유)나 DeepSeek 계열의 MLA(latent 압축)처럼 KV cache 자체를 줄이는 아키텍처 레벨의 기법이 별도의 축으로 발전해 온 이유가 여기에 있습니다.
-
-이 관점에서 Decode 한 스텝이 넘을 수 없는 하한선도 바로 나옵니다. 매 스텝 모델 weight 전체와 배치에 담긴 KV cache 전체를 HBM에서 읽어야 하므로,
-
-$$
-T_{\text{step}} \ge \frac{\text{Param Bytes} + B \times \text{KV Cache Bytes}}{\text{Peak Bandwidth}}
-$$
-
-작은 배치에서 decode의 토큰당 지연시간은 사실상 "모델 weight를 HBM에서 한 번 스트리밍하는 시간"이 하한이라는 뜻입니다.
-
-참고: [Rooflines (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/roofline/)
-
-참고: [All About Transformer Inference (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/inference/)
+X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모리에서 한 번 들고 온 데이터로 몇 번의 연산을 수행하는가"를 뜻합니다. (이 그래프와 판별 기준을 수식으로 정리한 내용은 강의 끝의 **보충: Roofline을 수식으로 정리하기**에서 다룹니다.)
 
 이걸 Prefill·Decode에 대입하면 차이가 명확합니다. Prefill에서 `I like my cat`처럼 4개 토큰을 횡적으로 동시에 처리할 때, 한 레이어의 weight는 한 번만 들고 와서 4번 재사용됩니다. 즉 메모리 접근당 연산량이 4배라 Arithmetic Intensity가 높습니다. 반면 Decode에서 `lot` 한 토큰을 만들 때는 같은 weight를 들고 오지만 연산은 1번뿐이라 Intensity가 1/4 수준이 됩니다.
 
@@ -964,3 +921,53 @@ Flash Attention을 깊이 들여다보면서 *왜 이런 알고리듬을 PyTorch
 결국 오늘 강조하고 싶었던 한 가지는, LLM이 등장하면서 모델 최적화에 대한 needs가 점점 더 커졌고, 이 needs를 PyTorch가 분명히 핵심에 자리하지만 PyTorch만으로는 다 해결할 수 없어, PyTorch를 보완하는 커널 프로그래밍과 고수준 서빙 프레임워크 두 가지가 함께 개발자들에 의해 만들어지고 있는 상황이라는 점입니다.
 
 도입에서 본 그림으로 다시 돌아가면, 결국 LLM 추론 스택은 Open Pretrained LLM → Hugging Face 배포 → PyTorch → 커널 프로그래밍 + 서빙 최적화라는 구성으로 정리되고, 추론 특화 AI 반도체를 만드는 입장에서는 이 전체 스택을 빠짐없이 잘 받쳐주는 것이 결국 성능의 관건입니다.
+
+
+## 보충: Roofline을 수식으로 정리하기
+
+본문에서 그림으로 본 Roofline 분석은 간단한 수식 몇 개로 정리할 수 있습니다. 어떤 연산(커널)이 수행해야 하는 총 연산량을 FLOPs, 메모리와 주고받아야 하는 총 데이터량을 Bytes라고 하면, Arithmetic Intensity는 그 비율입니다.
+
+$$
+\text{Arithmetic Intensity} = \frac{\text{Computation FLOPs}}{\text{Memory Bytes}}
+$$
+
+이 연산을 실제 하드웨어에서 돌렸을 때, 연산에 걸리는 시간과 메모리 접근에 걸리는 시간은 각각 다음과 같습니다.
+
+$$
+T_{\text{math}} = \frac{\text{Computation FLOPs}}{\text{Peak FLOPs/s}}, \qquad
+T_{\text{mem}} = \frac{\text{Memory Bytes}}{\text{Peak Bandwidth}}
+$$
+
+하드웨어가 계산과 메모리 접근을 잘 겹쳐서(overlap) 실행한다고 가정하면 전체 실행 시간은 대략 $\max(T_{\text{math}}, T_{\text{mem}})$이 되고, $T_{\text{math}} > T_{\text{mem}}$이면 Compute Bound, 반대면 Memory Bound입니다. 이 경계를 하드웨어 쪽 숫자로 옮기면, 칩마다 "이 intensity를 넘어야 연산기를 풀로 쓸 수 있다"는 임계값이 하나 정해져 있는 셈입니다. Roofline 그래프에서 사선과 가로선이 만나는 터닝 포인트가 바로 이 값입니다.
+
+$$
+\text{Critical Intensity} = \frac{\text{Peak FLOPs/s}}{\text{Peak Bandwidth}}
+$$
+
+예를 들어 H100의 bf16 기준 임계값은 약 300 FLOPs/byte 수준입니다. 메모리에서 1 byte를 들고 올 때마다 300번 가까이 연산을 해야 연산기가 놀지 않는다는 뜻입니다.
+
+### 행렬곱의 intensity는 배치 크기에 비례한다
+
+이걸 LLM의 지배적 연산인 행렬곱에 대입해 보면 왜 Decode가 문제인지 숫자로 드러납니다. $B$개 토큰을 한 번에 처리하는 행렬곱 $X[B, D] \times W[D, F]$는 연산량이 $2BDF$ FLOPs, 메모리 접근량이 (bf16 기준) $2BD + 2DF + 2BF$ bytes이므로,
+
+$$
+\text{Intensity} = \frac{2BDF}{2BD + 2DF + 2BF} \approx B \quad (B \ll D, F)
+$$
+
+즉 행렬곱의 intensity는 한 번에 처리하는 토큰 수 $B$에 거의 비례합니다. 임계값을 넘기려면 수백 개 토큰을 한 번에 처리해야 한다는 계산이 나옵니다. Prefill이 Compute Bound이고 한 토큰씩 처리하는 Decode가 Memory Bound인 이유가 이 한 줄에 담겨 있습니다.
+
+### 예외: attention은 배치로도 구제되지 않는다
+
+다만 이 "배치를 키우면 compute bound로 넘어간다"는 계산에는 중요한 예외가 하나 있습니다. weight는 배치 안의 모든 시퀀스가 공유하므로 배치가 커질수록 재사용이 늘어나지만, attention이 읽어야 하는 KV cache는 시퀀스마다 고유해서 배치를 아무리 키워도 재사용이 생기지 않습니다. 즉 Decode의 행렬곱(MLP·projection)은 배치로 compute bound까지 끌어올릴 수 있어도, attention 부분은 구조적으로 memory bound에 남습니다. GQA/MQA(여러 query head가 KV head를 공유)나 DeepSeek 계열의 MLA(latent 압축)처럼 KV cache 자체를 줄이는 아키텍처 레벨의 기법이 별도의 축으로 발전해 온 이유가 여기에 있습니다.
+
+이 관점에서 Decode 한 스텝이 넘을 수 없는 하한선도 바로 나옵니다. 매 스텝 모델 weight 전체와 배치에 담긴 KV cache 전체를 HBM에서 읽어야 하므로,
+
+$$
+T_{\text{step}} \ge \frac{\text{Param Bytes} + B \times \text{KV Cache Bytes}}{\text{Peak Bandwidth}}
+$$
+
+작은 배치에서 decode의 토큰당 지연시간은 사실상 "모델 weight를 HBM에서 한 번 스트리밍하는 시간"이 하한이라는 뜻입니다.
+
+참고: [Rooflines (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/roofline/)
+
+참고: [All About Transformer Inference (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/inference/)
