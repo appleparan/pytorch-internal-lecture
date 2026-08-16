@@ -403,6 +403,14 @@ PyTorch 1.0과 2.0의 가장 큰 차이는 실행 모델(execution model) 자체
 | 미분 엔진 | **Autograd** | **AOTAutograd** |
 | 최적화 단위 | 단일 op | Forward + backward joint graph |
 
+그런데 왜 graph mode가 도입되면 미분 엔진까지 다시 만들어야 할까요? Eager mode의 Autograd가 동작할 수 있었던 전제는 "모든 연산이 하나씩 dispatcher를 지나며 실제로 실행된다"는 것이었습니다. Autograd는 바로 그 순간에 개입하여 각 연산의 `grad_fn`을 출력 텐서에 붙입니다. Graph mode에서는 이 전제가 다음과 같이 무너집니다:
+
+- **개입할 "순간"이 사라짐**: 컴파일된 forward는 여러 연산이 fusion된 하나의 덩어리로 실행됩니다. 개별 op이 dispatcher를 하나씩 통과하지 않으므로, Autograd가 끼어들어 `grad_fn`을 붙일 시점 자체가 없습니다.
+- **미분 규칙을 아는 대상이 아님**: 설령 compiled forward 위에서 Autograd를 그대로 돌린다 해도, Autograd가 보는 것은 `derivatives.yaml`에 미분 규칙이 등록되지 않은 정체불명의 거대한 op 하나입니다. 내부 연산들은 최적화 과정에서 합쳐지거나 사라졌기 때문에, backward 경로를 기록할 대상이 없습니다.
+- **Backward도 최적화 대상**: Graph mode의 목적은 forward와 backward를 함께 놓고 최적화하는 것입니다(중간 결과를 저장할지 재계산할지 결정, forward/backward 경계를 넘는 fusion 등). 그러려면 backward graph가 실행 중에 발견되는 것이 아니라 **컴파일 시점에 미리(ahead-of-time)** 존재해야 합니다.
+
+즉 Autograd가 폐기된 것이 아니라(eager mode에서는 지금도 그대로 사용됩니다), `torch.compile()` 경로에서는 "실행하면서 기록한다"는 Autograd의 전제가 성립하지 않으므로 다른 방식의 미분 엔진이 필요해진 것입니다.
+
 Graph mode에서는 fake tensor를 이용하여 forward를 빠르게 에뮬레이션(trace)하면서 계산이 어떻게 이루어질지 전체적인 스케치를 먼저 합니다. 이 스케치가 FX Graph로 캡처되고, FX Graph를 backend compiler에 전달하면 컴파일 후 실제 계산이 이루어집니다. 그렇다면 이러한 graph mode에서는 backward graph를 어떻게 생성해야 할까요? 두 가지 접근을 생각해 볼 수 있습니다:
 
 1. Dynamo trace 중에 Autograd를 실행하여 backward graph 생성: Fake tensor를 이용한 tracing 과정에서 기존 eager mode의 Autograd를 함께 돌리는 방법입니다. 그러나 Autograd는 실제 tensor 값을 기반으로 동작하도록 설계되었기 때문에, fake tensor를 사용하는 tracing 과정에서 그대로 동작할지 확신하기 어렵습니다. 또한 Dynamo trace는 전체 계산을 하나의 trace로 만드는 것이 아니라, eager mode와 graph mode가 번갈아가면서 실행되므로 backward graph 생성이 복잡해질 수 있습니다.
