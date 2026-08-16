@@ -45,6 +45,8 @@ GPU에서 matmul이 수행되도록 설정한 상태에서 CUDA GEMM[^gemm] 진�
 
 [^gemm]: General Matrix Multiply. BLAS(Basic Linear Algebra Subprograms)에서 정의하는 행렬 곱셈 연산으로, NVIDIA GPU용 구현이 call stack 끝에서 만나게 될 cuBLAS입니다. Week 1의 supercomputing 배경(BLAS/cuBLAS)에서 소개했습니다.
 
+이 snapshot은 특정 시점의 빌드(Python 3.12 이상 환경)에서 캡처한 것입니다. v2.13.0 소스와 대조해 보면 표에 등장하는 심볼 이름·파일 경로·전체 dispatch 흐름은 그대로 유효하지만, 파일 내 라인 번호는 버전에 따라 이동합니다(예: `Dispatcher.h`의 `redispatch`는 v2.13.0 기준 833행). 또한 v2.13에서는 cuBLAS 호출 직전에 TunableOp 체크와 backend 선택(cuBLAS/cuBLASLt) 레이어가 추가되어, `gemm<float>` → `gemm_internal<float>` → `gemm_internal_cublas<float>` 순으로 스택이 1~2단 더 깊어집니다.
+
 ```text
 #0 at::cuda::blas::gemm<float> at aten/src/ATen/cuda/CUDABlas.cpp:1127
 #1 operator at aten/src/ATen/native/cuda/Blas.cpp:457
@@ -181,7 +183,7 @@ Call stack은 밑에서 위로 진입합니다. 크게 두 영역으로 나뉘�
 | **#12** | `at::_ops::mm::redispatch` at `build/.../Operators_3.cpp:4010` | **mm redispatch frontend** - op별 생성된 redispatch 진입점 (자동생성) |
 | #13 | `at::redispatch::mm` at `build/.../RedispatchFunctions.h:5217` | mm redispatch convenience 함수 (자동생성) |
 | #14 | `operator` at `generated/VariableType_3.cpp:13455` | Autograd kernel 내부 lambda (자동생성) |
-| **#15** | `torch::autograd::VariableType::mm` at `generated/VariableType_3.cpp:13456` | **Autograd kernel** - backward graph 세팅 후 forward 실행, gradient 필요 시 기록 (자동생성) |
+| **#15** | `torch::autograd::VariableType::mm` at `generated/VariableType_3.cpp:13456` | **Autograd kernel** - backward graph 세팅 후 forward 실행, gradient 필요 시 기록 (자동생성; 실제 심볼은 `VariableType` 아래 익명 namespace 안에 생성됨) |
 | #16-19 | `WrapFunctionIntoFunctor` → `KernelFunction::call` at `boxing/*.h` | **dispatch logic** - mm의 Autograd key에 대한 kernel 실행 |
 | #20 | `c10::Dispatcher::callWithDispatchKeySlowPath` at `Dispatcher.h:661` | dispatch key set에서 최우선 key를 선택하여 해당 kernel 탐색 |
 | **#21** | `c10::Dispatcher::call` at `Dispatcher.h:680` | **dispatch 진입** - mm op에 대한 첫 번째 dispatch (Autograd key 선택) |
@@ -746,7 +748,7 @@ Tensor가 소멸된다고 해서 storage까지 바로 소멸되지는 않습니�
   - 명시적으로 객체를 제거 (`del` keyword 사용)
   - 또는 garbage collection에 의해 자연스럽게 소멸
 - Python 측 객체가 소멸되면 C++ `at::Tensor`와 내부 포인터들도 함께 해제
-- `THPVariable_subclass_dealloc`이 entry point
+- `THPVariable_dealloc`이 entry point (구버전에서는 `THPVariable_subclass_dealloc`)
 
 **`c10::Storage`의 소멸:**
 - `intrusive_ptr`의 reference count가 감소하지만, 다른 tensor(view 등)가 공유 중이면 바로 소멸되지 않음
@@ -833,8 +835,8 @@ at::Tensor my_add_cuda(const at::Tensor& ta, const at::Tensor& tb) {
     auto result = at::empty_like(ta);
     auto iter = at::TensorIteratorConfig()
         .add_output(result)
-        .add_input(ta)
-        .add_input(tb)
+        .add_const_input(ta)
+        .add_const_input(tb)
         .build();
     at::native::gpu_kernel(iter, []GPU_LAMBDA(float a, float b) {
         return a + b;
@@ -885,51 +887,62 @@ Operator 실행과 관련된 핵심 개념들은 다음과 같습니다:
 
 <div class="text-sm text-center mb-2">
 
-Generated Autograd Kernel for `add`
+Generated Autograd Kernel for `add` (PyTorch v2.13.0 codegen 실행 결과)
 
 </div>
 
-```cpp
-// In VariableTypeEverything.cpp
+아래 코드는 v2.13.0 소스에서 autograd codegen(`tools/autograd/gen_autograd.py`)을 직접 실행해 얻은 실제 생성 코드입니다. 생성 파일은 `VariableTypeEverything.cpp`가 아니라 10개로 샤딩된 `VariableType_0.cpp` ~ `VariableType_9.cpp` 중 `VariableType_2.cpp`이며, 같은 파일의 등록부에서 `m.impl("add.Tensor", TORCH_FN(VariableType::add_Tensor));`로 dispatcher에 연결됩니다.
 
-Tensor add_Tensor(const Tensor & self, const Tensor & other, Scalar alpha) {
+```cpp
+// In VariableType_2.cpp (v2.13.0 codegen 산출물, 일부 블록 생략)
+
+at::Tensor add_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & other, const at::Scalar & alpha) {
   auto& self_ = unpack(self, "self", 0);
   auto& other_ = unpack(other, "other", 1);
-  std::shared_ptr<AddBackward0> grad_fn;
-  if (compute_requires_grad( self, other )) {
-    grad_fn = std::shared_ptr<AddBackward0>(new AddBackward0(), deleteNode);
+  [[maybe_unused]] auto _any_requires_grad = compute_requires_grad( self, other );
+
+  [[maybe_unused]] auto _any_has_forward_grad_result = (isFwGradDefined(self) || isFwGradDefined(other));
+  c10::intrusive_ptr<AddBackward0> grad_fn;
+  if (_any_requires_grad) {
+    grad_fn = c10::make_intrusive<AddBackward0>();
     grad_fn->set_next_edges(collect_next_edges( self, other ));
     grad_fn->alpha = alpha;
+    grad_fn->other_scalar_type = other.scalar_type();
+    grad_fn->self_scalar_type = self.scalar_type();
   }
   #ifndef NDEBUG
-  c10::optional<Storage> self__storage_saved =
-    self_.has_storage() ? c10::optional<Storage>(self_.storage()) : c10::nullopt;
+  auto self__storage_saved =
+    self_.has_storage() ? ::std::optional<Storage>(self_.storage()) : ::std::nullopt;
   c10::intrusive_ptr<TensorImpl> self__impl_saved;
   if (self_.defined()) self__impl_saved = self_.getIntrusivePtr();
-  c10::optional<Storage> other__storage_saved =
-    other_.has_storage() ? c10::optional<Storage>(other_.storage()) : c10::nullopt;
+  auto other__storage_saved =
+    other_.has_storage() ? ::std::optional<Storage>(other_.storage()) : ::std::nullopt;
   c10::intrusive_ptr<TensorImpl> other__impl_saved;
   if (other_.defined()) other__impl_saved = other_.getIntrusivePtr();
   #endif
-  auto tmp = ([&]() {
-    at::AutoNonVariableTypeMode non_var_type_mode(true);
-    return at::add(self_, other_, alpha);
+  auto _tmp = ([&]() {
+    at::AutoDispatchBelowADInplaceOrView guard;
+    return at::redispatch::add(ks & c10::after_autograd_keyset, self_, other_, alpha);
   })();
-  auto result = std::move(tmp);
+  auto result = std::move(_tmp);
   #ifndef NDEBUG
-  if (self__storage_saved.has_value())
-    AT_ASSERT(self__storage_saved.value().is_alias_of(self_.storage()));
-  if (self__impl_saved) AT_ASSERT(self__impl_saved == self_.getIntrusivePtr());
-  if (other__storage_saved.has_value())
-    AT_ASSERT(other__storage_saved.value().is_alias_of(other_.storage()));
-  if (other__impl_saved) AT_ASSERT(other__impl_saved == other_.getIntrusivePtr());
+  // storage/impl sanity check — TORCH_INTERNAL_ASSERT 기반 검증 (생략)
   #endif
   if (grad_fn) {
-    set_history(flatten_tensor_args( result ), grad_fn);
+      set_history(flatten_tensor_args( result ), grad_fn);
   }
+  // forward-mode AD (fw_grad) 처리 — _any_has_forward_grad_result인 경우
+  // tangent를 계산해 result._set_fw_grad(...)로 기록 (생략)
   return result;
 }
 ```
+
+강의 앞부분의 old style 코드와 비교하면 구조(그래프 노드 생성 → guard 아래에서 forward 실행 → history 기록)는 동일하지만, 세부가 달라졌습니다:
+
+- Guard: `at::AutoNonVariableTypeMode` → **`at::AutoDispatchBelowADInplaceOrView`** (1.10에서 deprecated 후 교체)
+- Forward 호출: `at::add(...)` → **`at::redispatch::add(ks & c10::after_autograd_keyset, ...)`** — dispatch key set을 명시적으로 전달하며 자신(autograd)의 key를 제외하고 redispatch
+- `grad_fn`이 `std::shared_ptr` → `c10::intrusive_ptr`, 검증이 `AT_ASSERT` → `TORCH_INTERNAL_ASSERT`, `c10::optional` → `::std::optional`
+- **Forward-mode AD** 지원 코드가 추가됨
 
 #### Registration API
 
@@ -968,7 +981,9 @@ PyTorch에서 확장성의 핵심은 새로운 subclass를 만드는 것이 아�
 
 #### Dispatch Key와 Dispatch Key Set
 
-<img src="/images/02/slide39_1.png" alt="Dispatch key set의 union과 우선순위 선택 과정 다이어그램" class="h-96 mx-auto" />
+<img src="/images/02/slide39_1.png" alt="Dispatch key set의 union과 우선순위 선택 과정 다이어그램 (Autograd 위치는 2020년 기준)" class="h-96 mx-auto" />
+
+> 위 그림은 원 슬라이드(2020년) 기준이라 Autograd가 Global set 쪽에 그려져 있습니다. 현재 PyTorch에서는 Autograd key가 tensor의 dispatch key set에 포함됩니다.
 
 Dispatch table에서 어떤 dispatch key로 index할지를 결정하는 핵심 추상화가 dispatch key set입니다. Dispatch key set은 dispatch key들의 bitset으로, 여러 소스에서 가져온 dispatch key set을 union하고(일부는 mask out), 최종 dispatch key set에서 우선순위가 가장 높은 key를 선택하여 dispatch합니다.
 
@@ -978,7 +993,7 @@ Dispatch table에서 어떤 dispatch key로 index할지를 결정하는 핵심 �
 |---|---|
 | **Tensor input** | 각 입력 tensor가 자신의 dispatch key set을 기여 (예: CPU tensor → CPU key) |
 | **Local include set** | tensor와 무관한 **modal 기능** (예: tracing) - thread-local로 특정 scope 내에서 on/off |
-| **Global set** | 항상 고려되는 dispatch key (참고: Autograd는 이후 global set에서 tensor로 이동됨) |
+| **Global set** | 항상 고려되는 dispatch key (참고: Autograd key는 현재 tensor의 dispatch key set에 포함되어 있음 - 과거에는 global set에 있었음) |
 | **Local exclude set** | dispatch에서 **제외**할 key를 지정. handler가 자신의 key를 처리한 후 mask off하여 재처리를 방지하는 패턴에 사용 |
 
 #### Dispatch Key Set이 정해지는 과정
@@ -1316,9 +1331,9 @@ Common methods for all generators:
 
 ### Build System 전환: setup.py에서 PEP 517로
 
-오랫동안 PyTorch는 `python setup.py develop` / `python setup.py install`로 빌드했지만, 이 방식은 공식적으로 deprecated 되었습니다. 이제 PyTorch는 **scikit-build-core**를 통해 표준 **PEP 517** 인터페이스(`pyproject.toml`)로 빌드되며, `setup.py`는 빌드에 전혀 관여하지 않는 forwarding stub만 남았습니다.
+오랫동안 PyTorch는 `python setup.py develop` / `python setup.py install`로 빌드했으며, 이 방식은 공식적으로 deprecated 되었습니다. **PyTorch 2.14부터 scikit-build-core 기반 PEP 517**(`pyproject.toml`)로 전환되어 `setup.py`가 빌드에 관여하지 않는 forwarding stub이 될 예정이지만, 이 강의 기준 최신 버전인 **2.13까지는 `pyproject.toml`이 여전히 `setuptools.build_meta`를 사용하고 `setup.py`가 실제 빌드를 수행**합니다.
 
-제거 일정:
+제거 일정 (2.14 이후):
 
 | PyTorch 버전 | `python setup.py <command>` 동작 |
 |------|------|
@@ -1326,17 +1341,17 @@ Common methods for all generators:
 | 2.16–2.17 | 모든 명령이 안내 메시지와 함께 실패 |
 | 2.18 | `setup.py` 파일 자체가 제거됨 |
 
-대체 명령어:
+대체 명령어 (2.14+):
 
 | 기존 (deprecated) | 대체 명령 |
 |------|------|
-| `python setup.py develop` | `spin develop` 또는 `python -m pip install --no-build-isolation -v -e .` |
-| `python setup.py install` | `spin install` 또는 `python -m pip install --no-build-isolation -v .` |
+| `python setup.py develop` | `spin develop`(2.14+) 또는 `python -m pip install --no-build-isolation -v -e .` |
+| `python setup.py install` | `spin install`(2.14+) 또는 `python -m pip install --no-build-isolation -v .` |
 | `python setup.py bdist_wheel` | `python -m build --wheel --no-isolation` |
 | `python setup.py sdist` | `python -m build --sdist` |
 
-- `spin`은 scientific-python 프로젝트들이 쓰는 developer CLI로, `pip install --group dev` 시 함께 설치됨
-- 환경변수를 통한 빌드 커스터마이즈(`DEBUG=1`, `USE_CUDA=0`, `MAX_JOBS=...` 등)는 대체 명령에서도 그대로 동작
+- `spin`은 scientific-python 프로젝트들이 쓰는 developer CLI로, 2.14부터 `pip install --group dev` 시 함께 설치될 예정입니다. 2.13 기준으로는 `spin`이 clean/lint/regenerate 정도만 제공하며 `develop`/`install` subcommand는 아직 없습니다.
+- 환경변수를 통한 빌드 커스터마이즈(`DEBUG=1`, `USE_CUDA=0`, `MAX_JOBS=...` 등)는 대체 명령에서도 그대로 동작할 예정입니다
 - 배경: [pytorch/pytorch#152276](https://github.com/pytorch/pytorch/issues/152276)
 
 ### How to Build from Source
@@ -1371,7 +1386,7 @@ export CMAKE_PREFIX_PATH="${CONDA_PREFIX:-'$(dirname $(which conda))/../'}:${CMA
 
 # Build & Install (editable mode)
 python -m pip install --no-build-isolation -v -e .
-# 또는 동일한 작업을 하는 developer CLI:
+# 또는 (PyTorch 2.14+) 동일한 작업을 하는 developer CLI:
 # spin develop
 ```
 
@@ -1404,9 +1419,9 @@ Forwarding 규칙:
 | `CFLAGS` | C와 C++ 파일 컴파일에 적용할 플래그 (`CXXFLAGS` 설정 시 C++는 그쪽을 따름) |
 | `CC` / `CXX` | 사용할 C/C++ 컴파일러 |
 
-setup.py와 함께 제거된 변수들:
+2.14에서 setup.py와 함께 제거 예정인 변수들 (2.13까지는 정상 동작):
 
-| 변수 | 대체 방법 |
+| 변수 | 대체 방법 (2.14+) |
 |------|------|
 | `CMAKE_FRESH` | `build/` 디렉토리를 삭제하고 다시 빌드 |
 | `CMAKE_ONLY` | 대체 없음 (setup.py 전용 디버깅 기능이었음) |
@@ -1467,11 +1482,11 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
 `_awaits` `_custom_op` `_decomp` `_dispatch` **`_dynamo`** `_export`
 `_functorch` `_higher_order_ops` **`_inductor`** `_lazy` `_library`
 `_logging` `_numpy` **`_prims`** `_prims_common` `_refs` `_strobelight`
-`_subclasses` `_vendor` `amp` `ao` **`autograd`** `backends` `compiler` `contrib`
+`_subclasses` `_vendor` **`accelerator`** `amp` `ao` **`autograd`** `backends` `compiler` `contrib`
 **`cpu`** **`cuda`** **`distributed`** `distributions` `export` `fft` `func` `futures`
 **`fx`** **`jit`** **`linalg`** `masked` `monitor` **`mps`** **`mtia`** `multiprocessing` `nested` `nn`
 `onnx` `optim` `package` `profiler` `quantization` `signal` `sparse`
-`special` `testing` **`torch`** `utils` **`xpu`**
+`special` `testing` `utils` **`xpu`**
 
 ### Eager Mode의 Shared Object들
 
@@ -1598,7 +1613,7 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
 - `Operators.cpp`
 - `Register{backend}.cpp`
 
-**`torch/include/torch/csrc/autograd/generated/`** : `gen_variable_type.py` (input: `derivatives.yaml`)
+**`torch/include/torch/csrc/autograd/generated/`** : `tools/autograd`의 생성 스크립트들 (`gen_autograd.py`가 orchestration; input: `derivatives.yaml`, `native_functions.yaml`)
 - `Functions.h`
 - `python_functions.h`
 - `python_return_types.h`

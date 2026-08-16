@@ -22,8 +22,8 @@
   <rect x="376" y="60" width="24" height="24" rx="2" fill="#FFFFFF"/>
   <text x="388" y="73" font-family="'DM Mono', monospace" font-size="15" font-weight="600" fill="#9A7B68" text-anchor="middle" dominant-baseline="middle">✗</text>
   <rect x="324" y="88" width="128" height="30" rx="2" fill="#FFFFFF"/>
-  <text x="388" y="98" font-family="'DM Mono', monospace" font-size="8.5" fill="#8A8078" text-anchor="middle">training: 직행 불가</text>
-  <text x="388" y="112" font-family="'DM Mono', monospace" font-size="8.5" fill="#8A8078" text-anchor="middle">(inference는 직행 가능)</text>
+  <text x="388" y="98" font-family="'DM Mono', monospace" font-size="8.5" fill="#8A8078" text-anchor="middle">직행 불가 (training·inference 공통)</text>
+  <text x="388" y="112" font-family="'DM Mono', monospace" font-size="8.5" fill="#8A8078" text-anchor="middle">(inference도 AOTAutograd 경유)</text>
 
   <!-- Real path: Dynamo ↓ → AOTAutograd -->
   <path d="M252 96 V184 Q252 192 260 192 H276" fill="none" stroke="#9A7B68" stroke-width="1.4" marker-end="url(#aoi-arr-warm)"/>
@@ -55,7 +55,7 @@
   <!-- AOTAutograd (focal) -->
   <rect x="280" y="160" width="216" height="64" rx="8" fill="#FBF4EC" stroke="#9A7B68" stroke-width="1.4"/>
   <text x="388" y="184" font-family="'DM Mono', monospace" font-size="14" font-weight="600" fill="#141210" text-anchor="middle" dominant-baseline="middle">AOTAutograd</text>
-  <text x="388" y="204" font-family="'DM Mono', monospace" font-size="9" fill="#9A7B68" text-anchor="middle" dominant-baseline="middle">joint graph 생성 → forward/backward 분리</text>
+  <text x="388" y="204" font-family="'DM Mono', monospace" font-size="9" fill="#9A7B68" text-anchor="middle" dominant-baseline="middle">normalization (+ training: joint graph → fw/bw 분리)</text>
 
   <!-- torch.autograd.Function -->
   <rect x="436" y="268" width="208" height="64" rx="8" fill="#FAF8F5" stroke="#C4BAAE" stroke-width="1"/>
