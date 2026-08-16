@@ -712,7 +712,11 @@ print(p.grad)
 ```
 
 
-### Joint Graph 생성
+### AOTAutograd 단계별 상세 (B~I)
+
+앞서 "AOTAutograd 수행 순서"에서 표로 정리한 A~I 단계 중, 핵심이 되는 단계들을 위 실행 예제를 따라가며 하나씩 확인합니다. B 단계의 joint 함수 생성에서 시작해, joint graph tracing(D), decomposition(E), Min-Cut partitioning(G)을 거쳐 최종적으로 `torch.autograd.Function`이 만들어지는 I 단계까지 이어집니다.
+
+#### Joint Graph 생성
 
 앞 절 "AOTAutograd 수행 순서"에서 언급한 B 단계(joint 함수 생성) → D 단계(실제 tracing) → G 단계(partitioning)가 실제로 어떤 모습인지 슬라이드의 코드로 확인해 봅니다. Joint graph를 만들기 전에는 Python 수준에서 먼저 "joint 함수"를 명시적으로 만들어 두는 작업이 필요합니다.
 
@@ -763,7 +767,7 @@ to give us the forwards pass and the backwards pass.
 이렇게 얻어진 joint graph를 적절한 기준(이후 절에서 다룰 Min-Cut 알고리즘)으로 partition하면 forward pass와 backward pass로 다시 분리할 수 있습니다. 다만 이 분리가 두 그래프를 완전히 겹치지 않게 나누는 것은 아닙니다(not strictly disjoint). 메모리 효율을 위해 backward pass가 forward graph의 일부를 재계산(recomputation)하도록 만들 수 있으며, 어느 중간 결과를 저장하고 어느 것을 재계산할지가 바로 partitioning 단계의 최적화 결정입니다. 이 주제는 뒤의 "Activation Checkpointing" 절에서 다시 다룹니다.
 
 
-### [D 단계] Joint Graph Example
+#### [D 단계] Joint Graph Example
 
 앞 절의 `joint_fw_bw`를 C++ dispatcher 수준에서 trace하면, forward와 backward가 모두 하나의 graph 안에 들어간 **joint FX Graph**가 만들어집니다. 이것이 수행 순서표의 D 단계 결과물입니다.
 
@@ -772,7 +776,7 @@ to give us the forwards pass and the backwards pass.
 위 그래프에서 볼 수 있듯, forward 연산과 backward 연산이 동일한 계산 그래프 안에 공존하며, forward에서 만들어진 중간 텐서가 backward 노드의 입력으로 연결되는 관계까지 전부 살아 있습니다. 이 구조 덕분에 이어지는 G 단계의 partitioning에서 "어떤 텐서는 저장하고 어떤 텐서는 재계산할지"를 판단할 수 있게 됩니다.
 
 
-### [E 단계] Decomposition (+ Functionalization)
+#### [E 단계] Decomposition (+ Functionalization)
 
 D 단계에서 만들어진 joint graph는 아직 Torch IR 수준의 고수준 op들을 포함하고 있습니다. E 단계(Decomposition)에서는 이 op들을 더 낮은 수준의 작은 op들로 분해하여, backend compiler가 다루기 쉬운 형태로 내려 줍니다. 참고로 C 단계의 Functionalization(aliasing/mutation 제거)도 이 흐름 상에서 같이 이해해 두면 normalization 전체 그림이 잡힙니다.
 
@@ -786,7 +790,7 @@ Torch IR → ATen IR → Core ATen IR → Prims IR
 - **Decomposition (E 단계)**: 수천 개에 달하는 Torch op을 정해진 소수의 Prims IR op으로 분해 - eager mode 복잡성 제거와는 별개의 목적(op set 축소)으로, backend 최적화가 쉬워집니다.
 
 
-### [G 단계] Min-Cut Algorithm으로 Forward/Backward 분리
+#### [G 단계] Min-Cut Algorithm으로 Forward/Backward 분리
 
 E 단계까지 거쳐 정규화된 joint FX Graph를 이제 G 단계에서 forward와 backward로 다시 쪼갭니다. 앞서 말한 Min-Cut 계열 알고리즘이 사용되며, 이 단계의 결정이 곧 "어느 중간 텐서를 저장(save)하고 어느 것을 재계산(recompute)할지"와 직결됩니다.
 
@@ -801,7 +805,7 @@ E 단계까지 거쳐 정규화된 joint FX Graph를 이제 G 단계에서 forwa
 
 Partitioning이 끝나면 forward graph와 backward graph 각각이 독립된 FX Graph로 떨어져 나오고, 이후 H 단계에서 backend compiler(예: Inductor)가 forward/backward를 각각 별도로 컴파일하여 최적화된 실행 코드를 생성합니다.
 
-### Activation Checkpointing
+#### Activation Checkpointing
 
 앞서 joint graph가 필요한 이유를 설명할 때 잠깐 언급했던 recomputation(재계산)은, training 분야에서는 보통 **"activation checkpointing"** 이라는 이름으로 더 많이 불립니다. (강연자 역시 training 전문가는 아니어서 이 용어가 다소 낯설 수 있다고 언급했습니다.)
 
@@ -824,7 +828,7 @@ Batch size가 커질수록 forward 과정의 중간 activation도 함께 커지�
 AOTAutograd 관점에서 중요한 것은, 앞서 강조한 joint graph 덕분에 "forward에서 만들어진 어떤 텐서가 backward의 어떤 입력으로 연결되는가"라는 input-output 관계가 전부 살아 있다는 점입니다. 이 관계를 알고 있으면 Min-Cut partitioner가 "어느 텐서는 저장(save)하고 어느 텐서는 재계산(recompute)하는 것이 더 유리한가"를 전체 그래프 관점에서 판단할 수 있어, activation checkpointing을 보다 자동화되고 효율적으로 적용할 수 있습니다.
 
 
-### [I 단계] Compiled Model = torch.autograd.Function
+#### [I 단계] Compiled Model = torch.autograd.Function
 
 이제 AOTAutograd 수행 순서의 마지막 단계입니다. G 단계에서 forward/backward로 분리하고 H 단계에서 각각 backend compile한 결과물을 하나로 묶어 `torch.autograd.Function` 객체로 wrap해서 돌려주는 것이 바로 I 단계입니다. 최종 결과물은 compiled `forward()`와 compiled `backward()`가 한 객체 안에 나란히 들어 있는 형태가 됩니다. 아래는 그 형태를 이해하기 위한 공식 문서의 hand-written 예제입니다 (AOTAutograd의 실제 출력물은 앞서 본 "AOTAutograd가 생성한 `torch.autograd.Function`" 예시를 참고하세요):
 
