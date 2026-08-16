@@ -19,6 +19,12 @@ PyTorch + NPU 온라인 모임 #4 | 2025-01-08
 
 이 강의는 "학습 중에 gradient는 어떻게 자동으로 계산되는가"라는 질문에서 출발해, PyTorch 1.0의 Autograd와 2.0의 AOTAutograd로 이어지는 흐름을 따라갑니다.
 
+미분 엔진이 Autograd와 AOTAutograd 두 개로 나뉘는 이유는, 앞의 두 강의에서 본 실행 모델의 차이에 있습니다. Week 2에서 본 eager mode에서는 `torch.matmul` 같은 연산이 호출되는 순간 dispatcher를 거쳐 즉시 실행됩니다. 연산이 하나씩 실제로 실행되기 때문에, 실행되는 순간마다 "방금 실행된 연산"을 기록해 두면 backward에 필요한 computation graph가 자연스럽게 만들어집니다. 이 방식이 PyTorch 1.0의 **Autograd**입니다.
+
+반면 Week 3에서 본 graph mode에서는 이 순서가 뒤집힙니다. Dynamo가 연산을 실행하기 전에 모델 코드를 tracing하여 FX Graph를 먼저 캡처하고, backend compiler가 이 그래프를 통째로 최적화하여 실행합니다. 연산이 한 줄씩 실행되는 시점 자체가 사라졌으므로 "실행하면서 기록한다"는 Autograd의 전제가 더 이상 성립하지 않으며, Dynamo가 캡처한 FX Graph에는 forward 연산만 담겨 있어 학습에 필요한 backward가 통째로 빠져 있습니다. 그래서 캡처된 forward graph로부터 backward graph를 실행 전에(ahead-of-time) 미리 만들어내는 새로운 엔진이 필요해졌고, 이것이 Week 3에서 "Week 4에서 다루는 것이 더 적절하다"며 남겨 두었던 **AOTAutograd**입니다.
+
+정리하면, 이 강의의 전반부는 자동 미분의 수학적 배경과 eager mode의 Autograd를, 후반부는 graph mode에서 같은 문제를 다시 푸는 AOTAutograd를 다룹니다.
+
 - Background - gradient가 왜, 어디서 필요한가
     - Supervised learning의 학습 루프: forward propagation → loss 계산 → backward propagation → optimizer
     - backward 과정의 일반화: chain rule에 기반한 reverse-mode automatic differentiation을 간단한 예제로 확인
@@ -73,7 +79,7 @@ $$\frac{dy}{dx} = \underbrace{f'(g(x))}_{\text{Outside's Function Derivative}} \
 
 (ii) $y = f(t)$이고 $x = g(t)$일 때 (parametric form):
 
-$$\frac{dy}{dx} = \frac{dy/dt}{dx/dt}$$
+$$\frac{dy}{dx} = \dfrac{\;\dfrac{dy}{dt}\;}{\;\dfrac{dx}{dt}\;}$$
 
 
 ### 예제: Autodiff 계산
