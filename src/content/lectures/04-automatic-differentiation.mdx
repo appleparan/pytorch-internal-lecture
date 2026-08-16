@@ -482,7 +482,9 @@ def backward(self, ge_scalar, tangents_1):
 </div>
 </div>
 
-오른쪽 코드에서 `forward()`와 `backward()`가 한 `torch.autograd.Function` 객체 안에 함께 들어 있다는 점에 주목하세요. 이것이 PyTorch 1.0 Autograd에서 언급했던 custom differentiable function 기능을 그대로 활용한 결과이며, **compiled model은 "forward와 backward를 모두 가진 하나의 custom Op"처럼 동작합니다**. 참고로 `forward`가 `ge_scalar`를 추가로 반환하는 것은 partitioner가 backward 계산의 일부(`ge` 비교)를 forward 쪽으로 옮겼기 때문이며, `backward`는 이 값을 받아 재계산 없이 그대로 사용합니다.
+오른쪽 코드에서 `forward()`와 `backward()`가 한 `torch.autograd.Function` 객체 안에 함께 들어 있다는 점에 주목하세요. 이것이 PyTorch 1.0 Autograd에서 언급했던 custom differentiable function 기능을 그대로 활용한 결과이며, **compiled model은 "forward와 backward를 모두 가진 하나의 custom Op"처럼 동작합니다**. 참고로 `forward`가 `ge_scalar`를 추가로 반환하는 것은 partitioner[^partitioner]가 backward 계산의 일부(`ge` 비교)를 forward 쪽으로 옮겼기 때문이며, `backward`는 이 값을 받아 재계산 없이 그대로 사용합니다.
+
+[^partitioner]: AOTAutograd가 forward와 backward를 합쳐 만든 joint graph를 다시 forward/backward 두 개의 그래프로 잘라내는 컴포넌트. 어느 중간 값을 저장(save)하고 어느 것을 재계산(recompute)할지를 Min-Cut 계열 알고리즘으로 결정합니다. 뒤의 "[G 단계] Min-Cut Algorithm으로 Forward/Backward 분리" 절에서 자세히 다룹니다.
 
 이제 `[1]` → `[2]` → `[3]` 순서대로 어떤 일이 일어나는지 하나씩 짚어 봅니다.
 
