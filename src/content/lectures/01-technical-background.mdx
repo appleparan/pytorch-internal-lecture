@@ -337,8 +337,8 @@ PyTorch 2.0은 PyTorch 1.0의 특성을 거의 모두 계승(inherit)하면서, 
 
 **핵심 특징:**
 - **NumPy-like experience** - 텐서 구조, 사전 정의된 수학 함수, 대화형 환경, Jupyter Notebook 호환성
-- **Heterogeneous computing** as an underneath foundation - 다양한 하드웨어에서 효율적으로 동작
-- **MPI-like** distributed programming model - 분산 프로그래밍 기본 지원
+- **Heterogeneous computing** as an underneath foundation - CPU와 GPU/NPU 같은 가속기를 함께 쓰는 실행 모델이 프레임워크의 토대. tensor가 device 정보를 가지며, 같은 op이라도 device에 따라 다른 구현이 실행되는 구조의 기반이 됨
+- **MPI-like** distributed programming model - MPI에서 정립된 collective communication 스타일(broadcast, all-reduce 등)의 분산 프로그래밍을 `torch.distributed`로 기본 지원
 - Integration with compute libraries / ML compiler - PyTorch 1.0부터 Eager mode에서는 컴퓨팅 라이브러리를 사용하고, PyTorch 2.0에서는 Graph mode에서 ML 컴파일러와의 통합을 핵심 과제로 다루고 있음
 - Three language layers: Python → C++ → kernel language (예: CUDA, Triton) - 단순한 2개 언어가 아니라 제3 랭귀지 또는 멀티 랭귀지 솔루션. 스크립팅은 Python으로 이루어지지만, 하위 레벨에서는 성능 최적화를 위해 C++로 전환되며, GPU/TPU/NPU 등의 하드웨어에서는 커널 레벨의 최적화 성능을 제공
 - **Define-by-run** with graph capturing via TorchDynamo - Eager mode 중심으로 Graph mode를 부드럽게 지원
