@@ -78,18 +78,24 @@ Reverse-mode automatic differentiation은 역전파(backpropagation)를 구현�
 
 (i) $y = f(g(x))$일 때:
 
-$$\frac{dy}{dx} = \underbrace{f'(g(x))}_{\text{Outside's Function Derivative}} \cdot \underbrace{g'(x)}_{\text{Inside's Function Derivative}}$$
+$$
+\frac{dy}{dx} = \underbrace{f'(g(x))}_{\text{Outside's Function Derivative}} \cdot \underbrace{g'(x)}_{\text{Inside's Function Derivative}}
+$$
 
 (ii) $y = f(t)$이고 $x = g(t)$일 때 (parametric form):
 
-$$\frac{dy}{dx} = \dfrac{\;\dfrac{dy}{dt}\;}{\;\dfrac{dx}{dt}\;}$$
+$$
+\frac{dy}{dx} = \frac{dy}{dt} \bigg/ \frac{dx}{dt}
+$$
 
 
 ### 예제: Autodiff 계산
 
 다음 함수를 예로 들어보겠습니다:
 
-$$f(x_1, x_2) = \ln(x_1) + x_1 x_2 - \sin(x_2)$$
+$$
+f(x_1, x_2) = \ln(x_1) + x_1 x_2 - \sin(x_2)
+$$
 
 <img src="/images/04/slide06_1.png" alt="예제 함수 f(x1, x2) = ln(x1) + x1x2 - sin(x2)의 autodiff 계산 과정" class="h-28" />
 <img src="/images/04/slide06_3.png" alt="예제 함수의 computation graph" class="h-40 mx-auto mt-2" />

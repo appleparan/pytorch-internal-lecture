@@ -489,7 +489,9 @@ Flash Attention은 앞 절에서 본 비효율을 풀기 위해 두 가지 기�
 가장 직관적인 형태는 다음과 같습니다.
 
 <div class="text-center py-4" style="font-size:1.5rem">
-$$y_i = \frac{e^{x_i}}{\sum_j e^{x_j}}$$
+$$
+y_i = \frac{e^{x_i}}{\sum_j e^{x_j}}
+$$
 </div>
 
 분모의 합을 먼저 구해야 하기 때문에 두 번의 pass가 필요합니다.
@@ -506,7 +508,9 @@ $$y_i = \frac{e^{x_i}}{\sum_j e^{x_j}}$$
 회피하는 방법은 생각보다 간단합니다. 모든 입력에서 최댓값 $\max(x)$를 빼주는 것입니다. 분자와 분모에 같은 항이 빠지므로 결과는 변하지 않으면서, 지수의 입력은 항상 $\le 0$으로 묶여 `exp` 결과가 $(0, 1]$ 범위에 머물게 됩니다.
 
 <div class="text-center py-4" style="font-size:1.5rem">
-$$y_i = \frac{e^{x_i - \max(x)}}{\sum_j e^{x_j - \max(x)}}$$
+$$
+y_i = \frac{e^{x_i - \max(x)}}{\sum_j e^{x_j - \max(x)}}
+$$
 </div>
 
 이걸 **safe softmax**라고 부릅니다. 다만 이번에는 최댓값을 먼저 구하는 pass가 추가로 필요해서 총 3-pass가 됩니다.
