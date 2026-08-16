@@ -960,9 +960,12 @@ $$
 
 ### Counting Dots: 행렬곱의 FLOPs 세는 법
 
-본격적으로 대입하기 전에, 앞으로 쓸 "행렬곱 $X[B, D] \times W[D, F]$의 연산량은 $2BDF$ FLOPs"라는 계산에서 2가 어디서 오는지부터 짚고 갑시다. 길이 $D$인 두 벡터의 내적(dot product)은 곱셈 $D$번 + 덧셈 $D$번, 즉 $2D$ FLOPs입니다. 행렬곱은 결과 행렬의 원소 하나마다 내적을 한 번씩 수행하는 것이므로, $B \times F$개의 원소 × $2D$ FLOPs = $2BDF$ FLOPs가 됩니다. 일반화하면 행렬곱의 FLOPs는 "관여하는 차원 크기들의 곱 × 2"로, 결국 내적의 개수를 세는(counting dots) 문제입니다.
+$2BDF$의 2는 내적(dot product)에서 옵니다.
 
-Transformer는 이런 행렬곱들의 연쇄이기 때문에, 아래 그림처럼 한 layer를 구성하는 모든 행렬곱의 shape을 적어 두면 전체 FLOPs와 파라미터 수를 기계적으로 셀 수 있습니다. 이렇게 세면 "파라미터 $P$개인 모델의 forward pass는 토큰당 약 $2P$ FLOPs(학습은 backward까지 합쳐 약 $6P$)"라는 잘 알려진 근사도 바로 유도됩니다.
+- 길이 $D$ 벡터의 내적 = 곱셈 $D$번 + 덧셈 $D$번 = $2D$ FLOPs
+- $X[B, D] \times W[D, F]$ = 내적 $B \times F$개 = $2BDF$ FLOPs
+
+즉 행렬곱의 FLOPs는 "관여하는 차원의 곱 × 2"이고, FLOPs 계산은 결국 내적의 개수를 세는(counting dots) 문제입니다. Transformer는 행렬곱의 연쇄이므로, 아래 그림처럼 각 행렬곱의 shape만 적으면 전체 FLOPs와 파라미터 수를 기계적으로 셀 수 있습니다. "파라미터 $P$개 모델의 forward pass ≈ 토큰당 $2P$ FLOPs (학습은 backward까지 $6P$)"라는 근사도 여기서 나옵니다.
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/transformer-diagram.png" alt="Transformer 한 layer를 구성하는 모든 행렬곱의 shape과 파라미터·FLOPs를 정리한 다이어그램" class="max-w-3xl w-full mx-auto" />
