@@ -687,7 +687,7 @@ aot_dispatch_autograd(flat_fn)
   compiled_fn = AOTDispatchAutograd.post_compile(compiled_fw_func, ...)
 ```
 
-이 중 가장 복잡한 부분은 joint FX Graph를 만들어내는 과정(B~F)이고, 그 외 G~I는 상대적으로 기계적인 단계에 가깝습니다.
+이 중 가장 복잡한 부분은 joint FX Graph를 만들어내는 과정(B\~F)이고, 그 외 G\~I는 상대적으로 기계적인 단계에 가깝습니다.
 
 - B 단계 - `create_joint(flat_fn, ...)`: Forward 부분과 backward 부분에 해당하는 함수를 하나로 붙여서, "forward 쪽만 호출해도 내부적으로 forward와 backward가 같이 계산되는 함수"를 만들어 둡니다. 위 코드의 `inner_fn`이 그 함수이고, `fn(*primals)`로 forward를 실행한 뒤 곧바로 `torch.autograd.grad(...)`로 backward까지 실행하도록 묶어 놓은 형태입니다.
 - C 단계 - Normalization: B에서 만든 joint 함수를 그대로 trace하면 eager mode의 복잡성(aliasing, mutation 등)이 그대로 따라 들어오기 때문에, `create_functionalize_fn`, `aot_dispatch_subclass` 등을 통해 먼저 함수 자체를 정규화된 형태로 바꿔 둡니다.
