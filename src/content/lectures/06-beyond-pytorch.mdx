@@ -119,7 +119,7 @@ LLM에서 가장 중요한 연산을 하나 꼽으라면 단연 **Self-Attention
 - **병렬 처리가 자연스러운 부분** - 입력 embedding으로부터의 K·Q·V 계산, 그리고 단어별로 독립적인 하위(아래쪽) 연산
 - **병렬 처리가 까다로운 부분** - 전체 분포를 봐야 하는 softmax, 그리고 그 결과와 V를 곱한 뒤 모든 단어에 대해 합산하는 summation
 
-이 "위쪽이 병렬화하기 까다롭다"는 점은 이후 Flash Attention 같은 GPU-aware 알고리듬이 풀어야 하는 문제로 다시 등장합니다.
+이 "위쪽이 병렬화하기 까다롭다"는 점은 이후 Flash Attention 같은 GPU-aware 알고리즘이 풀어야 하는 문제로 다시 등장합니다.
 
 <div class="flex flex-col gap-8 mt-6">
   <div class="text-center">
@@ -640,7 +640,7 @@ Online algorithm이란 모든 데이터를 한 번에 보고 처리하는 게 �
   </div>
 </div>
 
-결과적으로 softmax의 수치 안정성을 유지하면서도 single-pass + tiled/fused한 알고리듬이 완성됩니다.
+결과적으로 softmax의 수치 안정성을 유지하면서도 single-pass + tiled/fused한 알고리즘이 완성됩니다.
 
 이 과정 전체를 한 줄로 요약하면, FlashAttention은 attention 계산 자체를 restructuring해서 메모리 read/write 횟수를 크게 줄인 알고리즘이고, 이를 처음 제안한 사람이 당시 Stanford PhD 학생이던 Tri Dao입니다. 비교를 위해 기존 방식을 보면, Standard Attention은 모든 단계를 PyTorch op으로 표현하고 그 안에서 cuBLAS 같은 가속 라이브러리를 호출합니다. PyTorch op 단위로는 앞서 본 tiling·fusion을 표현할 수 없기 때문에, 개별 GEMM은 빠르더라도 전체 GPU utilization은 낮은 상태로 남습니다. FlashAttention v1은 정확히 이 한계를 깨고 속도를 끌어올린 첫 버전입니다.
 
@@ -948,7 +948,7 @@ vLLM의 내부를 한 층만 들춰 보면, 이 강의에서 다룬 개념들이
 
 먼저 batching: 여러 request를 묶어 처리하는 기본 발상에서 출발해, 시퀀스 길이가 들쭉날쭉해도 높은 utilization을 유지하기 위한 continuous batching이 등장했습니다. 시퀀스가 길어지면서 attention 자체가 dominant한 비용이 되는 문제는 Flash Attention, Paged Attention 같은 기법으로 풀고, 한 request 안 Decode 단계의 sequential dependency는 speculative decoding으로 검증 문제로 전환해 풀어냅니다.
 
-Flash Attention을 깊이 들여다보면서 *왜 이런 알고리듬을 PyTorch op으로는 표현할 수 없고 kernel programming이 필요한지*를 짚었고, 마지막으로는 요즘 보편적으로 쓰이는 서빙 프레임워크(vLLM 등)를 깊이 들어가지는 않고 broad하게 훑어봤습니다.
+Flash Attention을 깊이 들여다보면서 *왜 이런 알고리즘을 PyTorch op으로는 표현할 수 없고 kernel programming이 필요한지*를 짚었고, 마지막으로는 요즘 보편적으로 쓰이는 서빙 프레임워크(vLLM 등)를 깊이 들어가지는 않고 broad하게 훑어봤습니다.
 
 결국 오늘 강조하고 싶었던 한 가지는, LLM이 등장하면서 모델 최적화에 대한 needs가 점점 더 커졌고, 이 needs를 PyTorch가 분명히 핵심에 자리하지만 PyTorch만으로는 다 해결할 수 없어, PyTorch를 보완하는 커널 프로그래밍과 고수준 서빙 프레임워크 두 가지가 함께 개발자들에 의해 만들어지고 있는 상황이라는 점입니다.
 
