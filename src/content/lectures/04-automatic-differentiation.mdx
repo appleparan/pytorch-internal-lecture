@@ -502,6 +502,25 @@ def backward(self, ge_scalar, tangents_1):
 
 즉, 사용자 입장에서는 `torch.compile(model)` 한 줄을 추가했을 뿐이지만, 내부적으로는 "compiled forward+backward를 가진 `torch.autograd.Function`을 만들어 두고, forward만 실행한 뒤 backward를 `grad_fn`으로 달아두었다가, `loss.backward()` 시점에 그것을 호출"하는 구조로 바뀌어 있습니다.
 
+위 세 단계를 그림으로 요약하면 다음과 같습니다:
+
+<Mermaid wide>
+{`graph TB
+    subgraph S1["[1] outputs = compiled_model(images)  —  첫 호출 시 컴파일"]
+        direction LR
+        D["Dynamo tracing<br/>→ FX Graph"] --> A["AOTAutograd<br/>→ autograd.Function<br/>(compiled fwd+bwd)"] --> F["compiled forward만 실행<br/>→ outputs 계산"] --> R["outputs.grad_fn에<br/>compiled backward 등록"]
+    end
+    subgraph S2["[2] loss = F.cross_entropy(outputs, labels)  —  eager mode"]
+        direction LR
+        E["loss 값 계산"] --> L["loss의 grad_fn 생성<br/>→ outputs.grad_fn 뒤에 연결"]
+    end
+    subgraph S3["[3] loss.backward()  —  역방향 실행"]
+        direction LR
+        B1["loss의 grad_fn 실행"] --> B2["compiled backward를<br/>하나의 큰 Op으로 호출"] --> B3["weight gradient 계산"]
+    end
+    S1 --> S2 --> S3`}
+</Mermaid>
+
 
 ### AOTAutograd does the magic
 
