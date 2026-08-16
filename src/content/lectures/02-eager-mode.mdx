@@ -885,51 +885,62 @@ Operator 실행과 관련된 핵심 개념들은 다음과 같습니다:
 
 <div class="text-sm text-center mb-2">
 
-Generated Autograd Kernel for `add` (old style, PyTorch 1.10 이전)
+Generated Autograd Kernel for `add` (PyTorch v2.13.0 codegen 실행 결과)
 
 </div>
 
-```cpp
-// In VariableTypeEverything.cpp
+아래 코드는 v2.13.0 소스에서 autograd codegen(`tools/autograd/gen_autograd.py`)을 직접 실행해 얻은 실제 생성 코드입니다. 생성 파일은 `VariableTypeEverything.cpp`가 아니라 10개로 샤딩된 `VariableType_0.cpp` ~ `VariableType_9.cpp` 중 `VariableType_2.cpp`이며, 같은 파일의 등록부에서 `m.impl("add.Tensor", TORCH_FN(VariableType::add_Tensor));`로 dispatcher에 연결됩니다.
 
-Tensor add_Tensor(const Tensor & self, const Tensor & other, Scalar alpha) {
+```cpp
+// In VariableType_2.cpp (v2.13.0 codegen 산출물, 일부 블록 생략)
+
+at::Tensor add_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & other, const at::Scalar & alpha) {
   auto& self_ = unpack(self, "self", 0);
   auto& other_ = unpack(other, "other", 1);
-  std::shared_ptr<AddBackward0> grad_fn;
-  if (compute_requires_grad( self, other )) {
-    grad_fn = std::shared_ptr<AddBackward0>(new AddBackward0(), deleteNode);
+  [[maybe_unused]] auto _any_requires_grad = compute_requires_grad( self, other );
+
+  [[maybe_unused]] auto _any_has_forward_grad_result = (isFwGradDefined(self) || isFwGradDefined(other));
+  c10::intrusive_ptr<AddBackward0> grad_fn;
+  if (_any_requires_grad) {
+    grad_fn = c10::make_intrusive<AddBackward0>();
     grad_fn->set_next_edges(collect_next_edges( self, other ));
     grad_fn->alpha = alpha;
+    grad_fn->other_scalar_type = other.scalar_type();
+    grad_fn->self_scalar_type = self.scalar_type();
   }
   #ifndef NDEBUG
-  c10::optional<Storage> self__storage_saved =
-    self_.has_storage() ? c10::optional<Storage>(self_.storage()) : c10::nullopt;
+  auto self__storage_saved =
+    self_.has_storage() ? ::std::optional<Storage>(self_.storage()) : ::std::nullopt;
   c10::intrusive_ptr<TensorImpl> self__impl_saved;
   if (self_.defined()) self__impl_saved = self_.getIntrusivePtr();
-  c10::optional<Storage> other__storage_saved =
-    other_.has_storage() ? c10::optional<Storage>(other_.storage()) : c10::nullopt;
+  auto other__storage_saved =
+    other_.has_storage() ? ::std::optional<Storage>(other_.storage()) : ::std::nullopt;
   c10::intrusive_ptr<TensorImpl> other__impl_saved;
   if (other_.defined()) other__impl_saved = other_.getIntrusivePtr();
   #endif
-  auto tmp = ([&]() {
-    at::AutoNonVariableTypeMode non_var_type_mode(true);
-    return at::add(self_, other_, alpha);
+  auto _tmp = ([&]() {
+    at::AutoDispatchBelowADInplaceOrView guard;
+    return at::redispatch::add(ks & c10::after_autograd_keyset, self_, other_, alpha);
   })();
-  auto result = std::move(tmp);
+  auto result = std::move(_tmp);
   #ifndef NDEBUG
-  if (self__storage_saved.has_value())
-    AT_ASSERT(self__storage_saved.value().is_alias_of(self_.storage()));
-  if (self__impl_saved) AT_ASSERT(self__impl_saved == self_.getIntrusivePtr());
-  if (other__storage_saved.has_value())
-    AT_ASSERT(other__storage_saved.value().is_alias_of(other_.storage()));
-  if (other__impl_saved) AT_ASSERT(other__impl_saved == other_.getIntrusivePtr());
+  // storage/impl sanity check — TORCH_INTERNAL_ASSERT 기반 검증 (생략)
   #endif
   if (grad_fn) {
-    set_history(flatten_tensor_args( result ), grad_fn);
+      set_history(flatten_tensor_args( result ), grad_fn);
   }
+  // forward-mode AD (fw_grad) 처리 — _any_has_forward_grad_result인 경우
+  // tangent를 계산해 result._set_fw_grad(...)로 기록 (생략)
   return result;
 }
 ```
+
+강의 앞부분의 old style 코드와 비교하면 구조(그래프 노드 생성 → guard 아래에서 forward 실행 → history 기록)는 동일하지만, 세부가 달라졌습니다:
+
+- Guard: `at::AutoNonVariableTypeMode` → **`at::AutoDispatchBelowADInplaceOrView`** (1.10에서 deprecated 후 교체)
+- Forward 호출: `at::add(...)` → **`at::redispatch::add(ks & c10::after_autograd_keyset, ...)`** — dispatch key set을 명시적으로 전달하며 자신(autograd)의 key를 제외하고 redispatch
+- `grad_fn`이 `std::shared_ptr` → `c10::intrusive_ptr`, 검증이 `AT_ASSERT` → `TORCH_INTERNAL_ASSERT`, `c10::optional` → `::std::optional`
+- **Forward-mode AD** 지원 코드가 추가됨
 
 #### Registration API
 
