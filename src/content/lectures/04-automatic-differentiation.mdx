@@ -486,7 +486,7 @@ def backward(self, ge_scalar, tangents_1):
 
 [^partitioner]: AOTAutograd가 forward와 backward를 합쳐 만든 joint graph를 다시 forward/backward 두 개의 그래프로 잘라내는 컴포넌트. 어느 중간 값을 저장(save)하고 어느 것을 재계산(recompute)할지를 Min-Cut 계열 알고리즘으로 결정합니다. 뒤의 "[G 단계] Min-Cut Algorithm으로 Forward/Backward 분리" 절에서 자세히 다룹니다.
 
-이제 `[1]` → `[2]` → `[3]` 순서대로 어떤 일이 일어나는지 하나씩 짚어 봅니다.
+이제 왼쪽 사용자 코드에 주석으로 표시한 `[1]` → `[2]` → `[3]` 순서대로, 각 라인이 실행될 때 어떤 일이 일어나는지 하나씩 짚어 봅니다.
 
 **[1] `outputs = compiled_model(images)`**
 
