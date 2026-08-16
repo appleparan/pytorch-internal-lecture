@@ -649,7 +649,24 @@ Microsoft의 **ZeRO**(Zero Redundancy Optimizer, 2019) 논문은 이 중복을 �
 
 **Fully Sharded Data Parallel**(FSDP)은 ZeRO Stage 3의 PyTorch 구현입니다. parameter(weight, bias)를 world_size로 나누어 각 GPU에 sharding해 두고, 어떤 op을 실행하기 직전에 그 op에 필요한 weight 조각을 다른 GPU들로부터 모아 완전한 weight를 구성한 뒤 계산합니다. 계산이 끝나면 받아 온 조각들은 다시 버리고, 다음 op에서 필요한 다른 조각을 또 모으는 식입니다. gradient와 optimizer state까지 sharding하여 메모리를 절약하며, 계산 자체는 각 GPU가 자신의 데이터 배치에 대해 온전히 수행합니다. 쪼개는 것은 저장(storage)이지 계산이 아니기 때문에, 여전히 "Data Parallel"이라는 이름이 붙습니다.
 
-계보를 그려 보면: ZeRO 논문 → Microsoft가 **DeepSpeed** 라이브러리로 구현 → Meta가 FairScale에서 같은 아이디어를 FSDP로 구현 → PyTorch 본체로 upstream(FSDP1) → FSDP2로 재설계, 순서입니다. 즉 DeepSpeed와 FSDP는 같은 논문에서 출발한 두 구현이고, DeepSpeed는 "partitioning", FSDP는 "sharding"이라 부를 뿐 하는 일은 같습니다. 대응 관계는 DDP ≈ ZeRO-0, FSDP1의 `SHARD_GRAD_OP` ≈ ZeRO-2, `FULL_SHARD` ≈ ZeRO-3이며, FSDP2에서는 `reshard_after_forward=True/False`가 각각 ZeRO-3/ZeRO-2에 해당합니다. DeepSpeed와의 실무적 차이는 뒤의 보충 섹션에서 다룹니다.
+계보를 시간순으로 정리하면 다음과 같습니다:
+
+- **2019**: Microsoft가 ZeRO 논문 발표
+- **2020**: Microsoft가 ZeRO의 구현체인 **DeepSpeed** 라이브러리 공개
+- **2021**: Meta가 FairScale 라이브러리에서 같은 아이디어를 FSDP라는 이름으로 구현
+- **2022**: FairScale의 FSDP가 PyTorch 1.11 본체로 upstream — 이것이 FSDP1
+- **2024**: per-parameter sharding으로 재설계한 FSDP2(`fully_shard`) 공개
+
+즉 DeepSpeed와 FSDP는 같은 논문에서 출발한 두 구현입니다. DeepSpeed는 "partitioning", FSDP는 "sharding"이라 부를 뿐 하는 일은 같고, ZeRO stage와는 다음과 같이 대응됩니다:
+
+| ZeRO stage | Sharding 대상 | FSDP1 설정 | FSDP2 설정 |
+|---|---|---|---|
+| ZeRO-0 | 없음 (전부 복제) | `NO_SHARD` | 해당 없음 (DDP를 쓰면 됨) |
+| ZeRO-1 | optimizer state | 대응 없음 | 대응 없음 |
+| ZeRO-2 | + gradient | `SHARD_GRAD_OP` | `reshard_after_forward=False` |
+| ZeRO-3 | + parameter | `FULL_SHARD` | `reshard_after_forward=True` |
+
+DeepSpeed와의 실무적 차이는 뒤의 보충 섹션에서 다룹니다.
 
 FSDP에는 두 세대의 구현이 있습니다. 초기 구현인 **FSDP1**(`FullyShardedDataParallel` wrapper)은 deprecated 상태이고, 현재는 `fully_shard` API 기반의 **FSDP2**를 사용하는 것이 권장됩니다. 개념적인 동작(sharding → all-gather → 계산 → reshard)은 동일하지만 내부 표현이 크게 달라졌는데, 이는 아래 "FSDP1 vs. FSDP2"에서 자세히 다룹니다.
 
