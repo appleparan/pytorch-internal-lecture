@@ -627,6 +627,19 @@ a:hover {
   margin-bottom: 1.1rem;
 }
 
+/* Tailwind preflight resets list-style to none; restore markers in article content */
+.article-body ul {
+  list-style: disc;
+}
+
+.article-body ul ul {
+  list-style: circle;
+}
+
+.article-body ol {
+  list-style: decimal;
+}
+
 .article-body li {
   margin-bottom: 0.3rem;
 }
