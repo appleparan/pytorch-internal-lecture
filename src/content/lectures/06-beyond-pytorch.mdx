@@ -958,6 +958,18 @@ $$
 
 예를 들어 H100의 bf16 기준 임계값은 약 300 FLOPs/byte 수준입니다. 메모리에서 1 byte를 들고 올 때마다 300번 가까이 연산을 해야 연산기가 놀지 않는다는 뜻입니다.
 
+### Counting Dots: 행렬곱의 FLOPs 세는 법
+
+본격적으로 대입하기 전에, 앞으로 쓸 "행렬곱 $X[B, D] \times W[D, F]$의 연산량은 $2BDF$ FLOPs"라는 계산에서 2가 어디서 오는지부터 짚고 갑시다. 길이 $D$인 두 벡터의 내적(dot product)은 곱셈 $D$번 + 덧셈 $D$번, 즉 $2D$ FLOPs입니다. 행렬곱은 결과 행렬의 원소 하나마다 내적을 한 번씩 수행하는 것이므로, $B \times F$개의 원소 × $2D$ FLOPs = $2BDF$ FLOPs가 됩니다. 일반화하면 행렬곱의 FLOPs는 "관여하는 차원 크기들의 곱 × 2"로, 결국 내적의 개수를 세는(counting dots) 문제입니다.
+
+Transformer는 이런 행렬곱들의 연쇄이기 때문에, 아래 그림처럼 한 layer를 구성하는 모든 행렬곱의 shape을 적어 두면 전체 FLOPs와 파라미터 수를 기계적으로 셀 수 있습니다. 이렇게 세면 "파라미터 $P$개인 모델의 forward pass는 토큰당 약 $2P$ FLOPs(학습은 backward까지 합쳐 약 $6P$)"라는 잘 알려진 근사도 바로 유도됩니다.
+
+<div class="flex justify-center mt-4">
+  <img src="/images/06/transformer-diagram.png" alt="Transformer 한 layer를 구성하는 모든 행렬곱의 shape과 파라미터·FLOPs를 정리한 다이어그램" class="max-w-3xl w-full mx-auto" />
+</div>
+
+> 출처: [All the Transformer Math You Need to Know (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/transformers/)
+
 ### 행렬곱의 intensity는 배치 크기에 비례한다
 
 이걸 LLM의 지배적 연산인 행렬곱에 대입해 보면 왜 Decode가 문제인지 숫자로 드러납니다. $B$개 토큰을 한 번에 처리하는 행렬곱 $X[B, D] \times W[D, F]$는 연산량이 $2BDF$ FLOPs, 메모리 접근량이 (bf16 기준) $2BD + 2DF + 2BF$ bytes이므로,
@@ -984,7 +996,7 @@ $$
 
 참고: [All About Transformer Inference (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/inference/)
 
-이 절의 수식들이 전제하는 배경, 즉 행렬곱 한 번이 왜 $2BDF$ FLOPs인지, transformer 한 layer의 FLOPs·파라미터·KV cache를 어떻게 세는지는 아래 두 자료가 잘 정리하고 있습니다.
+여기서는 맛만 본 transformer 수식 계산의 전체 그림 - layer별 FLOPs·파라미터·KV cache 세기, 토큰 하나가 forward pass를 통과하는 여정 - 은 아래 두 자료가 잘 정리하고 있습니다.
 
 참고: [All the Transformer Math You Need to Know (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/transformers/)
 
