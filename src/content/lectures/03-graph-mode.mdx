@@ -439,6 +439,8 @@ Dynamo는 CPython 소스를 수정하는 대신, CPython이 제공하는 **frame
 
 위 다이어그램이 Dynamo의 내부 흐름입니다. Bytecode analysis → bytecode transformation → FxGraph construction → user-defined compilation → guard insertion의 과정을 거칩니다.
 
+여기서 처음 등장하는 **FX Graph**는 `torch.fx` 모듈이 제공하는 그래프 형태의 IR(intermediate representation)입니다. 모델이 수행하는 tensor 연산 하나하나를 node로, 연산 간의 입출력 관계를 edge로 표현한 자료구조이며, Dynamo는 bytecode를 분석하면서 만나는 tensor 연산들을 이 그래프에 차례로 기록합니다. 실제로는 `torch.fx.GraphModule` 객체로 만들어지고 내부 그래프를 동등한 Python 코드로 출력해 볼 수도 있어서, 이후 단계의 compiler들이 다루기 좋은 표준 컨테이너 역할을 합니다. 즉 지금까지 "trace"라고 불러온 것이 PyTorch 2.0에서 실제로 저장되는 형태가 바로 FX Graph입니다.
+
 #### Trace 생성 과정
 
 지금까지의 내용을 Trace Generation 관점에서 정리합니다.
