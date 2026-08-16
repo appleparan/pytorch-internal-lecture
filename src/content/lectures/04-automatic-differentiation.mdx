@@ -563,11 +563,10 @@ def backward(self, ge_scalar, tangents_1):
 <td class="pb-4">
 
 **→ 해결 1.** Backward를 **C++ dispatcher 수준**에서 tracing
-- 먼저 Dynamo로 **forward FX Graph**를 생성
-- 이 FX Graph를 **C++ object로 표현**하여 C++로 구현된 Autograd engine에 그대로 넘김
-- Autograd engine을 돌리면 dispatcher 안의 껍데기 함수들이 호출되고, **dispatch key가 올바로 세팅되면 autograd kernel이 자연스럽게 호출됨**
-- 그 결과 tensor object들에 backward 함수가 붙어 Python에서 하던 것과 동일한 방식으로 backward tracing이 가능
-- 이때 실제 값 계산은 필요 없으므로 **fake tensor**로 trace
+1. 먼저 Dynamo로 **forward FX Graph**를 생성
+2. 이 FX Graph를 **C++ object로 표현**하여 C++로 구현된 Autograd engine에 그대로 넘김 (실제 값 계산은 필요 없으므로 **fake tensor**로 trace)
+3. Autograd engine을 돌리면 dispatcher 안의 껍데기 함수들이 호출되고, **dispatch key가 올바로 세팅되면 autograd kernel이 자연스럽게 호출됨**
+4. 그 결과 tensor object들에 backward 함수가 붙어 Python에서 하던 것과 동일한 방식으로 backward tracing이 가능
 
 </td>
 </tr>
@@ -593,7 +592,10 @@ def backward(self, ge_scalar, tangents_1):
 </tbody>
 </table>
 
-정리하면, AOTAutograd는 (1) backward tracing을 Python이 아닌 C++ dispatcher 수준에서 수행하여 "Autograd engine은 C++, Dynamo는 Python"이라는 층위 차이를 극복하고, (2) FX Graph normalization(functionalization + decomposition)을 적용하여 eager mode의 dispatcher가 암묵적으로 해 주던 복잡성 처리를 graph mode에서도 명시적으로 수행합니다. 이 두 축을 통해 graph mode에서도 eager mode와 본질적으로 같은 방식의 backward 구성을 가능하게 합니다.
+정리하면, AOTAutograd는 다음 두 축을 통해 graph mode에서도 eager mode와 본질적으로 같은 방식의 backward 구성을 가능하게 합니다:
+
+1. **C++ dispatcher 수준의 backward tracing** — "Autograd engine은 C++, Dynamo는 Python"이라는 층위 차이를 극복
+2. **FX Graph normalization** (functionalization + decomposition) — eager mode의 dispatcher가 암묵적으로 해 주던 복잡성 처리를 graph mode에서도 명시적으로 수행
 
 <img src="/images/04/slide22_1.png" alt="AOTAutograd의 C++ dispatcher 수준 tracing과 FX Graph normalization 개요 다이어그램" class="h-72 mx-auto" />
 
