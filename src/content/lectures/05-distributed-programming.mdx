@@ -16,14 +16,20 @@ PyTorch + NPU 온라인 모임 #5 | 2025-01-15
 
 ## 소개
 
-이번 강의에서는 PyTorch의 분산 프로그래밍(Distributed Programming)에 대해 다룹니다. Week 1에서 PyTorch 2.0의 핵심 특징 중 하나로 MPI-like distributed programming model을 언급한 바 있는데, 이번 주에 그 내용을 본격적으로 파고듭니다. 대규모 모델 학습이 일반화되면서 실무에서 분산 학습을 접할 일도 그만큼 많아졌습니다.
+이번 강의에서는 PyTorch의 분산 프로그래밍(Distributed Programming)에 대해 다룹니다. Week 1에서 PyTorch 2.0의 핵심 특징 중 하나로 MPI-like distributed programming model을 언급한 바 있는데, 이번 주에 그 내용을 본격적으로 파고듭니다.
 
-강의는 크게 네 부분으로 구성됩니다:
 
-1. **Overview** - MPI와 OpenMP의 차이, PyTorch 분산 프로그래밍의 기본 개념과 아키텍처
-2. **torchrun을 활용한 distribute matmul 예제** - 실제 분산 행렬 곱셈을 수행하는 전체 과정
-3. **Device와 연결: CUDA 예제** - CUDA Device 선택, 동기화, Process Group 관리의 내부 동작
-4. **PyTorch가 제공하는 모델 병렬화 패키지들** - DDP, FSDP, TP 등 고수준 병렬화 도구
+## 오늘 다룰 주제들
+
+여러 GPU와 여러 머신에 흩어진 프로세스들이 어떻게 서로를 찾고, 데이터를 주고받으며, 하나의 모델을 함께 학습시킬 수 있을까요? 이 질문에서 출발해 개념 → 실습 예제 → 내부 동작 → 고수준 패키지 순으로 나아갑니다.
+
+- Overview - PyTorch 분산 프로그래밍의 뼈대
+    - MPI vs. OpenMP: PyTorch가 distributed memory를 가정하는 MPI 스타일을 따르는 이유
+    - 기본 개념 정리: node, process, world, rank, rendezvous
+    - 그 위에 자리잡는 process group과 c10d 통신 계층의 아키텍처
+- torchrun을 활용한 distributed matmul 예제 - 프로세스 시작 → rendezvous → `all_reduce`로 결과 수집 → 종료까지의 전체 흐름을 코드 수준에서 확인
+- Device와 연결: CUDA 예제 - device 선택, 동기화, process group 생성/제거라는 접점으로 쪼개어 c10d 내부 동작 분석
+- 모델 병렬화 패키지들 - DDP, FSDP, Tensor Parallel이 각각 어떤 문제를 어떤 전략으로 푸는지, 그리고 이들이 결국 c10d의 collective communication 위에서 동작한다는 점
 
 
 ## MPI vs. OpenMP

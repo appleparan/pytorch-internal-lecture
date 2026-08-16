@@ -13,6 +13,19 @@ import ThemeImage from '../../components/ThemeImage.astro';
 PyTorch + NPU 온라인 모임 #3 | 2024-12-18
 
 
+## 오늘 다룰 주제들
+
+이번 강의는 "graph mode는 왜, 그리고 어떻게 필요해졌는가"라는 질문에서 출발해, tracing 개념의 뿌리에서 PyTorch 2.0의 컴파일 파이프라인 전체까지 따라갑니다.
+
+- PyTorch의 역사와 2.0의 변화 - eager mode 중심이던 PyTorch에 graph mode가 더해지기까지의 배경
+- Graph capturing - graph mode의 근간이 되는 tracing
+    - 컴퓨터 구조 분야의 고전 사례로 정리하는 tracing 개념: out-of-order execution, trace cache, partial evaluation
+    - PyTorch 1.0의 시도와 한계: `jit.trace`(입력 의존성 검증 부재), `jit.script`(Python subset 처리 범위의 한계)
+    - 2.0의 해법 Dynamo: CPython bytecode 수준의 trace 생성, guard를 통한 안전성 검증, graph break를 통한 trace 불가 구간 자동 분할
+- IR lowering - Dynamo가 만든 FxGraph가 Torch IR → Aten/Prims IR → Inductor Loop-Level IR로 낮아지는 과정
+- Device backend 통합 - `torch.compile` 컴파일 파이프라인에 사용자 정의 device backend를 연결하는 방법
+
+
 ## PyTorch의 역사와 2.0의 변화
 
 PyTorch 2.0에서 가장 크게 변한 부분은 그래프 모드(graph mode)의 도입입니다. 그래프 모드가 왜 필요해졌는지 알려면 먼저 PyTorch가 걸어온 길을 간략히 짚어볼 필요가 있습니다.
