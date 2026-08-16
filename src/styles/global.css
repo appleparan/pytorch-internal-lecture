@@ -627,6 +627,19 @@ a:hover {
   margin-bottom: 1.1rem;
 }
 
+/* Tailwind preflight resets list-style to none; restore markers in article content */
+.article-body ul {
+  list-style: disc;
+}
+
+.article-body ul ul {
+  list-style: circle;
+}
+
+.article-body ol {
+  list-style: decimal;
+}
+
 .article-body li {
   margin-bottom: 0.3rem;
 }
@@ -719,13 +732,6 @@ a:hover {
   margin: 1.25rem 0;
   overflow-x: auto;
   text-align: center;
-}
-
-/* Display math rendered as <p> with only a .katex child (remark-math v6 + rehype-katex v7) */
-.article-body > p:has(> .katex:only-child) {
-  text-align: center;
-  margin: 1.25rem 0;
-  overflow-x: auto;
 }
 
 [data-theme='dark'] .article-body .katex {

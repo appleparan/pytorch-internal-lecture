@@ -36,7 +36,9 @@ PyTorch의 기원은 **Torch**에서 시작됩니다. Torch는 원래 C/C++로 �
 
 ### PyTorch의 탄생
 
-Lua보다 Python이 훨씬 더 인기 있는 언어였기 때문에, Meta(당시 Facebook)에서 Python 기반의 PyTorch 프로젝트를 시작했습니다. 당시에는 TensorFlow가 대세였고, PyTorch는 지금처럼 큰 프로젝트가 될 것이라 기대하지 않았습니다. 연구자들이 TensorFlow의 복잡한 사용성에 어려움을 겪고 있었기 때문에, 그 문제를 해결하고자 **eager mode** 철학을 중심으로 개발을 시작했습니다.
+Lua보다 Python이 훨씬 더 인기 있는 언어였기 때문에, Meta(당시 Facebook)에서 Python 기반의 PyTorch 프로젝트를 시작했습니다. 당시에는 TensorFlow가 대세였고, PyTorch는 지금처럼 큰 프로젝트가 될 것이라 기대하지 않았습니다. 연구자들이 TensorFlow의 복잡한 사용성에 어려움을 겪고 있었기 때문에, 그 문제를 해결하고자 **eager mode**[^eager-mode] 철학을 중심으로 개발을 시작했습니다.
+
+[^eager-mode]: 연산을 코드에 작성된 순서대로 즉시 실행하는 define-by-run 방식의 실행 모델. Week 1의 "Eager vs. Graph Mode"에서 개념을, Week 2에서 dispatcher를 중심으로 한 내부 동작을 다뤘습니다.
 
 이 접근 방식은 특히 리서치 커뮤니티에서 큰 호응을 얻으며 PyTorch가 빠르게 성장하는 계기가 되었습니다. 다만 이 시기의 PyTorch는 주로 연구자들이 사용하는 도구였으며, production 환경에서 사용하기에는 부족한 점이 있었습니다:
 
@@ -45,7 +47,9 @@ Lua보다 Python이 훨씬 더 인기 있는 언어였기 때문에, Meta(당시
 
 ### PyTorch 1.0: Production 지원
 
-PyTorch의 인기가 높아지면서, production 환경에서도 사용할 수 있는 형태로 발전할 필요가 생겼습니다. PyTorch 1.0에서는 **TorchScript** (`jit.trace`, `jit.script`) 기능이 추가되어 그래프 캡처 기능이 도입되었습니다.
+PyTorch의 인기가 높아지면서, production 환경에서도 사용할 수 있는 형태로 발전할 필요가 생겼습니다. PyTorch 1.0에서는 **TorchScript**[^torchscript] (`jit.trace`, `jit.script`) 기능이 추가되어 그래프 캡처 기능이 도입되었습니다.
+
+[^torchscript]: PyTorch 1.0에서 도입된 그래프 캡처·배포용 서브시스템으로, 모델을 Python runtime 없이 실행 가능한 형태로 변환하는 것이 목표였습니다. Week 1의 Q&A에서 짧게 언급했으며, 뒤의 "PyTorch 1.0의 시도와 한계"에서 `jit.trace`/`jit.script`의 한계를 자세히 다룹니다.
 
 ### PyTorch 2.0: 그래프 모드의 본격 도입
 
@@ -53,7 +57,10 @@ PyTorch 2.0에서는 1.0 대비 가장 크게 변한 부분이 그래프 모드�
 
 - **Dynamo**: 그래프를 캡처하는 새로운 모듈이 프론트엔드에 추가
 - **Autograd 통합**: 머신러닝을 위한 컴파일러이므로 자동 미분 기능이 백엔드 과정에 포함
-- **Inductor 및 다양한 백엔드 지원**: 여러 백엔드 중 대표적으로 Inductor가 있으며, 그 하위에 Triton 등의 코드 생성 백엔드가 연결
+- **Inductor 및 다양한 백엔드 지원**: 여러 백엔드 중 대표적으로 Inductor[^inductor]가 있으며, 그 하위에 Triton[^triton] 등의 코드 생성 백엔드가 연결
+
+[^inductor]: PyTorch 2.0의 기본 backend compiler. 캡처된 그래프를 받아 최적화된 kernel 코드를 생성하며, Week 1에서 Dynamo·Triton과 함께 PyTorch 2.0의 주요 ML 컴파일러 컴포넌트로 소개했습니다.
+[^triton]: OpenAI가 개발한 GPU kernel 작성용 언어이자 컴파일러. Week 1 Q&A의 "CUDA와 Triton의 차이점"에서 소개했습니다.
 
 이 시기에 PyTorch가 Linux Foundation에 기부되며 PyTorch Foundation이 설립되었습니다.
 
@@ -438,6 +445,8 @@ Dynamo는 CPython 소스를 수정하는 대신, CPython이 제공하는 **frame
 > 참고: https://depyf.readthedocs.io/en/latest/walk_through.html
 
 위 다이어그램이 Dynamo의 내부 흐름입니다. Bytecode analysis → bytecode transformation → FxGraph construction → user-defined compilation → guard insertion의 과정을 거칩니다.
+
+여기서 처음 등장하는 **FX Graph**는 `torch.fx` 모듈이 제공하는 그래프 형태의 IR(intermediate representation)입니다. 모델이 수행하는 tensor 연산 하나하나를 node로, 연산 간의 입출력 관계를 edge로 표현한 자료구조이며, Dynamo는 bytecode를 분석하면서 만나는 tensor 연산들을 이 그래프에 차례로 기록합니다. 실제로는 `torch.fx.GraphModule` 객체로 만들어지고 내부 그래프를 동등한 Python 코드로 출력해 볼 수도 있어서, 이후 단계의 compiler들이 다루기 좋은 표준 컨테이너 역할을 합니다. 즉 지금까지 "trace"라고 불러온 것이 PyTorch 2.0에서 실제로 저장되는 형태가 바로 FX Graph입니다.
 
 #### Trace 생성 과정
 

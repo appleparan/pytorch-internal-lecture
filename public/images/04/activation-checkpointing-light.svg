@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 424" width="680" height="424" role="img" aria-labelledby="acp-light-title acp-light-desc">
+  <title id="acp-light-title">일반 training과 activation checkpointing 비교</title>
+  <desc id="acp-light-desc">일반 training은 forward에서 모든 중간 activation을 저장해 backward에서 그대로 사용하고, activation checkpointing은 checkpoint만 저장한 뒤 backward 중에 없는 activation을 checkpoint에서 forward 재계산으로 되살려 사용한다.</desc>
+  <defs>
+    <marker id="acp-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#8A8078" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="acp-arr-warm" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#9A7B68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="acp-arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#4A7FD4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="680" height="424" fill="#FFFFFF"/>
+
+  <!-- ══ Panel 1: Normal training ══ -->
+  <rect x="24" y="28" width="632" height="172" rx="10" fill="#FAF8F5" stroke="#D8D2CA" stroke-width="1"/>
+  <text x="44" y="52" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500" letter-spacing="1.5" fill="#6A6058">NORMAL TRAINING</text>
+  <text x="636" y="52" font-family="'DM Mono', monospace" font-size="9" fill="#8A8078" text-anchor="end">메모리 ↑ · 재계산 없음</text>
+
+  <!-- forward arrows -->
+  <path d="M144 86 H204" fill="none" stroke="#8A8078" stroke-width="1.2" marker-end="url(#acp-arr)"/>
+  <path d="M288 86 H348" fill="none" stroke="#8A8078" stroke-width="1.2" marker-end="url(#acp-arr)"/>
+  <path d="M432 86 H492" fill="none" stroke="#8A8078" stroke-width="1.2" marker-end="url(#acp-arr)"/>
+
+  <!-- layer boxes -->
+  <rect x="64" y="68" width="80" height="36" rx="6" fill="#FFFFFF" stroke="#C4BAAE" stroke-width="1"/>
+  <text x="104" y="88" font-family="'DM Mono', monospace" font-size="11" font-weight="500" fill="#141210" text-anchor="middle" dominant-baseline="middle">L1</text>
+  <rect x="208" y="68" width="80" height="36" rx="6" fill="#FFFFFF" stroke="#C4BAAE" stroke-width="1"/>
+  <text x="248" y="88" font-family="'DM Mono', monospace" font-size="11" font-weight="500" fill="#141210" text-anchor="middle" dominant-baseline="middle">L2</text>
+  <rect x="352" y="68" width="80" height="36" rx="6" fill="#FFFFFF" stroke="#C4BAAE" stroke-width="1"/>
+  <text x="392" y="88" font-family="'DM Mono', monospace" font-size="11" font-weight="500" fill="#141210" text-anchor="middle" dominant-baseline="middle">L3</text>
+  <rect x="496" y="68" width="80" height="36" rx="6" fill="#FFFFFF" stroke="#C4BAAE" stroke-width="1"/>
+  <text x="536" y="88" font-family="'DM Mono', monospace" font-size="11" font-weight="500" fill="#141210" text-anchor="middle" dominant-baseline="middle">L4</text>
+
+  <!-- ticks layer → activation -->
+  <line x1="104" y1="104" x2="104" y2="120" stroke="#C9C2BA" stroke-width="1"/>
+  <line x1="248" y1="104" x2="248" y2="120" stroke="#C9C2BA" stroke-width="1"/>
+  <line x1="392" y1="104" x2="392" y2="120" stroke="#C9C2BA" stroke-width="1"/>
+  <line x1="536" y1="104" x2="536" y2="120" stroke="#C9C2BA" stroke-width="1"/>
+
+  <!-- activation chips: all saved -->
+  <rect x="64" y="124" width="80" height="24" rx="4" fill="#F5F8FF" stroke="#C7D8F8" stroke-width="1"/>
+  <text x="104" y="137" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500" fill="#4A7FD4" text-anchor="middle" dominant-baseline="middle">a1 저장</text>
+  <rect x="208" y="124" width="80" height="24" rx="4" fill="#F5F8FF" stroke="#C7D8F8" stroke-width="1"/>
+  <text x="248" y="137" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500" fill="#4A7FD4" text-anchor="middle" dominant-baseline="middle">a2 저장</text>
+  <rect x="352" y="124" width="80" height="24" rx="4" fill="#F5F8FF" stroke="#C7D8F8" stroke-width="1"/>
+  <text x="392" y="137" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500" fill="#4A7FD4" text-anchor="middle" dominant-baseline="middle">a3 저장</text>
+  <rect x="496" y="124" width="80" height="24" rx="4" fill="#F5F8FF" stroke="#C7D8F8" stroke-width="1"/>
+  <text x="536" y="137" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500" fill="#4A7FD4" text-anchor="middle" dominant-baseline="middle">a4 저장</text>
+
+  <!-- backward -->
+  <path d="M576 172 H104" fill="none" stroke="#9A7B68" stroke-width="1.4" marker-end="url(#acp-arr-warm)"/>
+  <rect x="264" y="152" width="152" height="14" rx="2" fill="#FAF8F5"/>
+  <text x="340" y="162" font-family="'DM Mono', monospace" font-size="8.5" fill="#9A7B68" text-anchor="middle">BACKWARD: 저장된 값 사용</text>
+
+  <!-- ══ Panel 2: Activation checkpointing ══ -->
+  <rect x="24" y="224" width="632" height="172" rx="10" fill="#FAF8F5" stroke="#D8D2CA" stroke-width="1"/>
+  <text x="44" y="248" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500" letter-spacing="1.5" fill="#6A6058">ACTIVATION CHECKPOINTING</text>
+  <text x="636" y="248" font-family="'DM Mono', monospace" font-size="9" fill="#8A8078" text-anchor="end">메모리 ↓ · 재계산 발생</text>
+
+  <!-- forward arrows -->
+  <path d="M144 282 H204" fill="none" stroke="#8A8078" stroke-width="1.2" marker-end="url(#acp-arr)"/>
+  <path d="M288 282 H348" fill="none" stroke="#8A8078" stroke-width="1.2" marker-end="url(#acp-arr)"/>
+  <path d="M432 282 H492" fill="none" stroke="#8A8078" stroke-width="1.2" marker-end="url(#acp-arr)"/>
+
+  <!-- layer boxes -->
+  <rect x="64" y="264" width="80" height="36" rx="6" fill="#FFFFFF" stroke="#C4BAAE" stroke-width="1"/>
+  <text x="104" y="284" font-family="'DM Mono', monospace" font-size="11" font-weight="500" fill="#141210" text-anchor="middle" dominant-baseline="middle">L1</text>
+  <rect x="208" y="264" width="80" height="36" rx="6" fill="#FFFFFF" stroke="#C4BAAE" stroke-width="1"/>
+  <text x="248" y="284" font-family="'DM Mono', monospace" font-size="11" font-weight="500" fill="#141210" text-anchor="middle" dominant-baseline="middle">L2</text>
+  <rect x="352" y="264" width="80" height="36" rx="6" fill="#FFFFFF" stroke="#C4BAAE" stroke-width="1"/>
+  <text x="392" y="284" font-family="'DM Mono', monospace" font-size="11" font-weight="500" fill="#141210" text-anchor="middle" dominant-baseline="middle">L3</text>
+  <rect x="496" y="264" width="80" height="36" rx="6" fill="#FFFFFF" stroke="#C4BAAE" stroke-width="1"/>
+  <text x="536" y="284" font-family="'DM Mono', monospace" font-size="11" font-weight="500" fill="#141210" text-anchor="middle" dominant-baseline="middle">L4</text>
+
+  <!-- ticks -->
+  <line x1="104" y1="300" x2="104" y2="316" stroke="#C9C2BA" stroke-width="1"/>
+  <line x1="392" y1="300" x2="392" y2="316" stroke="#C9C2BA" stroke-width="1"/>
+
+  <!-- activation chips: checkpoints saved, rest discarded -->
+  <rect x="64" y="316" width="80" height="24" rx="4" fill="#F5F8FF" stroke="#C7D8F8" stroke-width="1"/>
+  <text x="104" y="329" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500" fill="#4A7FD4" text-anchor="middle" dominant-baseline="middle">a1 저장</text>
+  <rect x="208" y="316" width="80" height="24" rx="4" fill="none" stroke="#C9C2BA" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="248" y="329" font-family="'DM Mono', monospace" font-size="9.5" fill="#B0A79C" text-anchor="middle" dominant-baseline="middle">a2 버림</text>
+  <rect x="352" y="316" width="80" height="24" rx="4" fill="#F5F8FF" stroke="#C7D8F8" stroke-width="1"/>
+  <text x="392" y="329" font-family="'DM Mono', monospace" font-size="9.5" font-weight="500" fill="#4A7FD4" text-anchor="middle" dominant-baseline="middle">a3 저장</text>
+  <rect x="496" y="316" width="80" height="24" rx="4" fill="none" stroke="#C9C2BA" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="536" y="329" font-family="'DM Mono', monospace" font-size="9.5" fill="#B0A79C" text-anchor="middle" dominant-baseline="middle">a4 버림</text>
+
+  <!-- recompute arrow: checkpoint a1 → a2 -->
+  <path d="M144 328 H200" fill="none" stroke="#4A7FD4" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#acp-arr-blue)"/>
+  <rect x="152" y="340" width="48" height="12" rx="2" fill="#FAF8F5"/>
+  <text x="176" y="349" font-family="'DM Mono', monospace" font-size="8.5" fill="#4A7FD4" text-anchor="middle">재계산</text>
+
+  <!-- backward -->
+  <path d="M576 368 H104" fill="none" stroke="#9A7B68" stroke-width="1.4" marker-end="url(#acp-arr-warm)"/>
+  <rect x="228" y="348" width="224" height="14" rx="2" fill="#FAF8F5"/>
+  <text x="340" y="358" font-family="'DM Mono', monospace" font-size="8.5" fill="#9A7B68" text-anchor="middle">BACKWARD: 없는 값은 checkpoint에서 재계산</text>
+</svg>
