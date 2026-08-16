@@ -63,20 +63,24 @@ ML Framework의 발전은 이전의 훌륭한 연구들과 산업적 성과가 �
 **Convergence on PyTorch**: 이 모든 기술이 PyTorch로 수렴하고 있는 흐름을 살펴봅니다.
 
 
-## Heterogeneous Computing with GPU
+## ML Framework의 배경 기술
+
+ML Framework은 서로 다른 뿌리를 가진 네 가지 기술적 흐름 위에서 만들어졌습니다. Heterogeneous computing, Supercomputing, ML compiler, 그리고 Numerical computing을 하나씩 살펴봅니다.
+
+### Heterogeneous Computing with GPU
 
 Heterogeneous Computing은 CPU와 GPU를 함께 활용하여 더 빠르게 계산할 수 있도록 해주는 시스템입니다. 일반적으로 CPU가 수행하던 계산 중 일부를 GPU에게 offloading하여 성능을 향상시키는 방식입니다.
 
 ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하므로, CPU와 AI 가속기를 결합하여 사용하는 Heterogeneous Computing이 그 바탕이 되는 배경 기술입니다.
 
-### Graphics에서의 시작
+#### Graphics에서의 시작
 
 이 기술의 시작점은 GUI, 컴퓨터 게임 등을 위한 Graphics입니다.
 
 - **OpenGL (1992)** - 실리콘 그래픽스가 개발한 Graphics API로, 프로그래머가 그래픽스 연산을 소프트웨어적으로 프로그래밍할 수 있는 시작점이었습니다. 다만 OpenGL 자체는 상업적으로 큰 성공을 거두지는 못했습니다.
 - **DirectX (1995)** - Microsoft가 개발한 Graphics API로, Windows PC의 보급과 함께 실질적인 업계 표준으로 자리잡았습니다. GPU의 성능 향상과 함께 주요 표준이 되었으며, Nvidia와 ATI(현재 AMD)의 성장을 촉진시킨 중요한 계기가 되었습니다.
 
-### Shader Programming의 등장 (2000년대 초)
+#### Shader Programming의 등장 (2000년대 초)
 
 2000년대 초에는 GPU 프로그래밍에 큰 변화를 가져온 **Shader Programming**이 등장했습니다. 이전에는 GPU가 fixed function만 수행할 수 있었지만, 이제 개발자가 GPU를 프로그래밍 가능한 디바이스로 활용할 수 있게 되었습니다.
 
@@ -85,7 +89,7 @@ ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하�
 
 이 시기를 기점으로 GPU는 단순한 그래픽스 연산 디바이스에서 범용 연산에 적합한 프로그래머블한 디바이스로 진화했습니다.
 
-### GPGPU의 등장 (2007년)
+#### GPGPU의 등장 (2007년)
 
 2007년 Nvidia는 **CUDA**(Compute Unified Device Architecture)를 발표하며, GPGPU(General Purpose GPU)의 시대를 열었습니다.
 
@@ -99,11 +103,11 @@ ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하�
 그러나 OpenCL과 HSA는 상용화에서 한계를 보였고, CUDA가 사실상 표준으로 자리잡았습니다. 오늘날 PyTorch와 같은 ML Framework 내부에서도 CUDA 기반의 API가 광범위하게 사용되고 있으며, 많은 후발 주자들이 이를 기반으로 비슷한 구조를 구축하고 있습니다.
 
 
-## Supercomputing
+### Supercomputing
 
 슈퍼컴퓨팅은 엄청나게 복잡한 계산을 처리하기 위한 고성능 컴퓨팅 기술입니다. 최근에는 머신러닝이 대표적인 예시로 떠오르고 있지만, 20년 전만 해도 주로 물리학 시뮬레이션, 천문학, 기후 모델링, 로켓 개발, 핵폭탄 연구 등 과학 연구와 시뮬레이션 분야에서 사용되었습니다. 미국의 내셔널 랩(National Lab)에서는 이러한 슈퍼컴퓨터를 활용해 복잡한 과학적, 기술적 문제를 해결하는 데 주력하고 있습니다.
 
-### 슈퍼컴퓨팅과 인터넷 서비스의 차이
+#### 슈퍼컴퓨팅과 인터넷 서비스의 차이
 
 슈퍼컴퓨팅은 많은 수의 컴퓨터를 네트워크로 연결해 하나의 큰 계산을 분산 처리하는 방식으로 작동합니다. 구글의 데이터센터나 클라우드 기술도 유사한 구조를 가지고 있지만, 본질적인 차이가 존재합니다:
 
@@ -112,7 +116,7 @@ ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하�
 
 머신러닝의 경우에도 인퍼런스는 독립적인 작업이 많지만, 대규모 분산 학습에서는 하나의 작업이 매우 크기 때문에 fault 처리가 더욱 중요해집니다.
 
-### 병렬/분산 프로그래밍 모델
+#### 병렬/분산 프로그래밍 모델
 
 슈퍼컴퓨팅의 발전과 함께 다양한 병렬 및 분산 프로그래밍 모델이 등장했습니다:
 - **개념적인 모델** - SIMD, SPMD, MIMD
@@ -120,7 +124,7 @@ ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하�
 
 특히 MPI(Message Passing Interface)는 PyTorch에서 구현된 분산 프로그래밍 모델의 기반이 되기도 합니다.
 
-### Matrix Multiplication
+#### Matrix Multiplication
 
 슈퍼컴퓨팅에서 가장 중요한 요소 중 하나는 **Matrix Multiplication**입니다. 과학에서 다루는 많은 자연 현상들이 선형대수로 표현되며, 선형대수의 가장 중요한 개념들은 결국 matrix multiplication으로 귀결됩니다.
 
@@ -135,7 +139,7 @@ ML Framework은 GPU와 같은 AI 가속기를 효과적으로 활용해야 하�
   - Nvidia: **cuBLAS** (2007, closed-source), **CUTLASS** (2018, 오픈소스) - cuBLAS는 클로즈드 소스로 제공되지만, CUTLASS는 오픈소스 라이브러리로 누구나 접근 가능합니다.
 
 
-## ML Compiler
+### ML Compiler
 
 ML Compiler는 정적인 graph로 전환된 ML model을 특정 hardware에 맞게 최적화해주는 컴파일러입니다.
 
@@ -144,11 +148,11 @@ ML Framework으로 개발자들이 표현한 model은 대부분 "동적"입니�
 2. 이를 ML compiler가 이해할 수 있는 format으로 전환하여
 3. 최종적으로 HW가 실행할 수 있는 binary를 생성합니다.
 
-### On-Device AI에서의 활용
+#### On-Device AI에서의 활용
 
 서버에서 GPU로 훈련된 모델을 On-Device AI 가속기에서 수행하기 위해 많이 쓰이며, Qualcomm Snapdragon, Samsung Exynos, Google Tensor 등이 대표적입니다.
 
-### 서버에서의 활용 확대
+#### 서버에서의 활용 확대
 
 서버에서도 점점 활성화되고 있는 추세입니다:
 
@@ -160,7 +164,7 @@ ML Framework으로 개발자들이 표현한 model은 대부분 "동적"입니�
 
 PyTorch 2.0의 등장도 이러한 흐름 위에 있습니다.
 
-### PyTorch에서의 ML Compiler
+#### PyTorch에서의 ML Compiler
 
 PyTorch 1.x에서도 JIT Trace가 모델을 정적 형태로 변환해주는 역할을 했지만, 본격적인 ML 컴파일러로서의 역할은 제한적이었습니다.
 
@@ -170,18 +174,18 @@ PyTorch 2.0에서는 ML 컴파일러 기능이 대폭 강화되었습니다:
 - **Triton** - 도메인 특화 언어(DSL)로, GPU를 위한 커널 최적화 작업에 활용
 
 
-## Numerical Computing for Data Science
+### Numerical Computing for Data Science
 
 Data science는 통계, 컴퓨터 과학, 수학 등의 도구를 활용하여 데이터를 분석하고 대상을 이해하는 융합 학문입니다. 많은 과학자/엔지니어들이 업무의 일부로 자연스럽게 data scientist 역할을 수행합니다.
 
-### Data Scientist가 선호하는 도구의 특성
+#### Data Scientist가 선호하는 도구의 특성
 
 Data scientist들은 특정 프로그래밍 언어 자체보다는, 이미 존재하는 데이터를 손쉽게 가공하고 필요한 정보를 얻어내는 데 더 관심을 둡니다. 그래서 다음과 같은 특성을 갖춘 도구를 선호합니다:
 - **Predefined math functions** - 복잡한 수학 함수를 직접 구현하는 대신 활용할 수 있는, 미리 정의된 수학 함수들
 - **Interactive mode** - 긴 코드를 작성하고 실행하는 대신, 데이터를 즉시 처리하고 결과를 확인하는 대화형 작업 방식
 - **Visualization** - 시각화 도구
 
-### NumPy의 등장과 Python의 부상
+#### NumPy의 등장과 Python의 부상
 
 SAS (1966), SPSS (1968), Matlab (1970s), R (1993) 등이 선구적인 역할을 했으나, NumPy (2005)의 등장과 함께 Python이 대세로 자리잡았습니다. SciPy, Matplotlib, pandas, scikit-learn 등의 생태계가 형성되었고, Jupyter의 등장으로 더욱 많은 사람들이 쉽게 접근할 수 있게 되었습니다.
 
@@ -190,7 +194,11 @@ ML도 사용성 측면에서 같은 추세를 보이고 있습니다. NumPy는 T
 흥미로운 점은, NumPy가 PyTorch의 개발에 영향을 준 뒤, 최근에는 NumPy 창시자의 회사가 PyTorch 2.0에 많은 기여를 하고 있다는 것입니다. 이제 PyTorch는 NumPy 코드를 네이티브로 지원하며, NumPy 코드를 수정 없이 작성하면 Dynamo와 Inductor를 통해 바이트코드로 동적 변환 후 CUDA 코드로 컴파일하여 GPU에서 실행할 수 있습니다. 이 기술은 현재 PyTorch의 upstream에 포함되어 있습니다.
 
 
-## Two (or More) Language Problems
+## ML Framework 설계의 딜레마(Design Space)
+
+배경 기술을 하나의 프레임워크로 통합하는 과정에서, 모든 ML Framework은 공통적인 설계 선택지들과 마주쳤습니다. 언어 문제, eager vs. graph mode, 그리고 graph를 추출하는 방법을 중심으로 살펴봅니다.
+
+### Two (or More) Language Problems
 
 Python은 사용하기 쉽지만 성능 문제가 있습니다. 이를 해결하기 위한 세 가지 접근법이 있습니다:
 
@@ -205,13 +213,13 @@ Python은 사용하기 쉽지만 성능 문제가 있습니다. 이를 해결하
 - 추가로 AI 가속기로 offloading하여 성능을 극대화합니다.
 
 
-## Eager vs. Graph Mode
+### Eager vs. Graph Mode
 
-### Eager mode
+#### Eager mode
 
 API 호출 시 operator가 곧바로 실행됩니다.
 
-### Graph mode
+#### Graph mode
 
 API 호출 시 graph를 점진적으로 생성합니다. Graph가 완성되면 목적에 맞게 변환을 적용한 후 수행합니다:
 - Back propagation을 위한 backward graph 생성
@@ -219,7 +227,7 @@ API 호출 시 graph를 점진적으로 생성합니다. Graph가 완성되면 �
 
 Eager mode와 graph mode를 명확히 구분할 수 있지만, 실제로는 두 가지가 동시에 작동하는 경우가 많습니다. 대표적인 예가 autograd입니다. Forward 단계에서는 각 연산이 eager mode로 즉시 실행되지만, autograd를 켜면 실행과 동시에 backward 계산을 위한 graph가 기록됩니다. Backward 계산은 forward 계산과 다르기 때문에 별도의 backward graph가 필요하며, backward propagation은 이 그래프를 따라 수행됩니다. 즉 forward에서는 eager mode가, backward에서는 graph mode가 작동하는 셈입니다.
 
-### Graph mode를 접근하는 방법
+#### Graph mode를 접근하는 방법
 
 **TF1의 접근법 (define-and-run)**
 - 개발자에게 명시적으로 graph를 생성하도록 요구
@@ -231,9 +239,9 @@ Eager mode와 graph mode를 명확히 구분할 수 있지만, 실제로는 두 
 TF2와 PyTorch는 Eager, Graph 모두 가능합니다. JAX도 기본적으로는 eager로 실행되지만, `jax.jit`으로 감싼 함수는 트레이싱을 거쳐 그래프로 컴파일됩니다.
 
 
-## TF1 vs. PyTorch 코드 비교
+### TF1 vs. PyTorch 코드 비교
 
-### TF1
+#### TF1
 
 ```python
 a = tf.constant([[3, 3]])
@@ -246,7 +254,7 @@ with tf.Session() as sess:
 
 TensorFlow 1.x에서는 `tf.constant`와 `tf.matmul` 같은 연산자들이 실제 계산을 수행하지 않고, 계산 과정을 그래프로 만듭니다. `c`를 평가하기 전까지는 실제 값을 알 수 없으며, `Session`을 생성한 뒤 `sess.run(c)`(또는 `c.eval()`)를 호출해야 비로소 계산 결과를 얻을 수 있습니다.
 
-### PyTorch
+#### PyTorch
 
 ```python
 x1 = torch.rand(2, 3)
@@ -258,11 +266,11 @@ print(y)
 PyTorch의 eager mode에서는 각 줄의 연산이 즉시 수행되며, `y`는 `+`가 실행된 결과를 바로 가지고 있습니다. 별도의 그래프 실행 과정이 필요 없으며, 코드 한 줄 한 줄이 실시간으로 계산됩니다.
 
 
-## Graph Capture: TF2와 PyTorch 비교
+### Graph Capture: TF2와 PyTorch 비교
 
 그래프 모드에서는 어떻게 그래프를 뽑아낼 것인가가 핵심 문제입니다. TF1은 프로그래머들에게 명시적으로 그래프를 그려달라고 요청했지만, TF2나 PyTorch는 eager 모드로 모델을 만들어주면 거기서 자체적으로 그래프를 뽑아내는 방식을 사용합니다.
 
-### TF2
+#### TF2
 
 ```python
 @tf.function
@@ -279,7 +287,7 @@ foo(x, y)
 
 TF2는 기본이 eager 모드이며, `@tf.function` 데코레이터를 붙인 함수를 처음 호출하는 시점에 함수 내부의 연산들이 트레이싱되어 그래프로 캡처됩니다. 개발자는 eager 스타일로 코드를 작성하고, 프레임워크가 그래프 추출을 담당하는 define-by-run 구조입니다.
 
-### PyTorch 1 & 2
+#### PyTorch 1 & 2
 
 ```python
 def foo(x, y):
@@ -302,7 +310,7 @@ optimized_foo(x, y)
 PyTorch 1과 2는 모두 100% eager 모드를 지원합니다. PyTorch 1에서는 `torch.jit.trace`를 이용해 trace를 뽑아 그래프 모드를 수행했고, PyTorch 2에서는 이를 더 범용적으로 사용할 수 있는 `torch.compile`을 도입했습니다. 특히 trace를 뽑아내는 기능은 Dynamo라는 기술을 통해 더 체계적으로 대응하고 있습니다.
 
 
-## This is not new
+### This is not new
 
 Eager mode에서 graph를 추출하는 기법에는 오랜 역사가 있습니다:
 
@@ -331,7 +339,7 @@ ML Framework에는 방대한 양의 배경 기술이 있지만, 시간이 흘러
 대표적인 예로 **vLLM**이 있습니다. vLLM은 PyTorch 위에 올라가는 기술로, 하드웨어를 붙이기 위해 "일단 PyTorch에 잘 붙여봐라"라는 구체적인 요구 조건을 내걸었습니다. 하드웨어 종속적인 부분들은 먼저 PyTorch에 잘 통합하고, 그 다음에 제공하라는 정식 정책을 수립한 것입니다. 이 ML 에코시스템에서 다양한 하드웨어를 잘 추상화하고 단순화시키는 "Narrow Waist" 역할로 PyTorch가 점점 더 보편적으로 받아들여지고 있습니다.
 
 
-## PyTorch 2.0
+### PyTorch 2.0
 
 PyTorch 2.0은 PyTorch 1.0의 특성을 거의 모두 계승(inherit)하면서, 앞서 다룬 여러 기술적 배경을 종합하여 구현된 프레임워크입니다.
 
@@ -344,7 +352,7 @@ PyTorch 2.0은 PyTorch 1.0의 특성을 거의 모두 계승(inherit)하면서, 
 - **Define-by-run** with graph capturing via TorchDynamo - Eager mode 중심으로 Graph mode를 부드럽게 지원
 - Support both training and inference - Graph mode(컴파일) 경로가 inference뿐 아니라 training까지 지원하게 된 것이 PyTorch 2.0에서 가장 크게 변화한 부분
 
-### Backend Integration Points
+#### Backend Integration Points
 
 다양한 하드웨어와 원활히 연결될 수 있도록 통합 포인트를 잘 정의하고 있습니다:
 
