@@ -482,7 +482,7 @@ def backward(self, ge_scalar, tangents_1):
 </div>
 </div>
 
-오른쪽 코드에서 `forward()`와 `backward()`가 한 `torch.autograd.Function` 객체 안에 함께 들어 있다는 점에 주목하세요. 이것이 PyTorch 1.0 Autograd에서 언급했던 custom differentiable function 기능을 그대로 활용한 결과이며, compiled model은 "forward와 backward를 모두 가진 하나의 custom Op"처럼 동작합니다. 참고로 `forward`가 `ge_scalar`를 추가로 반환하는 것은 partitioner가 backward 계산의 일부(`ge` 비교)를 forward 쪽으로 옮겼기 때문이며, `backward`는 이 값을 받아 재계산 없이 그대로 사용합니다.
+오른쪽 코드에서 `forward()`와 `backward()`가 한 `torch.autograd.Function` 객체 안에 함께 들어 있다는 점에 주목하세요. 이것이 PyTorch 1.0 Autograd에서 언급했던 custom differentiable function 기능을 그대로 활용한 결과이며, **compiled model은 "forward와 backward를 모두 가진 하나의 custom Op"처럼 동작합니다**. 참고로 `forward`가 `ge_scalar`를 추가로 반환하는 것은 partitioner가 backward 계산의 일부(`ge` 비교)를 forward 쪽으로 옮겼기 때문이며, `backward`는 이 값을 받아 재계산 없이 그대로 사용합니다.
 
 이제 `[1]` → `[2]` → `[3]` 순서대로 어떤 일이 일어나는지 하나씩 짚어 봅니다.
 
