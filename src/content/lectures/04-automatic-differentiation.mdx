@@ -183,12 +183,48 @@ $x = 2$로 초기화하고 `requires_grad = True`로 gradient 필요 여부를 �
 y = x * 2
 ```
 
-먼저 forward 계산으로 $y = x \times 2 = 4$가 저장됩니다. 여기서 끝나는 것이 아니라, $x$가 미분이 필요하다고 마킹되어 있으므로 그 output인 $y$도 gradient가 필요하게 됩니다. 이때 `MulBackward0`라는 grad function이 $y$에 연결되어, multiplication에 의한 backward 과정이 필요하다는 것이 등록됩니다. Computation graph 상태는 다음과 같습니다:
+먼저 forward 계산으로 $y = x \times 2 = 4$가 저장됩니다. 여기서 끝나는 것이 아니라, $x$가 미분이 필요하다고 마킹되어 있으므로 그 output인 $y$도 gradient가 필요하게 됩니다. 이때 `MulBackward0`라는 grad function이 $y$에 연결되어, multiplication에 의한 backward 과정이 필요하다는 것이 등록됩니다. (이 등록을 수행하는 forward kernel의 실제 C++ 코드와, `MulBackward0` 같은 grad function이 만들어지는 과정은 Step 4 뒤의 [참고] 섹션들에서 자세히 다룹니다.) Computation graph 상태는 다음과 같습니다:
 
 <Mermaid>
 {`graph LR
     x["x: 2"] --> mul["MulBackward0: ×2"] --> y["y: 4"]`}
 </Mermaid>
+
+
+### Step 3: Forward 연산 (z = y ** 2)
+
+```python
+z = y ** 2
+```
+
+Step 2와 동일한 과정이 반복됩니다. $z = y^2 = 16$이 계산되면서, Autograd는 $y$와 $z$도 gradient가 필요하다는 것을 인지합니다. Forward kernel은 `compute_requires_grad` 판별을 거쳐 `PowBackward0` grad function을 bookkeeping해 둡니다 (이 판별 코드는 아래 [참고] 섹션에서 확인할 수 있습니다). `PowBackward0`에 들어가는 입력은 $y$이며, 미분식 $2y$를 반환합니다. 이 스텝까지 완료되면 forward 계산이 모두 끝나고 backward graph 준비가 완료된 상태입니다:
+
+<Mermaid wide>
+{`graph LR
+    x["x: 2"] --> mul["MulBackward0: ×2"] --> y["y: 4"] --> pow["PowBackward0: 2y"] --> z["z: 16"]`}
+</Mermaid>
+
+
+### Step 4: Backward
+
+```python
+z.backward()
+```
+
+**Step 4.1 - Backward 시작**: Forward에서 기록해 둔 과정을 거꾸로 복귀합니다. 출력 자신에 대한 편미분은 항상 1이므로, 상수 $\frac{dz}{dz} = 1$부터 시작합니다. 이 값이 `PowBackward0`로 전달되면, $y^2$의 미분 함수인 $2y$가 적용됩니다. 이때 $2y$는 위에서 들어오는 입력과는 상관없이 $y$ 값에만 의존하며, $y = 4$이므로 $1 \times 2 \times 4 = 8$이 됩니다.
+
+**Step 4.2 - Gradient 전파**: 다음 단계에서 $x$에 대한 $y$의 편미분 $\frac{dy}{dx}$는 $2$입니다. 위에서 온 민감도(gradient)가 계속 누적되면서 곱해지는 과정이므로, 이전 단계에서 내려온 민감도 $8$에 편미분 $2$를 곱하면 $8 \times 2 = 16$이 됩니다. 이 $16$이 최종적으로 `x.grad`에 저장됩니다.
+
+따라서 $\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx} = 8 \times 2 = 16$입니다. 실제 신경망에서는 이보다 훨씬 복잡하지만, 근본적으로 이 과정이 반복적으로 일어난다고 생각하면 됩니다.
+
+전체 backward 흐름을 정리하면 다음과 같습니다:
+
+<Mermaid wide>
+{`graph RL
+    start["dz/dz = 1"] --> pow["PowBackward0: 2y → 1 × 8 = 8"] --> mul["MulBackward0: ×2 → 8 × 2 = 16"] --> result["x.grad = 16"]`}
+</Mermaid>
+
+검증: $z = (2x)^2 = 4x^2$이므로, $\frac{dz}{dx} = 8x = 8 \times 2 = 16$
 
 
 ### [참고] Forward에서 수행되는 AutoGrad kernel 예제: add
@@ -332,42 +368,6 @@ variable_list MulBackward0::apply(variable_list&& grads) {
 ```
 
 `self_.unpack()`, `other_.unpack()`에서 볼 수 있듯 곱셈은 backward에서 원래 입력값이 필요하므로 `SavedVariable` 멤버로 저장해 두었다가 꺼내 쓰는 구조입니다. (`add`는 입력값이 필요 없으니 저장하지 않았던 것과 대비됩니다.) 결과적으로 derivatives.yaml 한 줄이 곧 하나의 backward 클래스로 변환되며, 개발자는 미분식만 선언하면 실제 `grad_fn` 클래스와 dispatch 코드는 codegen이 만들어주는 구조입니다.
-
-
-### Step 3: Forward 연산 (z = y ** 2)
-
-```python
-z = y ** 2
-```
-
-Step 2와 동일한 과정이 반복됩니다. $z = y^2 = 16$이 계산되면서, Autograd는 $y$와 $z$도 gradient가 필요하다는 것을 인지합니다. 앞서 설명한 `compute_requires_grad`의 if문 안으로 들어가 `PowBackward0` grad function을 bookkeeping해 둡니다. `PowBackward0`에 들어가는 입력은 $y$이며, 미분식 $2y$를 반환합니다. 이 스텝까지 완료되면 forward 계산이 모두 끝나고 backward graph 준비가 완료된 상태입니다:
-
-<Mermaid wide>
-{`graph LR
-    x["x: 2"] --> mul["MulBackward0: ×2"] --> y["y: 4"] --> pow["PowBackward0: 2y"] --> z["z: 16"]`}
-</Mermaid>
-
-
-### Step 4: Backward
-
-```python
-z.backward()
-```
-
-**Step 4.1 - Backward 시작**: Forward에서 기록해 둔 과정을 거꾸로 복귀합니다. 출력 자신에 대한 편미분은 항상 1이므로, 상수 $\frac{dz}{dz} = 1$부터 시작합니다. 이 값이 `PowBackward0`로 전달되면, $y^2$의 미분 함수인 $2y$가 적용됩니다. 이때 $2y$는 위에서 들어오는 입력과는 상관없이 $y$ 값에만 의존하며, $y = 4$이므로 $1 \times 2 \times 4 = 8$이 됩니다.
-
-**Step 4.2 - Gradient 전파**: 다음 단계에서 $x$에 대한 $y$의 편미분 $\frac{dy}{dx}$는 $2$입니다. 위에서 온 민감도(gradient)가 계속 누적되면서 곱해지는 과정이므로, 이전 단계에서 내려온 민감도 $8$에 편미분 $2$를 곱하면 $8 \times 2 = 16$이 됩니다. 이 $16$이 최종적으로 `x.grad`에 저장됩니다.
-
-따라서 $\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx} = 8 \times 2 = 16$입니다. 실제 신경망에서는 이보다 훨씬 복잡하지만, 근본적으로 이 과정이 반복적으로 일어난다고 생각하면 됩니다.
-
-전체 backward 흐름을 정리하면 다음과 같습니다:
-
-<Mermaid wide>
-{`graph RL
-    start["dz/dz = 1"] --> pow["PowBackward0: 2y → 1 × 8 = 8"] --> mul["MulBackward0: ×2 → 8 × 2 = 16"] --> result["x.grad = 16"]`}
-</Mermaid>
-
-검증: $z = (2x)^2 = 4x^2$이므로, $\frac{dz}{dx} = 8x = 8 \times 2 = 16$
 
 
 ### [참고] backward(): Python → C++
