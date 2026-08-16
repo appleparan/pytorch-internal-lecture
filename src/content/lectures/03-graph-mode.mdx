@@ -165,7 +165,7 @@ L9:  output(r);
 Super-scalar 아키텍처의 **Out-of-Order Execution**은 대표적인 trace 기반 최적화입니다.
 Out-of-Order engine의 목표는 instruction을 재배열하여 **Instruction-Level Parallelism(ILP)** 을 극대화하는 것인데, 이를 위해서는 스케줄링 scope이 클수록 유리합니다. 독립적인 instruction을 찾아야 하므로 pool이 클수록 좋기 때문입니다.
 
-문제는 일반적인 프로그램에서 매 5~6개 instruction마다 branch가 발생한다는 것입니다. Branch가 나타나면 실제로 어느 방향으로 뛸지 모르므로, 그 이후의 instruction을 미리 스케줄링하기 어렵습니다. 결국 branch 사이의 5~6개 instruction만 보고 ILP를 찾아야 하니 효율이 낮아집니다.
+문제는 일반적인 프로그램에서 매 5～6개 instruction마다 branch가 발생한다는 것입니다. Branch가 나타나면 실제로 어느 방향으로 뛸지 모르므로, 그 이후의 instruction을 미리 스케줄링하기 어렵습니다. 결국 branch 사이의 5～6개 instruction만 보고 ILP를 찾아야 하니 효율이 낮아집니다.
 
 이를 해결하기 위해 **Branch Prediction**을 out-of-order engine에 결합합니다:
 
@@ -177,7 +177,7 @@ Out-of-Order engine의 목표는 instruction을 재배열하여 **Instruction-Le
 
 이 외에도 trace 기반 최적화의 대표적인 사례로 다음을 다룹니다:
 
-- **Trace cache**: 반복되는 hot trace를 연속적인 cached blob으로 변환
+- **Trace cache**: 자주 반복 실행되는 trace(hot trace)를 연속된 메모리 블록(cached blob)으로 미리 저장해 두었다가, 같은 구간이 다시 실행되면 한 번에 fetch
 - **Partial evaluation**: 사전에 실행 가능한 계산을 미리 처리하여 연산을 제거. PyTorch 2.0의 Dynamo가 수행하는 최적화의 바탕이 되는 개념
 - **ML compiler의 graph mode**: Trace를 통해 실행할 연산자를 식별하고, trace에 대한 partial evaluation으로 Python 코드를 효과적으로 제거
 
