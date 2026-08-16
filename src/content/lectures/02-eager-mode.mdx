@@ -1310,6 +1310,31 @@ Common methods for all generators:
 
 ## PyTorch Build
 
+### Build System 전환: setup.py에서 PEP 517로
+
+오랫동안 PyTorch는 `python setup.py develop` / `python setup.py install`로 빌드했지만, 이 방식은 공식적으로 deprecated 되었습니다. 이제 PyTorch는 **scikit-build-core**를 통해 표준 **PEP 517** 인터페이스(`pyproject.toml`)로 빌드되며, `setup.py`는 빌드에 전혀 관여하지 않는 forwarding stub만 남았습니다.
+
+제거 일정:
+
+| PyTorch 버전 | `python setup.py <command>` 동작 |
+|------|------|
+| 2.14–2.15 | `install`/`develop`은 pip 명령으로 forwarding, 나머지는 실패 |
+| 2.16–2.17 | 모든 명령이 안내 메시지와 함께 실패 |
+| 2.18 | `setup.py` 파일 자체가 제거됨 |
+
+대체 명령어:
+
+| 기존 (deprecated) | 대체 명령 |
+|------|------|
+| `python setup.py develop` | `spin develop` 또는 `python -m pip install --no-build-isolation -v -e .` |
+| `python setup.py install` | `spin install` 또는 `python -m pip install --no-build-isolation -v .` |
+| `python setup.py bdist_wheel` | `python -m build --wheel --no-isolation` |
+| `python setup.py sdist` | `python -m build --sdist` |
+
+- `spin`은 scientific-python 프로젝트들이 쓰는 developer CLI로, `pip install --group dev` 시 함께 설치됨
+- 환경변수를 통한 빌드 커스터마이즈(`DEBUG=1`, `USE_CUDA=0`, `MAX_JOBS=...` 등)는 대체 명령에서도 그대로 동작
+- 배경: [pytorch/pytorch#152276](https://github.com/pytorch/pytorch/issues/152276)
+
 ### How to Build from Source
 
 ```bash
@@ -1325,6 +1350,9 @@ git submodule update --init --recursive
 pip install --group dev
 # Linux의 경우 추가로:
 pip install mkl-static mkl-include
+# (선택) CUDA + LAPACK 지원이 필요한 경우 magma 설치 (conda 환경에서 실행)
+.ci/docker/common/install_magma_conda.sh 12.4
+# (선택) torch.compile (inductor/triton)을 쓰는 경우
 make triton
 
 # Set environments (optional)
@@ -1333,38 +1361,58 @@ export USE_CUDA=1   # CUDA 비활성화: export USE_CUDA=0
                     # ROCm 비활성화: export USE_ROCM=0
                     # Intel GPU 비활성화: export USE_XPU=0
 
+# CMake가 현재 환경의 라이브러리를 찾을 수 있도록 prefix 지정
+export CMAKE_PREFIX_PATH="${CONDA_PREFIX:-'$(dirname $(which conda))/../'}:${CMAKE_PREFIX_PATH}"
+# venv 사용 시: export CMAKE_PREFIX_PATH="${VIRTUAL_ENV}:${CMAKE_PREFIX_PATH}"
+
 # Build & Install (editable mode)
 python -m pip install --no-build-isolation -v -e .
+# 또는 동일한 작업을 하는 developer CLI:
+# spin develop
 ```
 
 - Python 3.10 이상, C++20 지원 컴파일러 필요 (Linux: gcc 11.3.0+)
-- 디스크 공간 10GB 이상, 초기 빌드 시 30~60분 소요
+- 디스크 공간 10GB 이상, 초기 빌드 시 30~60분 소요 (이후 재빌드는 훨씬 빠름)
 - Python code는 source 형태로 남아있음
-- https://github.com/pytorch/pytorch?tab=readme-ov-file#install-pytorch
+- https://github.com/pytorch/pytorch?tab=readme-ov-file#from-source
 
 ### Build Configuration
 
-참고: [pytorch/setup.py](https://github.com/pytorch/pytorch/blob/main/setup.py)
+참고: [cmake/EnvVarForwarding.cmake](https://github.com/pytorch/pytorch/blob/main/cmake/EnvVarForwarding.cmake) — 환경변수 목록과 forwarding 로직이 `setup.py`에서 이 파일로 이동했습니다.
+
+Forwarding 규칙:
+
+- `BUILD_`, `USE_`, `CMAKE_`로 시작하는 환경변수는 같은 이름의 CMake cache 변수로 전달됨
+- 그 외 변수는 명시적 alias/passthrough 목록에 있는 것만 전달됨
+- 목록에 없는 값은 CMake 옵션(`-D` / `cmake.define`)으로 직접 지정
+
+주의할 점 (cache 지속성): 환경변수는 아직 설정되지 않은 cache 항목만 초기화합니다. 한 번 cache에 들어간 변수는 환경변수를 바꿔도 반영되지 않으므로, `ccmake build`로 cache를 직접 수정하거나 `build/CMakeCache.txt`(또는 `build/` 전체)를 삭제한 뒤 다시 빌드해야 합니다.
 
 #### 일반 설정 환경변수
 
 | 변수 | 설명 |
 |------|------|
-| `DEBUG` | 디버그 심볼과 함께 최적화 없이 빌드 (`-O0 -g`) |
+| `DEBUG` | 디버그 심볼과 함께 최적화 없이 빌드 (`-O0 -g`), `pyproject.toml`의 scikit-build override로 CMake build type에 매핑 |
 | `REL_WITH_DEB_INFO` | 최적화와 디버그 심볼과 함께 빌드 |
 | `USE_CUSTOM_DEBINFO` | 지정된 파일들에 대해서만 디버그 정보 포함 (`"file1.cpp;file2.cpp"`) |
 | `BUILD_TEST` | 테스트 빌드 활성화 |
-| `MAX_JOBS` | 코드 컴파일에 사용할 최대 작업 수 |
-| `CFLAGS` | C와 C++ 파일 컴파일에 적용할 플래그 |
-| `CC` | 사용할 C/C++ 컴파일러 |
-| `CMAKE_FRESH` | cmake 캐시를 무시하고 새로 구성 |
-| `VERBOSE` | 빌드 출력의 상세 수준 제어 |
+| `MAX_JOBS` | 코드 컴파일에 사용할 최대 작업 수 (`CMAKE_BUILD_PARALLEL_LEVEL`로 alias) |
+| `CFLAGS` | C와 C++ 파일 컴파일에 적용할 플래그 (`CXXFLAGS` 설정 시 C++는 그쪽을 따름) |
+| `CC` / `CXX` | 사용할 C/C++ 컴파일러 |
+
+setup.py와 함께 제거된 변수들:
+
+| 변수 | 대체 방법 |
+|------|------|
+| `CMAKE_FRESH` | `build/` 디렉토리를 삭제하고 다시 빌드 |
+| `CMAKE_ONLY` | 대체 없음 (setup.py 전용 디버깅 기능이었음) |
+| `USE_NINJA` | `CMAKE_GENERATOR=Ninja`로 generator 지정 (ninja가 있으면 기본값) |
+| `DEBUG_CUDA` | 환경변수가 아닌 CMake 옵션(`-D`)으로 지정 |
 
 #### 기능 토글 환경변수
 
 | 변수 | 설명 |
 |------|------|
-| `DEBUG_CUDA` | CUDA 커널을 디버그 정보와 함께 빌드 (`-lineinfo --source-in-ptx`, CUDA 12에서 OOM 발생 가능) |
 | `USE_CUDA` | CUDA 빌드 활성화/비활성화 |
 | `USE_CUDNN` | cuDNN 빌드 활성화/비활성화 |
 | `USE_CUSPARSELT` | cuSPARSELt 빌드 활성화/비활성화 |
