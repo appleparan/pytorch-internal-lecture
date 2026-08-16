@@ -975,7 +975,7 @@ $2BDF$의 2는 내적(dot product)에서 옵니다.
 
 ### 행렬곱의 intensity는 배치 크기에 비례한다
 
-이걸 LLM의 지배적 연산인 행렬곱에 대입해 보면 왜 Decode가 문제인지 숫자로 드러납니다. $B$개 토큰을 한 번에 처리하는 행렬곱 $X[B, D] \times W[D, F]$는 연산량이 $2BDF$ FLOPs, 메모리 접근량이 (bf16 기준) $2BD + 2DF + 2BF$ bytes이므로,
+이걸 LLM의 지배적 연산인 행렬곱에 대입해 보면 왜 Decode가 문제인지 숫자로 드러납니다. $B$개 토큰을 한 번에 처리하는 행렬곱 $X[B, D] \times W[D, F]$는 연산량이 $2BDF$ FLOPs입니다. 메모리 쪽은 입력 $X$($BD$개 원소)와 weight $W$($DF$개)를 읽고 결과 $Z[B, F]$($BF$개)를 써야 하는데, bf16은 원소당 2 bytes이므로 접근량은 $2BD + 2DF + 2BF$ bytes입니다(FLOPs의 2는 곱셈+덧셈, bytes의 2는 원소 크기로, 서로 다른 2입니다). 따라서,
 
 $$
 \text{Intensity} = \frac{2BDF}{2BD + 2DF + 2BF} \approx B \quad (B \ll D, F)
