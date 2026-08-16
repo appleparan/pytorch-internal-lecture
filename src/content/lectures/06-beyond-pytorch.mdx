@@ -226,14 +226,18 @@ Prefill 쪽도 개념적으로는 거의 같습니다. Decoder-Only LLM이 할 �
 
 <PrefillDecodeDiagram />
 
-#### Q&A 정리 (강의 중 질의응답)
+#### Q&A
 
-- Q. Transformer의 디코더와 다른 아키텍처인가요? Prefill·Decode를 두 모델로 만든다면 (Encoder–Decoder) Transformer와 비슷한 것 아닌가요?
-  → 아니요. Decoder-Only LLM 자체가 Transformer decoder만으로 구성된 구조라고 보면 됩니다. Prefill과 Decode를 개념적으로 두 모델처럼 다루는 이유는 여러 토큰을 한 번에 처리할 때의 병렬 가능성 양상이 다르기 때문이지, Encoder–Decoder 구조와는 다른 결의 구분입니다.
-- Q. 리벨리온이 Prefill·Decode를 두 번 컴파일한다고 했는데, 컴파일러 옵션을 달리 주는 건가요?
-  → 옵션 차이가 아니라 실제 생성되는 계산 자체가 다릅니다. 배치 사이즈도 다르고, Prefill은 한 토큰의 출력이 옆 토큰의 입력이 될 필요가 없어 모양 자체가 달라지므로, 결과적으로 별도의 binary로 빌드해 사용합니다.
-- Q. Prefill 그림의 화살표는 attention을 뜻하나요?
-  → 네, 여기서의 화살표는 attention을 의미합니다.
+강의 중 나온 질문들을 정리합니다.
+
+> **Q. Transformer의 디코더와 다른 아키텍처인가요? Prefill·Decode를 두 모델로 만든다면 (Encoder–Decoder) Transformer와 비슷한 것 아닌가요?**
+> 아니요. Decoder-Only LLM 자체가 Transformer decoder만으로 구성된 구조라고 보면 됩니다. Prefill과 Decode를 개념적으로 두 모델처럼 다루는 이유는 여러 토큰을 한 번에 처리할 때의 병렬 가능성 양상이 다르기 때문이지, Encoder–Decoder 구조와는 다른 결의 구분입니다.
+
+> **Q. 리벨리온이 Prefill·Decode를 두 번 컴파일한다고 했는데, 컴파일러 옵션을 달리 주는 건가요?**
+> 옵션 차이가 아니라 실제 생성되는 계산 자체가 다릅니다. 배치 사이즈도 다르고, Prefill은 한 토큰의 출력이 옆 토큰의 입력이 될 필요가 없어 모양 자체가 달라지므로, 결과적으로 별도의 binary로 빌드해 사용합니다.
+
+> **Q. Prefill 그림의 화살표는 attention을 뜻하나요?**
+> 네, 여기서의 화살표는 attention을 의미합니다.
 
 ### Roofline Analysis
 
@@ -252,6 +256,37 @@ Prefill 쪽도 개념적으로는 거의 같습니다. Decoder-Only LLM이 할 �
 
 X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모리에서 한 번 들고 온 데이터로 몇 번의 연산을 수행하는가"를 뜻합니다.
 
+이 그래프는 간단한 수식 몇 개로 정리할 수 있습니다. 어떤 연산(커널)이 수행해야 하는 총 연산량을 FLOPs, 메모리와 주고받아야 하는 총 데이터량을 Bytes라고 하면, Arithmetic Intensity는 그 비율입니다.
+
+$$
+\text{Arithmetic Intensity} = \frac{\text{Computation FLOPs}}{\text{Memory Bytes}}
+$$
+
+이제 이 연산을 실제 하드웨어에서 돌렸을 때, 연산에 걸리는 시간과 메모리 접근에 걸리는 시간은 각각 다음과 같습니다.
+
+$$
+T_{\text{math}} = \frac{\text{Computation FLOPs}}{\text{Peak FLOPs/s}}, \qquad
+T_{\text{mem}} = \frac{\text{Memory Bytes}}{\text{Peak Bandwidth}}
+$$
+
+하드웨어가 계산과 메모리 접근을 잘 겹쳐서(overlap) 실행한다고 가정하면 전체 실행 시간은 대략 $\max(T_{\text{math}}, T_{\text{mem}})$이 되고, $T_{\text{math}} > T_{\text{mem}}$이면 Compute Bound, 반대면 Memory Bound입니다. 이 경계를 하드웨어 쪽 숫자로 옮기면, 칩마다 "이 intensity를 넘어야 연산기를 풀로 쓸 수 있다"는 임계값이 하나 정해져 있는 셈입니다. Roofline 그래프에서 사선과 가로선이 만나는 터닝 포인트가 바로 이 값입니다.
+
+$$
+\text{Critical Intensity} = \frac{\text{Peak FLOPs/s}}{\text{Peak Bandwidth}}
+$$
+
+예를 들어 H100의 bf16 기준 임계값은 약 300 FLOPs/byte 수준입니다. 메모리에서 1 byte를 들고 올 때마다 300번 가까이 연산을 해야 연산기가 놀지 않는다는 뜻입니다.
+
+이걸 LLM의 지배적 연산인 행렬곱에 대입해 보면 왜 Decode가 문제인지 숫자로 드러납니다. $B$개 토큰을 한 번에 처리하는 행렬곱 $X[B, D] \times W[D, F]$는 연산량이 $2BDF$ FLOPs, 메모리 접근량이 (bf16 기준) $2BD + 2DF + 2BF$ bytes이므로,
+
+$$
+\text{Intensity} = \frac{2BDF}{2BD + 2DF + 2BF} \approx B \quad (B \ll D, F)
+$$
+
+즉 행렬곱의 intensity는 한 번에 처리하는 토큰 수 $B$에 거의 비례합니다. 임계값을 넘기려면 수백 개 토큰을 한 번에 처리해야 한다는 계산이 나옵니다.
+
+참고: [Rooflines (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/roofline/)
+
 이걸 Prefill·Decode에 대입하면 차이가 명확합니다. Prefill에서 `I like my cat`처럼 4개 토큰을 횡적으로 동시에 처리할 때, 한 레이어의 weight는 한 번만 들고 와서 4번 재사용됩니다. 즉 메모리 접근당 연산량이 4배라 Arithmetic Intensity가 높습니다. 반면 Decode에서 `lot` 한 토큰을 만들 때는 같은 weight를 들고 오지만 연산은 1번뿐이라 Intensity가 1/4 수준이 됩니다.
 
 결과적으로:
@@ -261,8 +296,8 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 연산기 활용도 측면에서 보면 Prefill은 이미 이상적인 상황이고, 사람들이 보통 이 그래프를 보면 "메모리 대역폭을 더 늘려야 하나?"보다는 "Decode 쪽이 프로세서 성능을 다 못 쓰고 있다"는 결론을 내립니다. 즉 LLM 추론 최적화의 진짜 전장은 Decode 단계입니다.
 
-> Q. Sparse Matrix 연산처럼 "의미 없는 계산"이 많이 끼는 경우 Arithmetic Intensity 자체가 의미가 있을까요?
-> → 그런 경우 intensity가 다소 희석되긴 합니다. 다만 머신러닝에서는 모델이 본질적으로 가져야 할 "유효 곱셈(effective multiplication)" 수와, 프로세서가 그 관점에서 얼마나 빠르게 처리하는지를 따로 측정하는 별도 용어가 있습니다. 덴스(dense) 계산이고 무의미한 연산 비중이 충분히 작다면 Arithmetic Intensity는 여전히 유효한 지표입니다.
+> **Q. Sparse Matrix 연산처럼 "의미 없는 계산"이 많이 끼는 경우 Arithmetic Intensity 자체가 의미가 있을까요?**
+> 그런 경우 intensity가 다소 희석되긴 합니다. 다만 머신러닝에서는 모델이 본질적으로 가져야 할 "유효 곱셈(effective multiplication)" 수와, 프로세서가 그 관점에서 얼마나 빠르게 처리하는지를 따로 측정하는 별도 용어가 있습니다. 덴스(dense) 계산이고 무의미한 연산 비중이 충분히 작다면 Arithmetic Intensity는 여전히 유효한 지표입니다.
 
 ### Memory Wall
 
@@ -331,6 +366,8 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
   <img src="/images/06/slide18_2.png" alt="Speculative Decoding: 큰 Main 모델이 draft 토큰들을 한 번의 forward pass로 검증하는 단계" class="h-48" />
 </div>
 </div>
+
+한 가지 덧붙이면, 별도의 작은 Draft Model을 두는 방식은 speculative decoding의 고전적인 형태이고, 초안을 만드는 쪽은 계속 진화하고 있습니다. 최근에는 별도 모델 대신 타깃 모델 자체에 다음 여러 토큰을 미리 예측하는 head를 붙여 draft로 쓰는 **MTP**(Multi-Token Prediction, DeepSeek-V3 계열이 대표적)나, semi-autoregressive draft에 서빙 부하에 따라 검증량을 조절하는 confidence-scheduled verification을 결합한 DeepSeek의 [DSpark](https://arxiv.org/abs/2607.05147) 같은 변형이 등장했습니다. 형태는 달라져도 "빠르게 초안 생성 → 큰 모델이 병렬 검증"이라는 골격은 그대로이고, draft의 품질(accept율)과 검증 효율을 끌어올리는 방향으로 발전하고 있다는 정도만 짚어 둡니다.
 
 ### Attention의 비용 문제
 
