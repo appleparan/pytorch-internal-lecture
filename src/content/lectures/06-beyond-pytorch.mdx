@@ -258,7 +258,9 @@ Decode 이야기에서 계속 등장할 개념 하나를 여기서 분명히 해
 
 > 출처: [Optimizing Inference for Long-Context and Large Batch Sizes with NVFP4 KV Cache (NVIDIA)](https://developer.nvidia.com/blog/optimizing-inference-for-long-context-and-large-batch-sizes-with-nvfp4-kv-cache/)
 
-다만 공짜는 아닙니다. 계산을 아낀 대신, (1) 시퀀스 길이에 비례해 자라는 메모리 용량을 차지하고(얼마나 커지는지는 뒤의 Paged Attention 절에서 계산합니다), (2) 매 decode 스텝마다 지금까지 쌓인 cache 전체를 HBM에서 다시 읽어야 합니다. 결국 Decode는 매 스텝 "weight 전체 + 계속 자라는 KV cache 전체"를 메모리에서 스트리밍하면서 정작 연산은 토큰 하나 분량만 하는 구조가 되고, 이것이 바로 다음 절에서 볼 "Decode는 Memory Bound"라는 진단의 실체입니다. 그래서 위 그림의 출처처럼 KV cache 자체를 FP8·NVFP4 같은 저정밀 포맷으로 양자화해 용량과 읽기 트래픽을 줄이는 것도 최근에는 표준적인 최적화 축이 되었습니다.
+다만 공짜는 아닙니다. 계산을 아낀 대신, (1) 시퀀스 길이에 비례해 자라는 메모리 용량을 차지하고(얼마나 커지는지는 뒤의 Paged Attention 절에서 계산합니다), (2) 매 decode 스텝마다 지금까지 쌓인 cache 전체를 HBM[^hbm]에서 다시 읽어야 합니다. 결국 Decode는 매 스텝 "weight 전체 + 계속 자라는 KV cache 전체"를 메모리에서 스트리밍하면서 정작 연산은 토큰 하나 분량만 하는 구조가 되고, 이것이 바로 다음 절에서 볼 "Decode는 Memory Bound"라는 진단의 실체입니다. 그래서 위 그림의 출처처럼 KV cache 자체를 FP8·NVFP4 같은 저정밀 포맷으로 양자화해 용량과 읽기 트래픽을 줄이는 것도 최근에는 표준적인 최적화 축이 되었습니다.
+
+[^hbm]: High Bandwidth Memory. DRAM die를 수직으로 쌓아 프로세서와 같은 패키지 안에서 매우 넓은 버스로 연결한 메모리. AI 가속기 오프칩 메모리의 사실상 표준으로, 일반 DRAM보다 대역폭이 훨씬 높지만 on-chip 메모리(SRAM)보다는 여전히 느립니다.
 
 ### Roofline Analysis
 
@@ -642,7 +644,9 @@ Online algorithm이란 모든 데이터를 한 번에 보고 처리하는 게 �
 
 결과적으로 softmax의 수치 안정성을 유지하면서도 single-pass + tiled/fused한 알고리즘이 완성됩니다.
 
-이 과정 전체를 한 줄로 요약하면, FlashAttention은 attention 계산 자체를 restructuring해서 메모리 read/write 횟수를 크게 줄인 알고리즘이고, 이를 처음 제안한 사람이 당시 Stanford PhD 학생이던 Tri Dao입니다. 비교를 위해 기존 방식을 보면, Standard Attention은 모든 단계를 PyTorch op으로 표현하고 그 안에서 cuBLAS 같은 가속 라이브러리를 호출합니다. PyTorch op 단위로는 앞서 본 tiling·fusion을 표현할 수 없기 때문에, 개별 GEMM은 빠르더라도 전체 GPU utilization은 낮은 상태로 남습니다. FlashAttention v1은 정확히 이 한계를 깨고 속도를 끌어올린 첫 버전입니다.
+이 과정 전체를 한 줄로 요약하면, FlashAttention은 attention 계산 자체를 restructuring해서 메모리 read/write 횟수를 크게 줄인 알고리즘이고, 이를 처음 제안한 사람이 당시 Stanford PhD 학생이던 Tri Dao입니다. 비교를 위해 기존 방식을 보면, Standard Attention은 모든 단계를 PyTorch op으로 표현하고 그 안에서 cuBLAS[^cublas] 같은 가속 라이브러리를 호출합니다. PyTorch op 단위로는 앞서 본 tiling·fusion을 표현할 수 없기 때문에, 개별 GEMM은 빠르더라도 전체 GPU utilization은 낮은 상태로 남습니다. FlashAttention v1은 정확히 이 한계를 깨고 속도를 끌어올린 첫 버전입니다.
+
+[^cublas]: NVIDIA가 제공하는 비공개 소스 BLAS 구현으로, GPU에서 가장 빠른 GEMM의 기준점 역할을 합니다. Week 2에서 `torch.matmul`의 call stack이 도달하는 종착지로 등장했습니다.
 
 ### FlashAttention의 진화: v1 → v2 → v3 → v4
 
@@ -714,11 +718,15 @@ FlashAttention v1은 NVIDIA의 CUDA로 직접 구현되었습니다. Standard At
 
 #### v2: CUTLASS로 warp 파티셔닝 개선
 
-Tri Dao가 다음으로 주목한 것은 **CUTLASS**입니다. CUTLASS는 CUDA 위에 올라간 C++ template 라이브러리로, NVIDIA GPU의 하드웨어 구조(warp, MMA 등)를 템플릿 형태로 모델링해 두어 코드 자체를 GPU 파이프라인에 맞춰 짤 수 있게 해줍니다. FlashAttention v2부터는 생짜 CUDA 대신 CUTLASS를 활용해 warp 단위 분할(warp partitioning)을 훨씬 정교하게 설계했고, 그 결과 GPU utilization을 50–70%대까지 끌어올렸습니다.
+Tri Dao가 다음으로 주목한 것은 **CUTLASS**입니다. CUTLASS는 CUDA 위에 올라간 C++ template 라이브러리로, NVIDIA GPU의 하드웨어 구조(warp[^warp], MMA 등)를 템플릿 형태로 모델링해 두어 코드 자체를 GPU 파이프라인에 맞춰 짤 수 있게 해줍니다. FlashAttention v2부터는 생짜 CUDA 대신 CUTLASS를 활용해 warp 단위 분할(warp partitioning)을 훨씬 정교하게 설계했고, 그 결과 GPU utilization을 50–70%대까지 끌어올렸습니다.
+
+[^warp]: GPU에서 같은 명령어를 함께 실행하는 스레드 묶음(NVIDIA 구현은 32개)으로, 하드웨어가 명령어를 발행하는 기본 단위입니다. Week 7의 SIMT 실행 모델에서 자세히 다룹니다.
 
 #### v3: Hopper의 새 기능 활용
 
-이후 NVIDIA Hopper 아키텍처가 등장하면서 새로운 기능들이 추가됐습니다. 저정밀(low-precision) 연산 지원 강화, 비동기 데이터 복사(TMA)와 비동기 Tensor Core 연산(WGMMA) 등이 그 예입니다. 그런데 v2를 그대로 Hopper에서 돌리면 이 새 기능들을 활용하지 못해 utilization이 오히려 30%대로 떨어집니다. 이를 다시 끌어올리려고 새로 짠 것이 FlashAttention v3이고, Hopper에서 utilization을 약 75%까지 회복했습니다.
+이후 NVIDIA Hopper 아키텍처가 등장하면서 새로운 기능들이 추가됐습니다. 저정밀(low-precision) 연산 지원 강화, 비동기 데이터 복사(TMA[^tma])와 비동기 Tensor Core 연산(WGMMA) 등이 그 예입니다. 그런데 v2를 그대로 Hopper에서 돌리면 이 새 기능들을 활용하지 못해 utilization이 오히려 30%대로 떨어집니다. 이를 다시 끌어올리려고 새로 짠 것이 FlashAttention v3이고, Hopper에서 utilization을 약 75%까지 회복했습니다.
+
+[^tma]: Tensor Memory Accelerator. Hopper에서 추가된, GMEM↔SMEM 사이의 벌크 데이터 복사를 연산 유닛과 독립적으로 수행하는 비동기 복사 엔진입니다. Week 7의 "수렴" 절에서 NPU의 DMA에 대응하는 장치로 다시 등장합니다.
 
 #### v4: Blackwell 세대, 그리고 CuTe DSL
 
@@ -734,7 +742,9 @@ Tri Dao가 다음으로 주목한 것은 **CUTLASS**입니다. CUTLASS는 CUDA �
 
 #### Takeaway: "CUDA 직접 = 저수준 = 빠르다"는 더 이상 자명하지 않다
 
-흔히 "NVIDIA가 제공하는 저수준 API"라고 하면 곧바로 CUDA를 떠올리지만, 요즘 NVIDIA 아키텍처는 옛날의 깔끔한 SIMT 아키텍처가 아니라서 CUDA만 직접 써서 풀 성능을 내는 일은 매우 어렵습니다. 결국 CUTLASS처럼 하드웨어를 잘 인지(hardware-aware)하는 라이브러리를 거쳐 프로그래밍해야 비로소 GPU의 실효 성능을 끌어낼 수 있는 시대입니다. 다음 절에서 이 부분을 좀 더 들여다봅니다.
+흔히 "NVIDIA가 제공하는 저수준 API"라고 하면 곧바로 CUDA를 떠올리지만, 요즘 NVIDIA 아키텍처는 옛날의 깔끔한 SIMT[^simt] 아키텍처가 아니라서 CUDA만 직접 써서 풀 성능을 내는 일은 매우 어렵습니다. 결국 CUTLASS처럼 하드웨어를 잘 인지(hardware-aware)하는 라이브러리를 거쳐 프로그래밍해야 비로소 GPU의 실효 성능을 끌어낼 수 있는 시대입니다. 다음 절에서 이 부분을 좀 더 들여다봅니다.
+
+[^simt]: Single Instruction Multiple Threads. 수많은 스레드가 같은 명령어를 함께 실행하는 CUDA의 실행 모델로, Week 7에서 GPU 설계 철학의 중심 개념으로 자세히 다룹니다.
 
 ### GPU 아키텍처의 진화와 CUTLASS
 
@@ -867,7 +877,9 @@ Triton의 핵심은 **Block Programming Model**입니다. CUDA와 Block Programm
 
 ### vLLM V1: 엔진 재설계, 그리고 torch.compile
 
-vLLM이 흥미로운 또 하나의 이유는 이 강의 시리즈에서 다뤄 온 PyTorch 컴파일 스택과 정면으로 만난다는 점입니다. vLLM은 2025년에 코어 엔진을 **V1**로 갈아엎었는데(스케줄러 오버헤드 제거, chunked prefill·prefix caching 기본화 등), 이때 **`torch.compile`이 기본으로 켜지는 구조**가 되었습니다. 모델을 처음 띄울 때 FX graph를 캡처해 컴파일하고(Inductor가 Triton 커널 생성), 그 아티팩트를 캐시에 저장해 두 번째 기동부터는 곧바로 불러 씁니다. attention처럼 손으로 짠 커널이 필요한 부분은 custom op으로 남기고 그래프를 조각내 컴파일하는(piecewise) 방식으로, 수작업 커널과 컴파일러 생성 커널을 한 시스템 안에서 섞어 씁니다.
+vLLM이 흥미로운 또 하나의 이유는 이 강의 시리즈에서 다뤄 온 PyTorch 컴파일 스택과 정면으로 만난다는 점입니다. vLLM은 2025년에 코어 엔진을 **V1**로 갈아엎었는데(스케줄러 오버헤드 제거, chunked prefill·prefix caching 기본화 등), 이때 **`torch.compile`이 기본으로 켜지는 구조**가 되었습니다. 모델을 처음 띄울 때 FX graph[^fx-graph]를 캡처해 컴파일하고(Inductor가 Triton 커널 생성), 그 아티팩트를 캐시에 저장해 두 번째 기동부터는 곧바로 불러 씁니다. attention처럼 손으로 짠 커널이 필요한 부분은 custom op으로 남기고 그래프를 조각내 컴파일하는(piecewise) 방식으로, 수작업 커널과 컴파일러 생성 커널을 한 시스템 안에서 섞어 씁니다.
+
+[^fx-graph]: `torch.fx`가 제공하는 그래프 형태의 IR(intermediate representation). Dynamo가 캡처한 tensor 연산 trace가 이 형태로 저장되어 backend 컴파일러에 전달됩니다 (Week 3 참고).
 
 Week 3에서 본 그래프 모드·Inductor 이야기가 "서빙 프레임워크의 기본 경로"에 그대로 들어와 있는 셈이고, 반대로 하드웨어 벤더 입장에서는 `torch.compile` 백엔드만 잘 받쳐 두면 vLLM의 컴파일 경로에 자연스럽게 올라탈 수 있다는 뜻이기도 합니다.
 
