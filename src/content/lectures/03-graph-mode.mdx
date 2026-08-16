@@ -491,7 +491,13 @@ Graph break 이후, resumed function의 bytecode를 가지고 위의 과정을 r
 
 #### 핵심 정리: Dynamo의 원리
 
-지금까지의 내용을 함수 frame 하나의 관점에서 정리하면 다음과 같습니다.
+지금까지의 내용을 함수 frame 하나의 관점에서, 일반적인 Python 실행과 비교해 정리하면 다음과 같습니다.
+
+**일반적인 Python 실행 (Dynamo 없음):**
+
+1. 함수가 호출되면 새로운 frame object가 생성
+2. Frame의 code object는 이미 bytecode로 컴파일되어 있으므로 바로 실행 가능
+3. Evaluation loop이 bytecode를 하나씩 해석하며 실행 — 기록이나 최적화 없이 호출될 때마다 같은 방식으로 반복
 
 **처음 실행될 때 (trace 생성):**
 
