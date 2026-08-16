@@ -15,7 +15,9 @@ PyTorch + NPU 온라인 모임 #2 | 2024-12-11
 
 ## 소개
 
-이번 강의는 PyTorch 기초의 첫 번째 시간으로, Eager mode에 대해 다룹니다.
+이번 강의는 PyTorch 기초의 첫 번째 시간으로, Eager mode[^eager-mode]에 대해 다룹니다.
+
+[^eager-mode]: 연산을 코드에 작성된 순서대로 즉시 실행하는 define-by-run 방식의 실행 모델. 그래프를 먼저 만들어 두고 나중에 실행하는 graph mode와 대비되는 개념으로, Week 1의 "Eager vs. Graph Mode"에서 소개했습니다.
 
 ## 오늘 다룰 주제들
 
@@ -39,7 +41,9 @@ PyTorch에서 `x = torch.matmul(y, z)`를 실행하면 내부적으로 어떤 �
 
 ### Call Stack 분석
 
-GPU에서 matmul이 수행되도록 설정한 상태에서 CUDA GEMM 진입점에 breakpoint를 걸고 `torch.matmul`을 수행했을 때의 call stack snapshot을 보면, 꽤 많은 중간 단계를 거쳐 실제 수행 지점까지 진입한다는 것을 알 수 있습니다.
+GPU에서 matmul이 수행되도록 설정한 상태에서 CUDA GEMM[^gemm] 진입점에 breakpoint를 걸고 `torch.matmul`을 수행했을 때의 call stack snapshot을 보면, 꽤 많은 중간 단계를 거쳐 실제 수행 지점까지 진입한다는 것을 알 수 있습니다.
+
+[^gemm]: General Matrix Multiply. BLAS(Basic Linear Algebra Subprograms)에서 정의하는 행렬 곱셈 연산으로, NVIDIA GPU용 구현이 call stack 끝에서 만나게 될 cuBLAS입니다. Week 1의 supercomputing 배경(BLAS/cuBLAS)에서 소개했습니다.
 
 ```text
 #0 at::cuda::blas::gemm<float> at aten/src/ATen/cuda/CUDABlas.cpp:1127
