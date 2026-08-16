@@ -286,7 +286,19 @@ $$
 
 즉 행렬곱의 intensity는 한 번에 처리하는 토큰 수 $B$에 거의 비례합니다. 임계값을 넘기려면 수백 개 토큰을 한 번에 처리해야 한다는 계산이 나옵니다.
 
+다만 이 "배치를 키우면 compute bound로 넘어간다"는 계산에는 중요한 예외가 하나 있습니다. weight는 배치 안의 모든 시퀀스가 공유하므로 배치가 커질수록 재사용이 늘어나지만, attention이 읽어야 하는 KV cache는 시퀀스마다 고유해서 배치를 아무리 키워도 재사용이 생기지 않습니다. 즉 Decode의 행렬곱(MLP·projection)은 배치로 compute bound까지 끌어올릴 수 있어도, attention 부분은 구조적으로 memory bound에 남습니다. GQA/MQA(여러 query head가 KV head를 공유)나 DeepSeek 계열의 MLA(latent 압축)처럼 KV cache 자체를 줄이는 아키텍처 레벨의 기법이 별도의 축으로 발전해 온 이유가 여기에 있습니다.
+
+이 관점에서 Decode 한 스텝이 넘을 수 없는 하한선도 바로 나옵니다. 매 스텝 모델 weight 전체와 배치에 담긴 KV cache 전체를 HBM에서 읽어야 하므로,
+
+$$
+T_{\text{step}} \ge \frac{\text{Param Bytes} + B \times \text{KV Cache Bytes}}{\text{Peak Bandwidth}}
+$$
+
+작은 배치에서 decode의 토큰당 지연시간은 사실상 "모델 weight를 HBM에서 한 번 스트리밍하는 시간"이 하한이라는 뜻입니다.
+
 참고: [Rooflines (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/roofline/)
+
+참고: [All About Transformer Inference (How to Scale Your Model, JAX Scaling Book)](https://jax-ml.github.io/scaling-book/inference/)
 
 이걸 Prefill·Decode에 대입하면 차이가 명확합니다. Prefill에서 `I like my cat`처럼 4개 토큰을 횡적으로 동시에 처리할 때, 한 레이어의 weight는 한 번만 들고 와서 4번 재사용됩니다. 즉 메모리 접근당 연산량이 4배라 Arithmetic Intensity가 높습니다. 반면 Decode에서 `lot` 한 토큰을 만들 때는 같은 weight를 들고 오지만 연산은 1번뿐이라 Intensity가 1/4 수준이 됩니다.
 
@@ -346,6 +358,8 @@ $$
 이를 해결하기 위해 등장한 것이 **Continuous Batching**입니다. 아이디어는 각 layer 단계마다 동적으로 끼어들어, 같은 순서에 있는 토큰들을 그때그때 묶어 병렬로 처리하는 것입니다. 시퀀스 길이가 서로 달라도 빈 슬롯을 찾아 빡빡하게 채울 수 있어서, lock-step 방식의 낭비를 거의 없앱니다.
 
 대표적인 출발점은 서울대 전병곤 교수님의 [Orca 논문](https://www.usenix.org/conference/osdi22/presentation/yu)이고, 이 기술을 기반으로 설립된 회사가 Friendli AI입니다. 현재 Continuous Batching은 LLM 서빙에서 사실상 필수 기술이 되었습니다.
+
+한 가지 덧붙이면, 배치를 무한정 키우는 것이 답은 아닙니다. 배치가 커져 임계 intensity를 넘어 compute bound에 들어서면 그 뒤로는 throughput 이득이 급격히 줄어드는 반면, 한 스텝에 처리할 일이 많아져 토큰당 지연시간은 계속 늘어납니다. 그래서 실제 서빙에서 배치 크기는 throughput과 latency SLO 사이에서 고르는 트레이드오프 파라미터가 됩니다.
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide17_1.png" alt="Dynamic Batching과 Continuous Batching의 배치 슬롯 활용 비교" class="h-60" />
@@ -418,6 +432,8 @@ Flash Attention은 이를 타일 단위로 쪼개서(tiling), 한 타일을 처�
 ### Paged Attention
 
 **Paged Attention**도 비슷한 결의 문제(긴 시퀀스를 다룰 때의 비효율)를 다른 각도에서 풀어 줍니다. 이번에는 연산이 아니라 KV cache의 메모리 할당 자체가 문제의 출발점입니다.
+
+KV cache가 실제로 얼마나 큰지 감을 잡아 보면, 토큰 하나당 저장량은 $2 \times \text{bytes} \times K \times H \times L$ 입니다($K$ = KV head 수, $H$ = head dimension, $L$ = layer 수, 앞의 2는 K와 V). 예를 들어 LLaMA-13B(MHA)를 bf16으로 8K 컨텍스트까지 돌리면 시퀀스 하나의 KV cache가 약 6.7GB로, 배치 4면 이미 모델 weight(26GB)보다 커집니다. 이런 크기의 버퍼를 어떻게 잡아두느냐가 그대로 서빙 용량을 좌우합니다.
 
 KV cache를 그냥 잡아두려면 기본적으로 max sequence length 기준으로 한 번에 다 할당해 둬야 합니다. 그런데 실제 들어오는 request들은 시퀀스 길이가 제각각이어서, max에 한참 못 미치는 짧은 request들에서는 잡아만 놓고 안 쓰는 메모리 공간이 잔뜩 생깁니다. 이런 "낭비된 슬롯들" 때문에 같은 GPU 메모리(HBM)에서 동시에 처리할 수 있는 request 수가 줄어들어 처리량이 바운드됩니다.
 
