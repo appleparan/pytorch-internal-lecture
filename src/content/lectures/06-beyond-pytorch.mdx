@@ -328,7 +328,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 </div>
 
 
-## Memory Overhead를 줄이기 위한 기술들
+## LLM Inference 최적화 기법들
 
 앞서 본 것처럼 Decode는 연산을 그렇게 많이 하지도 않는데 이미 메모리에 바운드되는 상태입니다. 바꿔 말하면 메모리 대역폭을 그만큼 비효율적으로 쓰고 있다는 뜻이기도 합니다. 그래서 LLM 추론 최적화의 무게중심은 자연스럽게 Prefill보다 Decode, 그리고 Decode 단계에서 발생하는 메모리 비효율을 줄이는 방향에 놓이게 됩니다. 이 절에서 다루는 Continuous Batching, Speculative Decoding, Flash Attention, Paged Attention, 모델 경량화는 모두 이 흐름에서 등장한 기술들입니다.
 

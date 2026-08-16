@@ -733,7 +733,7 @@ VLIW에서 한 가지 미묘한 어려움이 있습니다. Functional Unit 개�
 이 두 접근(HW 동적 / SW 정적)의 대비는 이후 살펴볼 GPU와 NPU의 설계 철학 차이로 그대로 이어집니다.
 
 
-## Thread-Level Pipelining: Multi-Core, GPU, NPU
+## Thread-Level Pipelining: CPU의 전환
 
 지금까지 우리는 두 가지 단위에서 Latency Hiding을 이야기했습니다. Instruction-level pipelining에서는 한 명령어 안의 stage들을 겹쳤고, Loop-level pipelining에서는 루프의 서로 다른 iteration들을 겹쳤습니다. 이제부터 다룰 것은 그보다 한 단계 더 큰 단위, **Thread-level pipelining** 입니다. 그리고 이 절은 자연스럽게 GPU와 매우 밀접하게 연관됩니다. GPU의 설계 철학이 본질적으로 Thread 수준의 Latency Hiding을 극대화하는 방향으로 만들어져 왔기 때문입니다.
 
@@ -845,7 +845,7 @@ CUDA 프로그래머가 굉장히 많은 Thread를 작성해 두면, GPU는 이�
 
 이 구조의 핵심 전제는 언제든 갈아 끼울 수 있는 다른 Warp이 충분히 많다는 것입니다. 그래서 GPU는 OOO Processor처럼 한 스레드의 Latency를 줄이려고 애쓰는 대신, 항상 in-flight 상태의 Thread를 풍부하게 유지해 매 cycle 실행 유닛이 노는 일이 없도록 만드는 방향으로 설계됩니다. 이것이 GPU가 "메모리 접근이 느려도 Throughput만큼은 절대 떨어뜨리지 않는" 비결이고, 다음 절에서 다룰 *"GPU = All About Hiding Latency"* 의 가장 직접적인 구현입니다.
 
-#### Occupancy: Latency Hiding의 예산
+### Occupancy: Latency Hiding의 예산
 
 "갈아 끼울 Warp이 충분히 많다"는 전제는 공짜가 아닙니다. SM이 동시에 들고 있을 수 있는 in-flight Warp의 수를 **Occupancy**라고 부르는데, 이 수는 하드웨어 자원에 의해 뚜렷하게 제한됩니다. H100 기준으로 한 SM은 최대 64개의 resident Warp을 스케줄링할 수 있지만, 그 Warp들이 나눠 써야 하는 Register File은 SM당 256KB(32-bit 레지스터 64K개)뿐입니다. 극단적으로 한 스레드가 상한(약 256개)까지 레지스터를 쓰면, 64K ÷ (32 threads × 256 registers) = 8, 즉 SM에 Warp을 8개밖에 올리지 못합니다. Shared Memory 역시 같은 SM에 올라온 ThreadBlock들이 나눠 쓰는 한정 자원입니다.
 
@@ -1015,7 +1015,7 @@ GPU의 경우 이런 디테일은 사용자에게 거의 보이지 않습니다.
 
 ### 왜 고전적 Latency Hiding만으로는 부족해졌는가
 
-출발점은 Tensor Core입니다. Tensor Core는 일반 CUDA core보다 10배 이상 높은 연산 처리량을 제공하는데, 이 처리량을 꽉 채우려면 매 cycle 대량의 tile 데이터를 SMEM과 Register에 공급해 줘야 합니다. 그런데 앞의 Occupancy 절에서 본 예산 문제가 여기서 정면으로 터집니다. Arithmetic intensity를 높이려면 output tile을 키워야 하고, tile을 키우면 스레드당 레지스터·SMEM 사용량이 급증해 SM에 올릴 수 있는 Warp 수가 뚝 떨어집니다. 갈아 끼울 Warp이 몇 개 남지 않으니, "다른 Warp으로 전환해서 숨긴다"는 HW 주도 Latency Hiding의 전제 자체가 무너지는 것입니다.
+출발점은 Tensor Core입니다. Tensor Core는 일반 CUDA core보다 10배 이상 높은 연산 처리량을 제공하는데, 이 처리량을 꽉 채우려면 매 cycle 대량의 tile 데이터를 SMEM과 Register에 공급해 줘야 합니다. 그런데 바로 여기서 앞의 Occupancy 절에서 본 트레이드오프에 부딪힙니다. Arithmetic intensity를 높이려면 output tile을 키워야 하고, tile을 키우면 스레드당 레지스터·SMEM 사용량이 급증해 SM에 올릴 수 있는 Warp 수가 뚝 떨어집니다. 갈아 끼울 Warp이 몇 개 남지 않으니, "다른 Warp으로 전환해서 숨긴다"는 HW 주도 Latency Hiding의 전제 자체가 무너지는 것입니다.
 
 즉 ML 워크로드의 한복판(대형 matmul)에서, GPU는 자신의 고전적 해법을 쓸 수 없는 지점에 도달했습니다. NVIDIA가 내놓은 답은 흥미롭게도 하드웨어를 더 똑똑하게 만드는 것이 아니라, NPU가 갔던 길을 따라가는 것이었습니다.
 
