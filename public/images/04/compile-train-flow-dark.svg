@@ -74,7 +74,7 @@
   <!-- Compile chip -->
   <rect x="380" y="36" width="264" height="44" rx="8" fill="#141210" stroke="#6A6058" stroke-width="1" stroke-dasharray="4,3"/>
   <text x="512" y="53" font-family="'DM Mono', monospace" font-size="10.5" font-weight="500" fill="#EDE9E3" text-anchor="middle" dominant-baseline="middle">Dynamo tracing → AOTAutograd</text>
-  <text x="512" y="68" font-family="'DM Mono', monospace" font-size="9" fill="#8F8880" text-anchor="middle" dominant-baseline="middle">첫 호출 시 1회 컴파일</text>
+  <text x="512" y="68" font-family="'DM Mono', monospace" font-size="9" fill="#8F8880" text-anchor="middle" dominant-baseline="middle">첫 호출 시 1회 (bwd lowering은 지연)</text>
 
   <!-- compiled forward -->
   <rect x="380" y="176" width="240" height="52" rx="8" fill="#162238" stroke="#2C4468" stroke-width="1"/>
@@ -85,7 +85,8 @@
   <!-- compiled backward -->
   <rect x="380" y="264" width="240" height="52" rx="8" fill="#2A2018" stroke="#4A3A2C" stroke-width="1"/>
   <text x="396" y="284" font-family="'DM Mono', monospace" font-size="8.5" font-weight="500" letter-spacing="1.2" fill="#C89A6E">BWD</text>
-  <text x="500" y="296" font-family="'DM Mono', monospace" font-size="13" font-weight="500" fill="#EDE9E3" text-anchor="middle" dominant-baseline="middle">compiled backward</text>
+  <text x="500" y="290" font-family="'DM Mono', monospace" font-size="13" font-weight="500" fill="#EDE9E3" text-anchor="middle" dominant-baseline="middle">compiled backward</text>
+  <text x="500" y="306" font-family="'DM Mono', monospace" font-size="8.5" fill="#8F8880" text-anchor="middle" dominant-baseline="middle">lowering은 첫 backward() 호출 시</text>
 
   <!-- gradients -->
   <rect x="380" y="404" width="240" height="44" rx="8" fill="#1C1A17" stroke="#3A362F" stroke-width="1"/>

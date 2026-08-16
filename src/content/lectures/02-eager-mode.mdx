@@ -981,7 +981,9 @@ PyTorch에서 확장성의 핵심은 새로운 subclass를 만드는 것이 아�
 
 #### Dispatch Key와 Dispatch Key Set
 
-<img src="/images/02/slide39_1.png" alt="Dispatch key set의 union과 우선순위 선택 과정 다이어그램" class="h-96 mx-auto" />
+<img src="/images/02/slide39_1.png" alt="Dispatch key set의 union과 우선순위 선택 과정 다이어그램 (Autograd 위치는 2020년 기준)" class="h-96 mx-auto" />
+
+> 위 그림은 원 슬라이드(2020년) 기준이라 Autograd가 Global set 쪽에 그려져 있습니다. 현재 PyTorch에서는 Autograd key가 tensor의 dispatch key set에 포함됩니다.
 
 Dispatch table에서 어떤 dispatch key로 index할지를 결정하는 핵심 추상화가 dispatch key set입니다. Dispatch key set은 dispatch key들의 bitset으로, 여러 소스에서 가져온 dispatch key set을 union하고(일부는 mask out), 최종 dispatch key set에서 우선순위가 가장 높은 key를 선택하여 dispatch합니다.
 

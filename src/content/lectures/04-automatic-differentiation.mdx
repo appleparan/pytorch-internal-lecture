@@ -601,7 +601,7 @@ def backward(self, ge_scalar, tangents_1):
 1. **C++ dispatcher 수준의 backward tracing** — "Autograd engine은 C++, Dynamo는 Python"이라는 층위 차이를 극복
 2. **FX Graph normalization** (functionalization + decomposition) — eager mode의 dispatcher가 암묵적으로 해 주던 복잡성 처리를 graph mode에서도 명시적으로 수행
 
-<img src="/images/04/slide22_1.png" alt="AOTAutograd의 C++ dispatcher 수준 tracing과 FX Graph normalization 개요 다이어그램" class="h-72 mx-auto" />
+<img src="/images/04/slide22_1.png" alt="TORCH_LOGS=aot_graphs로 출력한 partition 후 forward/backward 그래프 예제" class="h-72 mx-auto" />
 
 
 ### AOTAutograd Architecture
@@ -786,7 +786,7 @@ to give us the forwards pass and the backwards pass.
 
 D 단계에서 만들어진 joint graph는 아직 Torch IR 수준의 고수준 op들을 포함하고 있습니다. E 단계(Decomposition)에서는 이 op들을 더 낮은 수준의 작은 op들로 분해하여, backend compiler가 다루기 쉬운 형태로 내려 줍니다. 참고로 C 단계의 Functionalization(aliasing/mutation 제거)도 이 흐름 상에서 같이 이해해 두면 normalization 전체 그림이 잡힙니다.
 
-<img src="/images/04/slide31_1.png" alt="Torch IR에서 Prims IR까지 내려가는 Decomposition IR 계층 다이어그램" class="h-72 mx-auto" />
+<img src="/images/04/slide31_1.png" alt="clamp_min이 clamp → maximum으로 분해되는 PrimTorch decomposition 코드 예제" class="h-72 mx-auto" />
 
 IR 계층은 다음과 같이 단계적으로 내려갑니다:
 
@@ -887,7 +887,7 @@ AOTAutograd가 만들어낸 `torch.autograd.Function`이 실제 학습 루프에
 사용자가 compiled model을 호출하면 `torch.autograd.Function`의 `forward()` 부분이 실제로 실행됩니다. 이 forward 코드는 등록된 backend가 이미 컴파일해 둔 상태이므로 가속된 형태로 동작합니다.
 
 <div class="flex flex-col items-center gap-2 mt-4 max-w-3xl mx-auto">
-  <img src="/images/04/slide32_1.png" alt="등록된 backend가 미리 컴파일한 forward graph" class="w-full h-auto" />
+  <img src="/images/04/slide32_1.png" alt="partition된 forward FX Graph (forward는 이 시점에 컴파일 완료)" class="w-full h-auto" />
   <p class="text-sm text-center">→ 등록된 backend가 forward를 미리 컴파일</p>
 </div>
 
@@ -900,7 +900,7 @@ Forward가 실행되는 동안, 함께 묶여 있던 compiled `backward()`는 �
 이후 loss 쪽에서 `backward()`가 호출되면 Autograd engine이 등록된 `grad_fn`을 따라 내려오다가 [2]에서 걸어 둔 backward에 도달하고, 이때 한 스텝으로 backward 함수가 실행됩니다. 이 시점에 (아직 lowering되지 않았다면) 등록된 backend가 backward 그래프를 lowering한 뒤 실행하므로, 이후로는 가속된 형태로 동작합니다.
 
 <div class="flex flex-col items-center gap-2 mt-4 max-w-3xl mx-auto">
-  <img src="/images/04/slide32_2.png" alt="등록된 backend가 미리 컴파일한 backward graph" class="w-full h-auto" />
+  <img src="/images/04/slide32_2.png" alt="partition된 backward FX Graph (backend lowering은 첫 backward() 호출 시점)" class="w-full h-auto" />
   <p class="text-sm text-center">→ 등록된 backend가 backward graph를 컴파일 (기본적으로 첫 `backward()` 호출 시점에 lowering)</p>
 </div>
 

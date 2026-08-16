@@ -583,7 +583,7 @@ Dynamo가 생성하는 FX Graph는 **Torch IR**로 표현되며, 비교적 상�
 
 **2. AOT Autograd** → FxGraph (Aten/Prims IR)
 
-Gradient 계산이 필요할 경우 이 단계에서 처리합니다. 필요하지 않다면 이 과정을 생략할 수도 있습니다. 통과하면 동일하게 FX Graph가 출력되지만, Torch IR이 보다 구체화된 **Aten IR** 또는 **Prims IR** 형태로 lowering됩니다.
+Gradient 계산이 필요할 경우 이 단계에서 joint graph 생성과 forward/backward 분리(partitioning)를 수행합니다. 필요하지 않은 경우(inference)에도 이 단계를 건너뛰는 것은 아니며, joint graph 생성/partitioning만 생략하고 normalization(functionalization + decomposition)은 동일하게 수행합니다. 통과하면 동일하게 FX Graph가 출력되지만, Torch IR이 보다 구체화된 **Aten IR** 또는 **Prims IR** 형태로 lowering됩니다.
 
 **3. Inductor** → Loop-Level IR
 
