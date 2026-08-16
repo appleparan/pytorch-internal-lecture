@@ -518,14 +518,14 @@ def backward(self, ge_scalar, tangents_1):
 
 전체 흐름을 다이어그램으로 정리하면 다음과 같습니다:
 
-<Mermaid wide>
-{`graph LR
-    M["nn.Module"] --> D["Dynamo"]
-    D -->|"FX Graph"| AOT["AOTAutograd<br/>+ backend compiler"]
-    AOT --> F["torch.autograd.Function<br/>with <b>compiled forward</b><br/>and <b>compiled backward</b>"]`}
-</Mermaid>
+<ThemeImage
+  darkSrc="/images/04/aotautograd-interpose-dark.svg"
+  lightSrc="/images/04/aotautograd-interpose-light.svg"
+  alt="Dynamo가 만든 FX Graph가 backend compiler로 직행하지 못하고 AOTAutograd를 거쳐 torch.autograd.Function이 되는 흐름 다이어그램"
+  class="h-80 mx-auto mt-4"
+/>
 
-이 그림에서 주목해야 할 핵심은, training mode에서는 Dynamo가 만들어낸 FX Graph가 backend compiler로 곧바로 전달되지 않는다는 점입니다. 중간에 AOTAutograd가 반드시 끼어들어야 합니다. 왜냐하면 FX Graph에는 forward 부분만 담겨 있고, training을 하려면 그에 대응하는 backward 부분이 추가로 필요하기 때문입니다. AOTAutograd는 이 "빠진 backward"를 만들어 주고, forward와 backward를 함께 묶어 한 덩어리로 컴파일할 수 있도록 다리를 놓아 주는 역할을 합니다.
+이 그림에서 주목해야 할 핵심은, training mode에서는 Dynamo가 만들어낸 FX Graph가 backend compiler로 곧바로 전달되지 않는다는 점입니다. **중간에 AOTAutograd가 반드시 끼어들어야 합니다.** 왜냐하면 FX Graph에는 forward 부분만 담겨 있고, training을 하려면 그에 대응하는 backward 부분이 추가로 필요하기 때문입니다. AOTAutograd는 이 "빠진 backward"를 만들어 주고, forward와 backward를 함께 묶어 한 덩어리로 컴파일할 수 있도록 다리를 놓아 주는 역할을 합니다.
 
 단계별로 일어나는 일:
 
