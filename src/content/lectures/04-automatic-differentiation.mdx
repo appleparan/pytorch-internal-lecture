@@ -139,7 +139,7 @@ PyTorch는 기본 제공되는 연산자(log, sin, polynomial 등) 외에도, �
 ### Autograd 동작 예제
 
 - **변수**: $x = 2$ (`requires_grad = True`로 마킹), $y = 2x$, $z = y^2$
-- **목표**: $x$에 대한 $z$의 gradient $\left(\frac{dz}{dx}\right)$ 구하기
+- **목표**: $x$에 대한 $z$의 gradient $\left(\dfrac{dz}{dx}\right)$ 구하기
 
 ```python
 x = torch.tensor(2.0)
@@ -211,11 +211,11 @@ Step 2와 동일한 과정이 반복됩니다. $z = y^2 = 16$이 계산되면서
 z.backward()
 ```
 
-**Step 4.1 - Backward 시작**: Forward에서 기록해 둔 과정을 거꾸로 복귀합니다. 출력 자신에 대한 편미분은 항상 1이므로, 상수 $\frac{dz}{dz} = 1$부터 시작합니다. 이 값이 `PowBackward0`로 전달되면, $y^2$의 미분 함수인 $2y$가 적용됩니다. 이때 $2y$는 위에서 들어오는 입력과는 상관없이 $y$ 값에만 의존하며, $y = 4$이므로 $1 \times 2 \times 4 = 8$이 됩니다.
+**Step 4.1 - Backward 시작**: Forward에서 기록해 둔 과정을 거꾸로 복귀합니다. 출력 자신에 대한 편미분은 항상 1이므로, 상수 $\dfrac{dz}{dz} = 1$부터 시작합니다. 이 값이 `PowBackward0`로 전달되면, $y^2$의 미분 함수인 $2y$가 적용됩니다. 이때 $2y$는 위에서 들어오는 입력과는 상관없이 $y$ 값에만 의존하며, $y = 4$이므로 $1 \times 2 \times 4 = 8$이 됩니다.
 
-**Step 4.2 - Gradient 전파**: 다음 단계에서 $x$에 대한 $y$의 편미분 $\frac{dy}{dx}$는 $2$입니다. 위에서 온 민감도(gradient)가 계속 누적되면서 곱해지는 과정이므로, 이전 단계에서 내려온 민감도 $8$에 편미분 $2$를 곱하면 $8 \times 2 = 16$이 됩니다. 이 $16$이 최종적으로 `x.grad`에 저장됩니다.
+**Step 4.2 - Gradient 전파**: 다음 단계에서 $x$에 대한 $y$의 편미분 $\dfrac{dy}{dx}$는 $2$입니다. 위에서 온 민감도(gradient)가 계속 누적되면서 곱해지는 과정이므로, 이전 단계에서 내려온 민감도 $8$에 편미분 $2$를 곱하면 $8 \times 2 = 16$이 됩니다. 이 $16$이 최종적으로 `x.grad`에 저장됩니다.
 
-따라서 $\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx} = 8 \times 2 = 16$입니다. 실제 신경망에서는 이보다 훨씬 복잡하지만, 근본적으로 이 과정이 반복적으로 일어난다고 생각하면 됩니다.
+따라서 $\dfrac{dz}{dx} = \dfrac{dz}{dy} \cdot \dfrac{dy}{dx} = 8 \times 2 = 16$입니다. 실제 신경망에서는 이보다 훨씬 복잡하지만, 근본적으로 이 과정이 반복적으로 일어난다고 생각하면 됩니다.
 
 전체 backward 흐름을 정리하면 다음과 같습니다:
 
@@ -224,7 +224,7 @@ z.backward()
     start["dz/dz = 1"] --> pow["PowBackward0: 2y → 1 × 8 = 8"] --> mul["MulBackward0: ×2 → 8 × 2 = 16"] --> result["x.grad = 16"]`}
 </Mermaid>
 
-검증: $z = (2x)^2 = 4x^2$이므로, $\frac{dz}{dx} = 8x = 8 \times 2 = 16$
+검증: $z = (2x)^2 = 4x^2$이므로, $\dfrac{dz}{dx} = 8x = 8 \times 2 = 16$
 
 
 ### [참고] Forward에서 수행되는 AutoGrad kernel 예제: add
