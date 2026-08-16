@@ -89,6 +89,7 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
 - LLM inference의 성능 문제 - Decode가 memory wall에 부딪히는 이유
     - Prefill vs. Decode: 계산 구조와 병렬성의 비대칭
     - Roofline analysis: Decode는 매 스텝 같은 weight를 읽으면서 연산량은 적어 arithmetic intensity가 낮음 → 연산기가 아니라 메모리 대역폭에 발목이 잡히는 구조
+    - 이 비대칭의 귀결: Prefill과 Decode를 아예 다른 머신 풀에서 돌리는 PD Disaggregation
 - Memory overhead를 줄이기 위한 기술들
     - Continuous batching: 여러 request를 동적으로 묶어 lock-step의 낭비 제거
     - Speculative decoding: 생성을 검증 문제로 바꿔 순차적인 decode를 병렬처럼 처리
@@ -298,6 +299,18 @@ $$
 
 > **Q. Sparse Matrix 연산처럼 "의미 없는 계산"이 많이 끼는 경우 Arithmetic Intensity 자체가 의미가 있을까요?**
 > 그런 경우 intensity가 다소 희석되긴 합니다. 다만 머신러닝에서는 모델이 본질적으로 가져야 할 "유효 곱셈(effective multiplication)" 수와, 프로세서가 그 관점에서 얼마나 빠르게 처리하는지를 따로 측정하는 별도 용어가 있습니다. 덴스(dense) 계산이고 무의미한 연산 비중이 충분히 작다면 Arithmetic Intensity는 여전히 유효한 지표입니다.
+
+### 한 걸음 더: Prefill–Decode Disaggregation
+
+이 비대칭을 끝까지 밀어붙이면 자연스러운 질문 하나에 도달합니다. Prefill은 Compute Bound이고 Decode는 Memory Bound라서 필요로 하는 하드웨어 자원의 프로파일 자체가 다른데, 굳이 같은 GPU에서 번갈아 돌려야 할까요? 실제로 한 GPU에 둘을 같이 두면 서로를 방해합니다. 긴 프롬프트의 Prefill이 들어오는 순간 그 GPU에서 돌던 Decode들이 밀려 토큰 생성 간격이 튀고, 반대로 Decode만 돌 때는 연산기가 놉니다. TTFT와 TPS라는 두 지표를 한 머신 위에서 동시에 최적화하기가 구조적으로 어렵다는 뜻입니다.
+
+그래서 최근 서빙 시스템들은 아예 Prefill 전용 인스턴스와 Decode 전용 인스턴스를 풀(pool)로 분리하고, Prefill이 만들어 낸 KV cache를 인터커넥트(NVLink·RDMA 등)를 통해 Decode 쪽으로 넘겨주는 **Prefill–Decode Disaggregation**(PD 분리) 구조로 가고 있습니다. 두 풀을 독립적으로 스케일하고, 각자의 지표(Prefill 풀은 TTFT, Decode 풀은 TPS)에 맞춰 따로 튜닝할 수 있게 됩니다. DistServe 같은 연구에서 출발해, Kimi를 서빙하는 Mooncake, NVIDIA Dynamo, 그리고 vLLM·SGLang의 disaggregated serving 지원으로 이어지며 현재 대규모 서빙에서는 사실상 표준 아키텍처로 자리 잡았습니다.
+
+앞서 Prefill과 Decode를 "weight를 공유하는 두 개의 별도 모델"로 보는 편이 자연스럽다고 했고, 리벨리온이 둘을 별도 binary로 컴파일한다는 이야기도 했습니다. Disaggregation은 같은 관점을 시스템 레벨로 확장한 것입니다. 컴파일 단위에서 갈라졌던 두 단계가, 이제는 아예 서로 다른 머신 풀에서 돌아가는 셈입니다.
+
+> 참고: [DistServe: Disaggregating Prefill and Decoding for Goodput-optimized LLM Serving (OSDI '24)](https://arxiv.org/abs/2401.09670)
+>
+> 참고: [vLLM: Easy, Fast, and Cheap LLM Serving for Everyone — Simon Mo](https://www.youtube.com/watch?v=Tv71-g75OgU)
 
 ### Memory Wall
 
