@@ -765,9 +765,13 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 내부 동작을 봤으니 step당 통신량을 비교할 수 있습니다. parameter 전체 크기를 P라 하면:
 
 - **DDP**: backward 중 gradient `all_reduce` 한 번뿐입니다. 통신량은 약 2P(ring all-reduce 기준)이고, bucket 단위로 계산과 거의 완전히 겹쳐집니다. forward는 통신이 없습니다.
-- **FSDP**(FULL_SHARD): forward에서 all-gather(P), backward에서 다시 all-gather(P) + `reduce_scatter`(P)로 약 3P입니다. 통신량이 1.5배일 뿐 아니라, all-gather가 끝나야 해당 layer의 계산을 시작할 수 있어서 prefetch로 숨기더라도 DDP보다 통신 의존이 큽니다.
+- **FSDP**(FULL_SHARD): forward에서 all-gather(P), backward에서 다시 all-gather(P) + `reduce_scatter`(P)로 약 3P입니다.
 
-그 대가로 얻는 것이 메모리입니다. DDP는 rank마다 16 byte/param 전체를 복제하지만, FSDP는 그것을 world_size로 나눕니다. 따라서 결정 기준은 하나입니다:
+숫자만 보면 FSDP가 1.5배 느려야 할 것 같지만, 실제로는 그렇지 않습니다. ring all-reduce는 내부적으로 **all-gather + reduce-scatter와 동치**라서(각각 P), backward의 통신량은 DDP와 FSDP가 정확히 같습니다. FSDP가 추가로 내는 비용은 forward의 all-gather(P)뿐인데, forward에는 그만큼의 계산이 함께 있어서 prefetch로 겹치면 "계산 대비 통신" 비율은 forward와 backward 모두 DDP와 같아집니다. 즉 **per-device batch가 충분히 커서 계산 시간이 통신 시간을 넘는 영역(compute-bound)이라면, FSDP는 DDP와 거의 같은 속도로 돕니다.**
+
+반대로 per-device batch가 작으면 둘 다 통신이 병목이 됩니다. 계산 시간은 batch에 비례해 줄어드는데 통신량은 parameter 크기로 고정이기 때문입니다. 이 경계는 "device당 처리하는 token 수가 하드웨어의 FLOPs/bandwidth 비율(arithmetic intensity)을 넘는가"로 정해지는데, JAX scaling book의 분석에 따르면 TPU ICI 기준 대략 device당 2,500 token 수준이고 GPU + NVLink도 같은 자릿수입니다. GPU를 늘릴수록 per-device batch는 줄어들므로, **data parallel 계열의 확장 한계는 메모리가 아니라 "global batch를 얼마나 키울 수 있는가"가 정합니다.**
+
+그리고 FSDP가 메모리로 얻는 것은 분명합니다. DDP는 rank마다 16 byte/param 전체를 복제하지만, FSDP는 그것을 world_size로 나눕니다. 따라서 결정 기준은 하나입니다:
 
 **모델의 학습 상태(≈ 16 byte/param) + activation이 GPU 한 장에 들어가는가?**
 
@@ -775,7 +779,7 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 - **안 들어간다** → FSDP 외에 선택지가 없습니다. 7B 모델만 되어도 학습 상태가 112GB라 단일 GPU를 넘어섭니다.
 - **애매하다**(모델은 들어가는데 batch를 못 키우거나 아슬아슬하다) → 중간 지점이 있습니다. FSDP2의 `reshard_after_forward=False`(ZeRO-2에 해당)는 forward 후 parameter를 버리지 않아 backward의 all-gather를 아끼면서, gradient와 optimizer state만 sharding해 메모리를 줄입니다.
 
-정리하면 FSDP의 장점은 자동화가 아니라 순전히 메모리이고, 메모리가 문제가 아니라면 DDP가 더 빠르고 단순합니다. 실무에서 "일단 FSDP"가 되어 가는 이유는 요즘 학습 대상 모델이 대부분 DDP 한계를 넘는 크기이기 때문이지, FSDP가 DDP를 대체해서가 아닙니다.
+정리하면 FSDP의 장점은 자동화가 아니라 순전히 메모리입니다. batch가 충분히 큰 영역에서는 속도 손해도 거의 없기 때문에, 실무에서 "일단 FSDP"가 되어 가는 것이 손해 보는 선택은 아닙니다. 다만 메모리가 문제가 아닌 작은 모델이라면 DDP가 더 단순하고(wrapping 단위 결정이 없고 실패 모드도 적음), batch가 작아 통신이 병목인 영역에서는 forward all-gather가 없는 DDP가 유리합니다.
 
 ### Tensor Parallel 예제 코드
 
@@ -845,6 +849,19 @@ fully_shard(model, mesh=mesh_2d["dp"])
 ```
 
 이 조합이 자연스럽게 동작하는 이유는 FSDP2와 TP가 **같은 DTensor 추상화 위에 있기 때문**입니다. 한 parameter가 tp 축으로는 연산 방향으로, dp 축으로는 dim-0으로 sharding된 2D DTensor가 되고, 각 축의 collective는 해당 축의 process group 안에서만 일어납니다. 여기에 Pipeline Parallel까지 얹으면 소위 3D parallelism이 되는데, PyTorch native로 이 조합을 구현해 둔 대표 사례가 **torchtitan**입니다. FSDP1의 FlatParameter 시절에는 이런 조합이 어색했지만(모든 parameter가 1D로 뭉개져 있어 다른 병렬화와 합성 불가), FSDP2가 DTensor로 재설계되면서 조합 가능성이 핵심 장점이 됐습니다.
+
+"TP는 노드 안, FSDP는 그 위"라는 배치가 표준이 된 것도 통신 구조로 설명됩니다:
+
+- **TP의 계산/통신 비율은 batch와 무관합니다.** TP의 통신은 activation 크기(batch × hidden 차원)에 비례하는데, 계산은 거기에 feed-forward 폭 F까지 곱해진 크기입니다. batch를 키워도 두 항이 같이 커져서 비율이 그대로이고, 그 비율은 F를 TP degree로 나눈 값으로 정해집니다. degree를 올릴수록 나빠지므로 보통 8~16-way가 한계이고, 그마저 NVLink급 노드 안 interconnect에서만 감당됩니다. 게다가 TP의 all-gather는 계산 경로 위에 있어(critical path) DP 계열처럼 뒤로 숨기기도 어렵습니다.
+- **FSDP/DP의 통신은 parameter 크기로 고정입니다.** 앞 절에서 본 것처럼 per-device batch가 임계 이상인 한 얼마든지 넓게 펼 수 있습니다. 그리고 TP를 섞으면 compute-bound를 유지하는 데 필요한 per-device batch 하한이 크게 내려가서(scaling book 분석 기준 최대 ~8배), 같은 global batch로 더 많은 GPU까지 확장할 수 있습니다.
+
+그래서 통신이 잦고 degree가 제한된 TP를 가장 빠른 링크(노드 안)에 가두고, 그 바깥을 FSDP로 펴고, 대역폭이 좁은 클러스터 사이는 통신이 가장 적은 순수 DP로 잇는 계층 구조가 됩니다. 이런 정량 분석은 JAX scaling book의 training 챕터가 잘 정리해 두었습니다(TPU 기준이지만 GPU에도 같은 논리가 적용됩니다).
+
+<div class="text-xs mt-2 text-center">
+
+참고: [How to Parallelize a Transformer for Training (JAX Scaling Book)](https://jax-ml.github.io/scaling-book/training/)
+
+</div>
 
 ### 분산 프로그래밍 정리 Q&A
 
