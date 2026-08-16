@@ -1489,8 +1489,8 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
     F --> I[libcudart.so]:::external
     G --> J[libsycl.so]:::external
 
-    classDef xpu fill:#29abe2,color:#fff,stroke:#1a8fc4
-    classDef external fill:none,stroke:#29abe2,color:#29abe2,stroke-dasharray: 6 4
+    classDef xpu fill:#8c6fc9,color:#fff,stroke:#7157a8
+    classDef external fill:none,stroke:#8c6fc9,color:#8c6fc9,stroke-dasharray: 6 4
 `}
 </Mermaid>
 
@@ -1542,11 +1542,11 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
   gen --> build["build/aten/src/ATen"]
   gen --> torch["torch"]
 
-  torch --> torch_include["include/torch/csrc/\nautograd/generated"]
+  torch --> torch_include["include/torch/csrc/<br/>autograd/generated"]
   torch --> torch_csrc["csrc/autograd/generated"]
 
-  style hw fill:#3a7bd5,stroke:#2c5ea0,color:#fff
-  style gen fill:#d97b1e,stroke:#a85d15,color:#fff
+  style hw fill:#4a86c9,stroke:#3b6ba1,color:#fff
+  style gen fill:#d58830,stroke:#aa6c25,color:#fff
 `}
 </Mermaid>
 

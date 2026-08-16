@@ -744,6 +744,13 @@ a:hover {
   width: 100%;
 }
 
+/* Label widths are measured with the build machine's CJK font; viewers'
+   fallback fonts can be a few px wider, and foreignObject clips by default,
+   cutting off the last Hangul glyph. Let labels overflow instead. */
+.mermaid-svg foreignObject {
+  overflow: visible;
+}
+
 .mermaid-wrapper svg {
   max-width: 60%;
   height: auto;
