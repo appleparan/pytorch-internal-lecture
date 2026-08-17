@@ -5,7 +5,6 @@ export const siteConfig = {
   author: 'PyTorch + NPU랩',
   lang: 'ko',
   nav: [
-    { label: 'Lectures', href: '/' },
     { label: 'About', href: '/about' },
   ],
   social: {
