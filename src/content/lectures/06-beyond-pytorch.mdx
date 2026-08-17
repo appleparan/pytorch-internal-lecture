@@ -879,7 +879,7 @@ vLLM은 continuous batching과 PagedAttention 외에도 chunked prefill, prefix 
 
 ### vLLM V1: 엔진 재설계, 그리고 torch.compile
 
-vLLM V1은 scheduler와 execution path를 재설계하고 **`torch.compile`을 기본 compilation path로 사용**합니다. Model을 처음 실행할 때 FX graph[^fx-graph]를 capture해 compile하고 artifact를 cache합니다. Inductor가 target에 맞는 code를 생성하며, GPU backend에서는 Triton 또는 다른 backend-specific codegen을 사용할 수 있습니다. Attention처럼 별도 kernel이 필요한 구간은 custom op으로 두고 나머지 graph를 piecewise compile하여 handwritten kernel과 compiler-generated kernel을 함께 사용합니다.
+vLLM V1은 scheduler와 execution path를 재설계하고 **`torch.compile`을 기본 compilation path로 사용**합니다. Compile 대상은 Transformers의 modeling 코드가 아니라 vLLM 자체 model 구현입니다. Dynamo는 forward가 실행하는 PyTorch 연산을 트레이싱할 뿐 코드의 출처를 가리지 않으므로, vLLM의 native 구현에도 그대로 적용됩니다. Model을 처음 실행할 때 FX graph[^fx-graph]를 capture해 compile하고 artifact를 cache합니다. Inductor가 target에 맞는 code를 생성하며, GPU backend에서는 Triton 또는 다른 backend-specific codegen을 사용할 수 있습니다. Attention처럼 별도 kernel이 필요한 구간은 custom op으로 두고 나머지 graph를 piecewise compile하여 handwritten kernel과 compiler-generated kernel을 함께 사용합니다.
 
 [^fx-graph]: `torch.fx`가 제공하는 그래프 형태의 IR(intermediate representation). Dynamo가 캡처한 tensor 연산 trace가 이 형태로 저장되어 backend 컴파일러에 전달됩니다 (Week 3 참고).
 
