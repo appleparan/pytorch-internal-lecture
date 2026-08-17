@@ -291,7 +291,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 연산기 활용도 측면에서 보면 Prefill은 이미 이상적인 상황이고, 사람들이 보통 이 그래프를 보면 "메모리 대역폭을 더 늘려야 하나?"보다는 "Decode 쪽이 프로세서 성능을 다 못 쓰고 있다"는 결론을 내립니다. 즉 LLM 추론 최적화의 진짜 전장은 Decode 단계입니다.
 
 > **Q. Sparse Matrix 연산처럼 "의미 없는 계산"이 많이 끼는 경우 Arithmetic Intensity 자체가 의미가 있을까요?**
-> 그런 경우 intensity가 다소 희석되긴 합니다. 다만 머신러닝에서는 모델이 본질적으로 가져야 할 "유효 곱셈(effective multiplication)" 수와, 프로세서가 그 관점에서 얼마나 빠르게 처리하는지를 따로 측정하는 별도 용어가 있습니다. 덴스(dense) 계산이고 무의미한 연산 비중이 충분히 작다면 Arithmetic Intensity는 여전히 유효한 지표입니다.
+> 그런 경우 intensity가 다소 희석되긴 합니다. 다만 머신러닝에서는 모델이 본질적으로 가져야 할 "유효 곱셈(effective multiplication)" 수와, 프로세서가 그 관점에서 얼마나 빠르게 처리하는지를 따로 측정하는 별도 용어가 있습니다. Dense 계산이고 무의미한 연산 비중이 충분히 작다면 Arithmetic Intensity는 여전히 유효한 지표입니다.
 
 ### Prefill–Decode Disaggregation
 
