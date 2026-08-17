@@ -88,7 +88,7 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
 
 - LLM inference의 성능 문제 - Decode가 memory wall에 부딪히는 이유
     - Prefill vs. Decode: 계산 구조와 병렬성의 비대칭
-    - KV cache: 재계산을 저장으로 바꾼 트레이드, 그리고 그것이 다시 병목이 되는 이유
+    - KV cache: 한 번 계산한 K·V를 저장해 재계산을 없애고, 대신 메모리와 읽기 트래픽이 새 병목이 됨
     - Roofline analysis: Decode는 매 스텝 같은 weight를 읽으면서 연산량은 적어 arithmetic intensity가 낮음 → 연산기가 아니라 메모리 대역폭에 발목이 잡히는 구조
     - 이 비대칭의 귀결: Prefill과 Decode를 아예 다른 머신 풀에서 돌리는 PD Disaggregation
 - Memory overhead를 줄이기 위한 기술들
@@ -243,7 +243,7 @@ Prefill 쪽도 개념적으로는 거의 같습니다. Decoder-Only LLM이 할 �
 > **Q. Prefill 그림의 화살표는 attention을 뜻하나요?**
 > 네, 여기서의 화살표는 attention을 의미합니다.
 
-### KV Cache: 재계산을 저장으로 바꾸기
+### KV Cache
 
 Decode 이야기에서 계속 등장할 개념 하나를 여기서 분명히 해 두겠습니다. 새 토큰 하나의 attention을 계산하려면 그 토큰의 query를 이전 모든 토큰의 key·value와 곱해야 합니다. 그런데 이전 토큰들의 K·V는 한 번 계산되고 나면 스텝이 지나도 변하지 않는 값입니다. 아무것도 저장해 두지 않는다면 새 토큰을 만들 때마다 시퀀스 전체를 첫 레이어부터 다시 통과시켜 같은 K·V를 재계산해야 하는데, 이는 매 스텝마다 prefill 하나를 통째로 다시 하는 것과 맞먹는 낭비입니다.
 
@@ -251,7 +251,7 @@ Decode 이야기에서 계속 등장할 개념 하나를 여기서 분명히 해
   <img src="/images/06/nvidia-kv-cache.gif" alt="KV cache가 없으면 매 스텝 모든 토큰의 Q·K·V 행렬을 다시 계산하지만, KV cache가 있으면 마지막 query 하나와 cache에서 가져온 K·V만으로 attention을 계산하는 비교 애니메이션" class="max-w-3xl w-full mx-auto" />
 </div>
 
-**KV cache**는 이 재계산을 저장으로 바꾼 것입니다. 위 그림처럼 cache가 있으면 새 토큰의 query 하나만 가지고, K·V는 cache에서 가져와 attention을 계산할 수 있습니다. 핵심은 cache의 동작이 **append-only**라는 점입니다. 매 스텝 새 토큰의 K·V만 계산해 cache 끝에 append하고, 기존 항목은 수정 없이 읽기만 합니다(retrieve). 이 관점에서 Prefill을 다시 보면, 프롬프트를 통과시켜 첫 토큰을 만드는 것과 동시에 프롬프트 전체의 KV cache를 만들어 두는 단계이기도 합니다(뒤에서 볼 PD Disaggregation에서 Prefill 풀이 Decode 풀로 넘겨주는 것이 바로 이 KV cache입니다).
+**KV cache**는 한 번 계산한 K·V를 저장해 두고 재사용합니다. 위 그림처럼 cache가 있으면 새 토큰의 query 하나만 가지고, K·V는 cache에서 가져와 attention을 계산할 수 있습니다. Cache의 동작은 **append-only**입니다. 매 스텝 새 토큰의 K·V만 계산해 cache 끝에 append하고, 기존 항목은 수정 없이 읽기만 합니다(retrieve). 이 관점에서 Prefill을 다시 보면, 프롬프트를 통과시켜 첫 토큰을 만드는 것과 동시에 프롬프트 전체의 KV cache를 만들어 두는 단계이기도 합니다(뒤에서 볼 PD Disaggregation에서 Prefill 풀이 Decode 풀로 넘겨주는 것이 바로 이 KV cache입니다).
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/nvidia-kv-cache-append.png" alt="Decode 한 스텝의 데이터 흐름: 새 토큰의 K·V를 계산해 KV cache에 append하고, attention은 cache에서 K·V를 retrieve해 계산하는 구조" class="max-w-3xl w-full mx-auto" />
@@ -260,7 +260,7 @@ Decode 이야기에서 계속 등장할 개념 하나를 여기서 분명히 해
 
 > 출처: [Optimizing Inference for Long-Context and Large Batch Sizes with NVFP4 KV Cache (NVIDIA)](https://developer.nvidia.com/blog/optimizing-inference-for-long-context-and-large-batch-sizes-with-nvfp4-kv-cache/)
 
-다만 공짜는 아닙니다. 계산을 아낀 대신, (1) 시퀀스 길이에 비례해 자라는 메모리 용량을 차지하고(얼마나 커지는지는 뒤의 Paged Attention 절에서 계산합니다), (2) 매 decode 스텝마다 지금까지 쌓인 cache 전체를 HBM[^hbm]에서 다시 읽어야 합니다. 결국 Decode는 매 스텝 "weight 전체 + 계속 자라는 KV cache 전체"를 메모리에서 스트리밍하면서 정작 연산은 토큰 하나 분량만 하는 구조가 되고, 이것이 바로 다음 절에서 볼 "Decode는 Memory Bound"라는 진단의 실체입니다. 그래서 위 그림의 출처처럼 KV cache 자체를 FP8·NVFP4 같은 저정밀 포맷으로 양자화해 용량과 읽기 트래픽을 줄이는 것도 최근에는 표준적인 최적화 축이 되었습니다.
+KV cache의 비용은 두 가지입니다. 시퀀스 길이에 비례해 메모리를 차지하고(크기는 뒤의 Paged Attention 절에서 계산합니다), 매 decode 스텝마다 쌓인 cache 전체를 HBM[^hbm]에서 다시 읽어야 합니다. 그래서 Decode는 매 스텝 weight 전체와 KV cache 전체를 읽으면서 연산은 토큰 하나 분량만 합니다. 다음 절의 "Decode는 Memory Bound"라는 진단이 이 구조에서 나옵니다. KV cache를 FP8·NVFP4 같은 저정밀 포맷으로 양자화해 용량과 읽기 트래픽을 줄이는 것도 같은 이유입니다.
 
 [^hbm]: High Bandwidth Memory. DRAM die를 수직으로 쌓아 프로세서와 같은 패키지 안에서 매우 넓은 버스로 연결한 메모리. AI 가속기 오프칩 메모리의 사실상 표준으로, 일반 DRAM보다 대역폭이 훨씬 높지만 on-chip 메모리(SRAM)보다는 여전히 느립니다.
 
@@ -291,7 +291,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 연산기 활용도 측면에서 보면 Prefill은 이미 이상적인 상황이고, 사람들이 보통 이 그래프를 보면 "메모리 대역폭을 더 늘려야 하나?"보다는 "Decode 쪽이 프로세서 성능을 다 못 쓰고 있다"는 결론을 내립니다. 즉 LLM 추론 최적화의 진짜 전장은 Decode 단계입니다.
 
 > **Q. Sparse Matrix 연산처럼 "의미 없는 계산"이 많이 끼는 경우 Arithmetic Intensity 자체가 의미가 있을까요?**
-> 그런 경우 intensity가 다소 희석되긴 합니다. 다만 머신러닝에서는 모델이 본질적으로 가져야 할 "유효 곱셈(effective multiplication)" 수와, 프로세서가 그 관점에서 얼마나 빠르게 처리하는지를 따로 측정하는 별도 용어가 있습니다. 덴스(dense) 계산이고 무의미한 연산 비중이 충분히 작다면 Arithmetic Intensity는 여전히 유효한 지표입니다.
+> 그런 경우 intensity가 다소 희석되긴 합니다. 다만 머신러닝에서는 모델이 본질적으로 가져야 할 "유효 곱셈(effective multiplication)" 수와, 프로세서가 그 관점에서 얼마나 빠르게 처리하는지를 따로 측정하는 별도 용어가 있습니다. Dense 계산이고 무의미한 연산 비중이 충분히 작다면 Arithmetic Intensity는 여전히 유효한 지표입니다.
 
 ### Prefill–Decode Disaggregation
 
@@ -338,7 +338,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 ### Continuous Batching
 
-가장 직관적인 발상은 Prefill에서 했던 것처럼 여러 토큰을 동시에 처리하면 된다는 것입니다. 다만 Decode 안에서 한 토큰과 다음 토큰 사이에는 의존성이 있어 그게 어렵습니다. 그래서 여러 request를 묶어 병렬로 돌리는 쪽으로 시선을 돌립니다.
+지금까지는 request 하나를 기준으로 이야기했습니다. 서빙에서는 여러 사용자의 request가 서로 다른 시점에 도착하고, 프롬프트 길이도 응답 길이도 제각각입니다. 그리고 앞서 봤듯 단일 request의 Decode는 weight 전체를 읽고 토큰 하나 분량만 계산합니다. 연산기가 놀고 있으니, 같은 스텝에 다른 request의 decode 토큰을 함께 처리하면 됩니다. weight를 한 번 읽어 $B$개 request에 재사용하면 arithmetic intensity가 $B$배가 됩니다. Prefill이 토큰 축에서 얻던 이득을 request 축에서 얻는 것입니다. 한 request 안의 토큰들과 달리 request 사이에는 의존성이 없어서 묶는 데 제약도 없습니다. 남는 문제는 어떻게 묶을 것인가, 즉 스케줄링입니다.
 
 가장 단순한 형태가 **Static / Dynamic Batching**입니다. 여러 request를 묶어서 모든 layer를 lock-step으로 동시에 진행합니다. 메모리 효율은 individual request 처리보다 분명히 올라가지만, 각 request가 얼마나 빨리/느리게 끝날지 미리 알 수 없다는 게 문제입니다. 한 배치의 모든 request가 같은 lock-step으로 가야 하므로, 가장 느린 애가 끝날 때까지 모두 기다려야 하고, 빈 자리가 생겨 원하는 만큼 성능이 안 나옵니다.
 
@@ -422,14 +422,16 @@ Flash Attention은 이를 타일 단위로 쪼개서(tiling), 한 타일을 처�
 
 KV cache가 실제로 얼마나 큰지 감을 잡아 보면, 토큰 하나당 저장량은 $2 \times \text{bytes} \times K \times H \times L$ 입니다($K$ = KV head 수, $H$ = head dimension, $L$ = layer 수, 앞의 2는 K와 V). 예를 들어 LLaMA-13B(MHA)를 bf16으로 8K 컨텍스트까지 돌리면 시퀀스 하나의 KV cache가 약 6.7GB로, 배치 4면 이미 모델 weight(26GB)보다 커집니다. 이런 크기의 버퍼를 어떻게 잡아두느냐가 그대로 서빙 용량을 좌우합니다.
 
-KV cache를 그냥 잡아두려면 기본적으로 max sequence length 기준으로 한 번에 다 할당해 둬야 합니다. 그런데 실제 들어오는 request들은 시퀀스 길이가 제각각이어서, max에 한참 못 미치는 짧은 request들에서는 잡아만 놓고 안 쓰는 메모리 공간이 잔뜩 생깁니다. 이런 "낭비된 슬롯들" 때문에 같은 GPU 메모리(HBM)에서 동시에 처리할 수 있는 request 수가 줄어들어 처리량이 바운드됩니다.
+KV cache를 그냥 잡아두려면 기본적으로 max sequence length 기준으로 한 번에 다 할당해 둬야 합니다. 그런데 실제 들어오는 request들은 시퀀스 길이가 제각각이어서, max에 한참 못 미치는 짧은 request들에서는 잡아만 놓고 안 쓰는 메모리 공간이 잔뜩 생깁니다. 이런 "낭비된 슬롯들"(internal fragmentation) 때문에 같은 GPU 메모리(HBM)에서 동시에 처리할 수 있는 request 수가 줄어들어 처리량이 바운드됩니다.
+
+여기에 **external fragmentation**이 더해집니다. Request마다 KV cache를 연속된(contiguous) buffer로 잡아야 하므로, 길이가 다른 request들이 들어오고 나가기를 반복하면 buffer들 사이에 새 request가 들어가기에는 작은 빈 구간들이 남습니다. 남은 메모리 총량이 충분해도 연속 공간이 없어 할당하지 못하는 것입니다. vLLM 논문의 측정으로는 기존 서빙 시스템에서 KV cache용 메모리 중 실제 토큰 저장에 쓰인 비율이 20.4~38.2%에 그쳤습니다.
 
 Paged Attention은 OS의 virtual memory · paging과 거의 같은 발상으로 이 문제를 풉니다.
 
 - **Logical cache block** - 충분히 많은 request × 충분히 긴 시퀀스를 다 담을 수 있다고 *논리적으로만* 가정한 큰 주소 공간
 - **Physical cache block** - GPU DRAM(HBM) 위의 실제 한정된 메모리
 
-둘을 decouple해두고, 실제로 채워진 만큼만 physical에 할당(on-demand allocation)합니다. 그 결과 max를 가정한 over-provisioning 없이도 긴 시퀀스를 안전하게 다룰 수 있고, 빈 슬롯 낭비가 사라져 동시에 처리할 수 있는 request 수도 늘어납니다. Flash Attention과 함께 긴 시퀀스의 attention을 효율적으로 처리하는 대표적인 기법으로 널리 쓰입니다.
+둘을 decouple해두고, 실제로 채워진 만큼만 physical에 할당(on-demand allocation)합니다. Max를 가정한 over-provisioning이 필요 없고, 고정 크기 block은 physical 메모리에서 연속일 필요가 없어 external fragmentation도 사라집니다. 낭비는 각 시퀀스의 마지막 block에 남는 빈 자리 정도로 한정되어, 동시에 처리할 수 있는 request 수가 늘어납니다. Flash Attention과 함께 긴 시퀀스의 attention을 효율적으로 처리하는 대표적인 기법으로 널리 쓰입니다.
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide21_1.png" alt="Paged Attention: KV cache의 logical cache block과 physical cache block을 decouple해 on-demand로 할당하는 구조" class="h-56" />
@@ -879,7 +881,7 @@ vLLM은 continuous batching과 PagedAttention 외에도 chunked prefill, prefix 
 
 ### vLLM V1: 엔진 재설계, 그리고 torch.compile
 
-vLLM V1은 scheduler와 execution path를 재설계하고 **`torch.compile`을 기본 compilation path로 사용**합니다. Model을 처음 실행할 때 FX graph[^fx-graph]를 capture해 compile하고 artifact를 cache합니다. Inductor가 target에 맞는 code를 생성하며, GPU backend에서는 Triton 또는 다른 backend-specific codegen을 사용할 수 있습니다. Attention처럼 별도 kernel이 필요한 구간은 custom op으로 두고 나머지 graph를 piecewise compile하여 handwritten kernel과 compiler-generated kernel을 함께 사용합니다.
+vLLM V1은 scheduler와 execution path를 재설계하고 **`torch.compile`을 기본 compilation path로 사용**합니다. Compile 대상은 Transformers의 modeling 코드가 아니라 vLLM 자체 model 구현입니다. Dynamo는 forward가 실행하는 PyTorch 연산을 트레이싱할 뿐 코드의 출처를 가리지 않으므로, vLLM의 native 구현에도 그대로 적용됩니다. Model을 처음 실행할 때 FX graph[^fx-graph]를 capture해 compile하고 artifact를 cache합니다. Inductor가 target에 맞는 code를 생성하며, GPU backend에서는 Triton 또는 다른 backend-specific codegen을 사용할 수 있습니다. Attention처럼 별도 kernel이 필요한 구간은 custom op으로 두고 나머지 graph를 piecewise compile하여 handwritten kernel과 compiler-generated kernel을 함께 사용합니다.
 
 [^fx-graph]: `torch.fx`가 제공하는 그래프 형태의 IR(intermediate representation). Dynamo가 캡처한 tensor 연산 trace가 이 형태로 저장되어 backend 컴파일러에 전달됩니다 (Week 3 참고).
 
