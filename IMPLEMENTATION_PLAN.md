@@ -31,8 +31,8 @@ teaching scope.
 
 ### 3. Lectures 04–05
 
-- [ ] Replace magic, shell/core, bridge, and switchboard metaphors.
-- [ ] State AOTAutograd and distributed framework responsibilities explicitly.
+- [x] Replace magic, shell/core, bridge, and switchboard metaphors.
+- [x] State AOTAutograd and distributed framework responsibilities explicitly.
 
 ### 4. Lectures 06–07
 

@@ -104,7 +104,8 @@ GPU에서 matmul이 수행되도록 설정한 상태에서 CUDA GEMM[^gemm] 진�
 #53 __libc_start_call_main at ../sysdeps/nptl/libc_start_call_main.h:58
 #54 __libc_start_main_impl at ../csu/libc-start.c:360
 ```
-> Call depth는 55단계이며, 다음 절에서 이를 역할별로 구분합니다.
+> Call depth가 무려 55단계나 됨
+> 뭔가 엄청 복잡한 일이 일어나고 있는 것처럼 보임
 
 Eager mode에서는 breakpoint를 잡은 시점에서 이전 상태를 파악하기 어려운 경우도 많지만, `torch.matmul` 같은 경우에는 call stack을 보면 어떤 과정을 거쳐 어떤 일이 일어났는지 거의 다 파악할 수 있습니다.
 

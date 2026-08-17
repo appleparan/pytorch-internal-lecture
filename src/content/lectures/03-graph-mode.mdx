@@ -156,7 +156,7 @@ L9:  output(r);
 
 이론적으로 프로그램 전체를 trace로 만들 수 있지만, 두 가지 한계가 있습니다:
 
-- **전체 Trace 생성은 비효율적**: 장시간 실행되는 일반 프로그램의 모든 instruction을 기록하면 trace가 매우 커지고 기록 자체의 overhead도 발생합니다.
+- **전체 Trace 생성은 비효율적**: 1GHz CPU는 1초에 10억 clock cycle을 수행하고, superscalar CPU는 한 cycle에 여러 instruction을 처리할 수도 있습니다. 이를 모두 기록하면 일반적인 프로그램에서는 매우 긴 trace가 생성되고 기록 자체의 overhead도 발생합니다. 머신러닝처럼 동일한 연산 구조를 반복하는 프로그램은 상대적으로 graph capture에 유리할 수 있습니다.
 - **Trace는 입력 의존적**: 같은 프로그램이라도 입력이 다르면 trace가 달라지므로, 하나의 trace만으로 모든 실행을 일반화할 수 없습니다.
 
 #### Trace 기반 최적화
@@ -175,15 +175,15 @@ Super-scalar processor의 **Out-of-Order Execution**은 instruction window 안�
 
 Processor는 **Branch Prediction**을 이용해 아직 결과가 확정되지 않은 branch 뒤의 instruction도 instruction window에 공급합니다:
 
-1. Branch predictor가 다음 instruction address를 예측
-2. 예측 경로의 instruction을 fetch하고 dependency가 해결된 instruction부터 실행
-3. Prediction이 틀리면 잘못 실행한 결과를 폐기하고 올바른 경로에서 다시 실행
+1. Branch predictor가 가능성이 높은 방향을 연속해서 예측하여 여러 branch 뒤의 instruction까지 미리 fetch
+2. 넓어진 instruction window에서 서로 독립적인 instruction을 찾아 out-of-order로 실행
+3. Prediction이 틀리면 Reorder Buffer(ROB)에 보관된 speculative result를 폐기하고 올바른 경로에서 다시 실행. Prediction이 맞으면 program order에 따라 결과를 retire
 
 TorchDynamo도 runtime 조건을 검사한 뒤 이전 compilation 결과를 재사용하지만, branch prediction이나 Reorder Buffer를 사용하지는 않습니다. Dynamo는 Python bytecode를 상징적으로 분석하고, 입력 조건을 guard로 표현하며, tensor 연산을 FX graph로 생성합니다.
 
 이 외에도 trace 기반 최적화의 대표적인 사례로 다음을 다룹니다:
 
-- **Trace cache**: 예측된 제어 흐름 순서로 decoded micro-op을 저장해 instruction fetch 및 decode 비용을 줄이는 하드웨어 구조
+- **Trace cache**: 반복 실행되는 경로(hot trace)를 따라 decoded micro-op sequence를 저장해 instruction fetch 및 decode 비용을 줄이는 하드웨어 구조
 - **Partial evaluation**: 사전에 실행 가능한 계산을 미리 처리하여 연산을 제거. PyTorch 2.0의 Dynamo가 수행하는 최적화의 바탕이 되는 개념
 - **ML compiler의 graph mode**: Trace를 통해 실행할 연산자를 식별하고, trace에 대한 partial evaluation으로 Python 코드를 효과적으로 제거
 
