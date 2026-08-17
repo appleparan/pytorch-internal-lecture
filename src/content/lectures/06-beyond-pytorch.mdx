@@ -88,7 +88,7 @@ PyTorch + NPU 온라인 모임 #6 | 2025-02-05
 
 - LLM inference의 성능 문제 - Decode가 memory wall에 부딪히는 이유
     - Prefill vs. Decode: 계산 구조와 병렬성의 비대칭
-    - KV cache: 재계산을 저장으로 바꾼 트레이드, 그리고 그것이 다시 병목이 되는 이유
+    - KV cache: 한 번 계산한 K·V를 저장해 재계산을 없애고, 대신 메모리와 읽기 트래픽이 새 병목이 됨
     - Roofline analysis: Decode는 매 스텝 같은 weight를 읽으면서 연산량은 적어 arithmetic intensity가 낮음 → 연산기가 아니라 메모리 대역폭에 발목이 잡히는 구조
     - 이 비대칭의 귀결: Prefill과 Decode를 아예 다른 머신 풀에서 돌리는 PD Disaggregation
 - Memory overhead를 줄이기 위한 기술들
@@ -243,7 +243,7 @@ Prefill 쪽도 개념적으로는 거의 같습니다. Decoder-Only LLM이 할 �
 > **Q. Prefill 그림의 화살표는 attention을 뜻하나요?**
 > 네, 여기서의 화살표는 attention을 의미합니다.
 
-### KV Cache: 재계산을 저장으로 바꾸기
+### KV Cache
 
 Decode 이야기에서 계속 등장할 개념 하나를 여기서 분명히 해 두겠습니다. 새 토큰 하나의 attention을 계산하려면 그 토큰의 query를 이전 모든 토큰의 key·value와 곱해야 합니다. 그런데 이전 토큰들의 K·V는 한 번 계산되고 나면 스텝이 지나도 변하지 않는 값입니다. 아무것도 저장해 두지 않는다면 새 토큰을 만들 때마다 시퀀스 전체를 첫 레이어부터 다시 통과시켜 같은 K·V를 재계산해야 하는데, 이는 매 스텝마다 prefill 하나를 통째로 다시 하는 것과 맞먹는 낭비입니다.
 
@@ -251,7 +251,7 @@ Decode 이야기에서 계속 등장할 개념 하나를 여기서 분명히 해
   <img src="/images/06/nvidia-kv-cache.gif" alt="KV cache가 없으면 매 스텝 모든 토큰의 Q·K·V 행렬을 다시 계산하지만, KV cache가 있으면 마지막 query 하나와 cache에서 가져온 K·V만으로 attention을 계산하는 비교 애니메이션" class="max-w-3xl w-full mx-auto" />
 </div>
 
-**KV cache**는 이 재계산을 저장으로 바꾼 것입니다. 위 그림처럼 cache가 있으면 새 토큰의 query 하나만 가지고, K·V는 cache에서 가져와 attention을 계산할 수 있습니다. 핵심은 cache의 동작이 **append-only**라는 점입니다. 매 스텝 새 토큰의 K·V만 계산해 cache 끝에 append하고, 기존 항목은 수정 없이 읽기만 합니다(retrieve). 이 관점에서 Prefill을 다시 보면, 프롬프트를 통과시켜 첫 토큰을 만드는 것과 동시에 프롬프트 전체의 KV cache를 만들어 두는 단계이기도 합니다(뒤에서 볼 PD Disaggregation에서 Prefill 풀이 Decode 풀로 넘겨주는 것이 바로 이 KV cache입니다).
+**KV cache**는 한 번 계산한 K·V를 저장해 두고 재사용합니다. 위 그림처럼 cache가 있으면 새 토큰의 query 하나만 가지고, K·V는 cache에서 가져와 attention을 계산할 수 있습니다. Cache의 동작은 **append-only**입니다. 매 스텝 새 토큰의 K·V만 계산해 cache 끝에 append하고, 기존 항목은 수정 없이 읽기만 합니다(retrieve). 이 관점에서 Prefill을 다시 보면, 프롬프트를 통과시켜 첫 토큰을 만드는 것과 동시에 프롬프트 전체의 KV cache를 만들어 두는 단계이기도 합니다(뒤에서 볼 PD Disaggregation에서 Prefill 풀이 Decode 풀로 넘겨주는 것이 바로 이 KV cache입니다).
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/nvidia-kv-cache-append.png" alt="Decode 한 스텝의 데이터 흐름: 새 토큰의 K·V를 계산해 KV cache에 append하고, attention은 cache에서 K·V를 retrieve해 계산하는 구조" class="max-w-3xl w-full mx-auto" />
