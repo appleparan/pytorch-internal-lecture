@@ -106,13 +106,13 @@ PyTorch도 거의 비슷한 구조를 따르고 있으며, 뒤에서 살펴볼 t
 
 ## PyTorch Distributed Programming: 기본 개념
 
-PyTorch 분산 프로그래밍 모델은 MPI의 프로세스 개념과 구조가 거의 같습니다. 핵심 용어들을 먼저 정리합니다.
+PyTorch 분산 프로그래밍 모델은 MPI와 유사하게 process, rank, collective communication 개념을 사용합니다. 핵심 용어들을 먼저 정리합니다.
 
-**Node**는 물리적인 인스턴스로, GPU가 하나 또는 여러 개 장착되어 있으며, 하나의 Node 안에서 여러 개의 Process가 돌 수 있습니다. **Process**는 각 Node에서 생성되며, 일반적으로 1 process : 1 GPU 관계를 맺습니다. **World**는 이런 Node들과 Process들이 전부 모여서 이루는 전체 계산의 범위로, 해당 job에 참여하는 모든 process의 집합을 말합니다.
+**Node**는 분산 job에 참여하는 host로, 물리 서버뿐 아니라 VM이나 container 환경일 수도 있습니다. 하나의 Node에서 여러 **Process**가 실행될 수 있으며 GPU 학습에서는 일반적으로 process 하나를 GPU 하나에 대응시킵니다. **World**는 해당 job에 참여하는 모든 process의 집합입니다.
 
 **Rank**는 프로세스의 고유 식별자인데, 두 가지 종류가 있습니다. **Global rank**는 World 전체에서의 순서이고, **local rank**는 하나의 Node 내에서 다른 프로세스들을 구분하는 순서입니다. 아래 다이어그램에서 보듯이, 2개의 Node에 각각 3개의 프로세스가 있다면 global rank는 0\~5, local rank는 각 Node 내에서 0\~2가 됩니다.
 
-**Rendezvous**는 학습 job에 참여하는 node들을 한데 모으는(gathering participants) 과정으로, 어떤 머신들이 이 task에 참여하는지를 판별하고 구성하는 단계입니다. 프로그램이 시작되자마자 일단 Rendezvous를 만들어 이 job에 참여할 모든 머신들을 파악한 뒤, 그 위에서 job을 각 노드에 뿌려 실행하는 방식입니다. 동적으로 관리(dynamically manageable)할 수 있어 노드가 추가되거나 빠지는 상황에서도 유연하게 대응할 수 있는 메커니즘입니다.
+**Rendezvous**는 분산 job의 membership을 구성하고 process별 rank, world size, rendezvous store 정보를 합의하는 과정입니다. `torchrun` agent는 rendezvous 결과를 이용해 각 node의 worker process를 실행합니다. Elastic job에서 membership이 바뀌면 worker group을 종료하고 새로운 rendezvous와 restart를 수행할 수 있지만, 실행 중인 process group에 node가 그대로 추가되는 것은 아닙니다.
 
 <Mermaid>
 {`flowchart TB
@@ -155,7 +155,7 @@ PyTorch의 분산 프로그래밍 모델을 구성하는 주요 개념을 조금
 
 **1. Node와 Rendezvous 과정**
 
-Rendezvous는 여러 Node를 묶어서 하나의 분산 환경을 구성합니다. 각 Node 안에는 여러 개의 Process가 실행될 수 있고, 각 Process에는 Global rank(전체 환경에서의 프로세스 순서)와 Local rank(특정 Node 내에서의 프로세스 구분)가 부여됩니다. PyTorch는 실행 초기에 Rendezvous 과정에서 참여할 머신들을 확인하고 작업을 배분합니다.
+Rendezvous는 참여 process의 membership과 초기화 정보를 구성합니다. 각 Process에는 Global rank와 Local rank가 부여되며, `torchrun` agent가 각 node에서 worker process를 실행합니다.
 
 **2. 각 프로세스 내부의 PyTorch 분산 처리 구조**
 
@@ -241,9 +241,9 @@ Process Group은 서로 통신하는 프로세스들의 집합입니다. 기본(
 
 ### Distributed Communication Layer (c10d)
 
-c10d는 각 process 내부에서 PyTorch가 동작하는 구조의 가운데에 위치한 backbone으로, 분산 통신을 위한 **distributed communication API**가 정의된 핵심 계층입니다. 크게 두 가지 통신 방식을 제공합니다.
+c10d는 분산 통신을 위한 **distributed communication API**와 process group 구현을 제공하는 핵심 계층입니다. 크게 두 가지 통신 방식을 제공합니다.
 
-**Collective communication**은 group 내에 있는 모든 process들이 협력하여 data를 공유하고 처리하는 방식입니다. DDP의 gradient 동기화, FSDP의 parameter sharding 등 PyTorch 분산 패키지의 대부분이 이 방식을 사용합니다. **P2P communication**은 하나의 process에서 다른 process로 data를 직접 전송하는 방식으로, 개별 프로세스 간 직접적인 데이터 교환이 필요할 때 사용됩니다. Pipeline Parallel 같은 경우가 대표적이지만, high-level 패키지가 P2P를 실제로 얼마나 활용하는지는 명확하지 않습니다.
+**Collective communication**은 group의 process들이 정해진 패턴으로 data를 교환하는 방식입니다. DDP의 gradient 동기화와 FSDP의 parameter sharding 등이 collective를 사용합니다. **P2P communication**은 한 process가 다른 process로 data를 직접 전송합니다. Pipeline Parallel과 ring 방식의 Context Parallel 등이 대표적인 사용 사례입니다.
 
 #### Collective Communication 연산들
 
@@ -306,11 +306,13 @@ c10d는 interface만 제공하고, 실제 통신 동작은 개별 하드웨어�
 
 | Backend | 지원 Device | 비고 |
 |---------|------------|------|
-| **Gloo** | CPU / GPU | CPU 분산 학습에 주로 사용 |
-| **NCCL** | GPU | NVIDIA GPU 전용, GPU 간 통신 최적화 |
-| **MPI** | CPU / GPU (CUDA-aware MPI 빌드 시) | 일반적인 클러스터 분산 환경 |
+| **Gloo** | CPU 중심 | CPU collective에 권장. GPU 지원은 제한적 |
+| **NCCL** | CUDA GPU | NVIDIA GPU 간 통신에 권장 |
+| **XCCL** | Intel XPU | Intel XPU collective 지원 |
+| **MPI** | MPI 구현에 따라 다름 | PyTorch를 source build할 때 MPI 지원을 포함해야 함 |
+| **UCC** | 환경에 따라 다름 | 등록 가능한 experimental backend |
 
-이러한 구조 덕분에 third-party backend를 추가하는 것도 가능합니다. [`c10d/Backend.hpp`](https://github.com/pytorch/pytorch/blob/main/torch/csrc/distributed/c10d/Backend.hpp)를 구현하면 되는데, `broadcast`, `allreduce`, `reduce`, `allgather` 등 21개 virtual function으로 구성되어 있습니다. 리벨리온 NPU와 같은 새로운 하드웨어도 이 인터페이스를 구현함으로써 PyTorch의 분산 프로그래밍 생태계에 통합될 수 있습니다.
+Third-party communication backend도 등록할 수 있습니다. C++ 확장에서 `c10d::ProcessGroup`을 구현하고 `Backend.register_backend()`로 device와 backend를 연결하면 custom hardware의 collective implementation을 제공할 수 있습니다. 내부 virtual function의 정확한 개수는 PyTorch 버전에 따라 달라지므로 API 계약으로 사용하지 않습니다.
 
 
 ## torchrun을 활용한 분산 행렬 곱셈 예제
@@ -391,13 +393,13 @@ torchrun을 실행하면 내부적으로 다음과 같은 단계를 거칩니다
 
 ### 랑데뷰 (Rendezvous) 상세
 
-랑데뷰는 하나의 분산 계산에 참여할 머신들의 집합을 구성하고 그 정보를 서로 알리는 과정입니다. PyTorch 스크립트가 실제로 시작되기 전에 torchrun이 수행하는 준비 단계로, 각 프로세스가 자신의 task를 시작하기 전에 전체 분산 환경 측면에서 필요한 작업이 여기서 모두 세팅됩니다.
+랑데뷰는 분산 job에 참여할 process의 membership과 초기화 정보를 합의하는 과정입니다. `torchrun` agent는 이 결과로 worker에 필요한 환경 변수를 설정합니다.
 
 **1. 랑데뷰의 역할**
 
 * 분산 학습에 참여할 머신들의 집합을 결정하고 그 정보를 공유
 * 모든 프로세스가 참여 준비를 마칠 때까지 대기
-* 각 프로세스에 고유한 rank를 할당하고 일관된 distributed environment를 세팅
+* 각 프로세스에 고유한 rank를 할당하고 일관된 distributed environment를 설정
 
 **2. 실행 과정**
 
@@ -408,7 +410,7 @@ torchrun을 실행하면 내부적으로 다음과 같은 단계를 거칩니다
 
 이 과정이 끝나면 비로소 PyTorch script가 시작되고, 각 프로세스는 자신에게 할당된 학습 task를 수행합니다.
 
-Fault tolerance 측면에서도 랑데뷰는 중요한 역할을 합니다. 한 노드가 실패하면 남아 있는 노드들로 랑데뷰를 다시 시도하여 학습을 이어갈 수 있습니다.
+Fault tolerance 측면에서도 랑데뷰는 중요한 역할을 합니다. Elastic mode에서 node나 worker가 실패하면 `torchrun`은 worker group을 재시작하고, 남아 있거나 새로 합류한 worker들로 랑데뷰를 다시 수행할 수 있습니다. 학습 계산은 마지막 checkpoint부터 재개해야 하므로 학습 상태를 복구하려면 별도의 checkpoint 저장이 필요합니다.
 
 ### Task 수행 코드
 
@@ -633,7 +635,7 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 ## PyTorch가 제공하는 모델 병렬화 패키지들
 
-여기까지가 c10d 레벨의 저수준 분산 통신입니다. 실제 모델 학습에서는 이런 저수준 API를 직접 사용하기보다, PyTorch가 제공하는 고수준 병렬화 패키지를 사용하는 경우가 대부분입니다. 병렬화 기법의 이름이 많아(DDP, FSDP, ZeRO, TP, SP, PP, …) 헷갈리기 쉬운데, "무엇을 복제하고 무엇을 쪼개는가"를 기준으로 보면 지도가 그려집니다. 계산은 그대로 두고 학습 상태(parameter·gradient·optimizer state)를 어떻게 배치할지의 축이 **Data Parallel 계열**(DDP → ZeRO → FSDP)이고, 계산 자체를 쪼개는 축이 **Model Parallel 계열**(TP, SP, PP)입니다. 최근 모델 구조의 변화로 여기에 **Expert Parallel**(EP)과 **Context Parallel**(CP)이라는 축이 추가로 등장했는데, 이것은 강의 뒤의 보충 섹션에서 다룹니다.
+여기까지가 c10d level의 저수준 분산 통신입니다. 실제 model 학습에서는 이런 저수준 API를 직접 사용하기보다 PyTorch의 고수준 병렬화 package를 사용하는 경우가 많습니다. 병렬화 기법의 이름이 많아(DDP, FSDP, ZeRO, TP, SP, PP, …) 헷갈리기 쉬운데, **"무엇을 복제하고 무엇을 쪼개는가"를 기준으로 보면 지도가 그려집니다.** 계산은 그대로 두고 학습 상태(parameter·gradient·optimizer state)를 어떻게 배치할지의 축이 **Data Parallel 계열**(DDP, ZeRO, FSDP)이고, 계산 자체를 쪼개는 축이 **Model Parallel 계열**(TP, SP, PP)입니다. **Expert Parallel**(EP)과 **Context Parallel**(CP)은 강의 뒤의 보충 절에서 다룹니다.
 
 이 지도는 PyTorch 공식 문서의 계층 구분과도 그대로 대응됩니다. [PyTorch Distributed Overview](https://docs.pytorch.org/tutorials/beginner/dist_overview.html)는 분산 스택을 병렬화 API(DDP, FSDP2, TP, PP) → sharding primitive(DTensor, DeviceMesh) → 통신 계층(c10d) → launcher(torchrun)의 4개 층으로 정리하는데, 이 강의가 아래(c10d)에서 위(병렬화 패키지)로 올라온 순서를 뒤집으면 정확히 그 구조입니다. 모델 크기에 따른 선택 기준(한 GPU에 들어가면 DDP, 안 들어가면 FSDP2, FSDP2로도 한계에 부딪히면 TP/PP)도 공식 권고와 아래에서 볼 내용이 일치합니다.
 
@@ -648,7 +650,7 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 [^mixed-precision]: forward/backward 계산은 fp16/bf16 저정밀로 수행하고, 수치 안정성을 위해 optimizer에는 fp32 master weight를 유지하는 학습 기법. Optimizer state에 fp32 master weight(4 byte)가 포함되는 이유입니다.
 
-즉 mixed precision Adam 학습에서는 parameter 1개당 약 16 byte가 필요합니다. 7B 모델이라면 weight 자체는 14GB지만 학습 상태 전체는 112GB에 달해, 최신 GPU 한 장에도 들어가지 않습니다. inference에는 2 byte면 되는 모델이 학습에는 8배가 필요하다는 이 격차가 분산 학습 전략의 출발점이고, 각 전략은 "이 중 무엇을 rank들에 나눌 것인가"에 대한 서로 다른 답입니다.
+위와 같이 fp16/bf16 parameter와 gradient, fp32 master weight 및 Adam state를 사용하는 구성에서는 parameter당 약 16 byte가 필요합니다. 이 가정에서 7B model의 weight는 14GB지만 학습 상태는 activation을 제외해도 약 112GB입니다. Inference에서는 2 byte면 되는 parameter가 이 training 구성에서는 8배의 상태를 요구한다는 차이가 분산 학습 전략의 출발점입니다. 실제 사용량은 optimizer, gradient dtype, mixed-precision 구현과 activation에 따라 달라지며, 각 전략은 이 상태 중 무엇을 rank별로 sharding할지 결정합니다.
 
 ### Data Parallel 축: DDP → ZeRO → FSDP
 
@@ -660,17 +662,17 @@ Microsoft의 **ZeRO**(Zero Redundancy Optimizer, 2019) 논문은 이 중복을 �
 - **Stage 2**: gradient까지 sharding
 - **Stage 3**: parameter까지 sharding하고, 계산 직전에 all-gather로 모았다가 끝나면 버림
 
-**Fully Sharded Data Parallel**(FSDP)은 ZeRO Stage 3의 PyTorch 구현입니다. parameter(weight, bias)를 world_size로 나누어 각 GPU에 sharding해 두고, 어떤 op을 실행하기 직전에 그 op에 필요한 weight 조각을 다른 GPU들로부터 모아 완전한 weight를 구성한 뒤 계산합니다. 계산이 끝나면 받아 온 조각들은 다시 버리고, 다음 op에서 필요한 다른 조각을 또 모으는 식입니다. gradient와 optimizer state까지 sharding하여 메모리를 절약하며, 계산 자체는 각 GPU가 자신의 데이터 배치에 대해 온전히 수행합니다. 쪼개는 것은 저장(storage)이지 계산이 아니기 때문에, 여전히 "Data Parallel"이라는 이름이 붙습니다.
+**Fully Sharded Data Parallel**(FSDP)은 ZeRO Stage 3 algorithm을 PyTorch에 구현한 것입니다. Parameter를 rank별로 나눠 두고, module을 계산하기 직전에 필요한 조각을 all-gather해 완전한 parameter를 만든 뒤 계산이 끝나면 다시 reshard합니다. Gradient는 reduce-scatter하고 optimizer state도 rank별로 나눠 유지합니다. 즉 쪼개는 것은 학습 상태이고, 각 rank는 서로 다른 data batch에 대해 동일한 module 계산을 수행하므로 여전히 Data Parallel입니다.
 
 계보를 시간순으로 정리하면 다음과 같습니다:
 
 - **2019**: Microsoft가 ZeRO 논문 발표
 - **2020**: Microsoft가 ZeRO의 구현체인 **DeepSpeed** 라이브러리 공개
-- **2021**: Meta가 FairScale 라이브러리에서 같은 아이디어를 FSDP라는 이름으로 구현
+- **2021**: Meta가 FairScale 라이브러리에서 ZeRO-3에 해당하는 FSDP를 구현
 - **2022**: FairScale의 FSDP가 PyTorch 1.11에 정식 편입됨. 이 버전이 FSDP1
 - **2024**: per-parameter sharding으로 재설계한 FSDP2(`fully_shard`) 공개
 
-즉 DeepSpeed와 FSDP는 같은 논문에서 출발한 두 구현입니다. DeepSpeed는 "partitioning", FSDP는 "sharding"이라 부를 뿐 하는 일은 같고, ZeRO stage와는 다음과 같이 대응됩니다:
+DeepSpeed는 ZeRO Stage 1~3를 제공하는 library이고, FSDP의 중심은 ZeRO-3에 해당하는 full sharding입니다. 다만 FSDP에서도 설정에 따라 parameter를 forward 이후에 바로 reshard할지 선택할 수 있어, ZeRO-2와 비슷한 메모리·통신 trade-off를 구성할 수 있습니다. 동작상 가까운 설정을 정리하면 다음과 같습니다:
 
 | ZeRO stage | Sharding 대상 | FSDP1 설정 | FSDP2 설정 |
 |---|---|---|---|
@@ -681,7 +683,7 @@ Microsoft의 **ZeRO**(Zero Redundancy Optimizer, 2019) 논문은 이 중복을 �
 
 DeepSpeed와의 실무적 차이는 뒤의 보충 섹션에서 다룹니다.
 
-FSDP에는 두 세대의 구현이 있습니다. 초기 구현인 **FSDP1**(`FullyShardedDataParallel` wrapper)은 deprecated 상태이고, 현재는 `fully_shard` API 기반의 **FSDP2**를 사용하는 것이 권장됩니다. 개념적인 동작(sharding → all-gather → 계산 → reshard)은 동일하지만 내부 표현이 크게 달라졌는데, 이는 아래 "FSDP1 vs. FSDP2"에서 자세히 다룹니다.
+FSDP에는 두 세대의 구현이 있습니다. **FSDP1**은 `FullyShardedDataParallel` wrapper API이고, **FSDP2**는 `fully_shard`와 DTensor를 사용하는 새 구현입니다. FSDP1은 deprecated되었으며, 기존 code와 API는 아직 남아 있지만 신규 구성에는 FSDP2를 사용해야 합니다. 두 구현은 sharding → all-gather → 계산 → reshard라는 기본 동작을 공유하지만 parameter 표현이 다릅니다.
 
 ### Model Parallel 축: TP, SP, PP
 
@@ -814,7 +816,7 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 
 ### DDP vs. FSDP: 언제 무엇을 쓰나
 
-가장 헷갈리기 쉬운 질문입니다. "FSDP가 더 새롭고 알아서 해 주니까 좋은 것"이라고 생각하기 쉬운데, FSDP는 DDP의 상위 호환이 아닙니다. 둘은 메모리와 통신을 맞바꾸는 trade-off 관계입니다.
+가장 헷갈리기 쉬운 질문은 "FSDP가 더 새로우니 DDP보다 항상 좋은가?"입니다. FSDP는 DDP의 상위 호환이 아닙니다. 학습 상태를 sharding해 device memory 사용량을 줄이는 대신 parameter all-gather와 reshard 통신을 추가하므로, 둘은 memory와 communication의 trade-off 관계입니다.
 
 내부 동작을 봤으니 step당 통신량을 비교할 수 있습니다. parameter 전체 크기를 P라 하면:
 
@@ -823,7 +825,7 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 
 [^ring-allreduce]: rank들을 ring으로 연결하고 데이터를 1/N 조각씩 이웃으로 돌리는 all-reduce 구현. reduce-scatter 단계와 all-gather 단계가 각각 약 P씩 통신해 총 2P가 되며, 본문 그림의 분해가 바로 이 구조입니다.
 
-숫자만 보면 FSDP가 1.5배 느려야 할 것 같지만, 실제로는 그렇지 않습니다. ring all-reduce는 내부적으로 all-gather + reduce-scatter와 동치라서(각각 P), backward의 통신량은 DDP와 FSDP가 정확히 같습니다.
+이 단순 모델에서 ring all-reduce는 reduce-scatter와 all-gather로 구현할 수 있으므로 DDP와 FSDP backward의 데이터 이동량이 비슷하게 계산됩니다. 실제 통신 시간은 collective algorithm, topology, bucket 크기, overlap 정도에 따라 달라집니다.
 
 <img src="/images/05/fsdp2_allreduce_decomposition.png" alt="All-Reduce가 Reduce-Scatter와 All-Gather의 조합으로 분해됨을 보여주는 다이어그램" class="h-56 mt-4 mx-auto diagram-bg p-2 rounded" />
 
@@ -832,21 +834,21 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 그림 출처: PyTorch FSDP2 Tutorial
 
 </div>
- FSDP가 추가로 내는 비용은 forward의 all-gather(P)뿐인데, forward에는 그만큼의 계산이 함께 있어서 prefetch로 겹치면 "계산 대비 통신" 비율은 forward와 backward 모두 DDP와 같아집니다. 즉 per-device batch가 충분히 커서 계산 시간이 통신 시간을 넘는 영역(compute-bound)이라면, FSDP는 DDP와 거의 같은 속도로 돕니다.
+FSDP에는 forward parameter all-gather가 추가됩니다. Prefetch가 이 통신을 계산과 충분히 overlap하면 노출되는 통신 시간을 줄일 수 있습니다. 효과는 model structure, per-device batch 및 interconnect에 따라 달라집니다.
 
-반대로 per-device batch가 작으면 둘 다 통신이 병목이 됩니다. 계산 시간은 batch에 비례해 줄어드는데 통신량은 parameter 크기로 고정이기 때문입니다. 이 경계는 "device당 처리하는 token 수가 하드웨어의 연산 성능 대 통신 대역폭 비율(arithmetic intensity)[^arithmetic-intensity]을 넘는가"로 정해지며, 최신 GPU와 고속 interconnect 조합에서는 대략 device당 수천 token 수준입니다. GPU를 늘릴수록 per-device batch는 줄어들므로, data parallel 계열의 확장 한계는 메모리가 아니라 "global batch를 얼마나 키울 수 있는가"가 정합니다.
+Per-device batch가 작아지면 계산량은 줄지만 parameter와 gradient 통신량은 크게 줄지 않아 통신 비중이 증가합니다. 따라서 data parallel scaling은 model size, token 수, GPU 연산 성능, interconnect bandwidth와 통신·계산 overlap을 함께 측정해 결정해야 합니다.
 
 [^arithmetic-intensity]: 연산량(FLOPs)을 데이터 이동량(bytes)으로 나눈 값. 하드웨어의 "연산 성능 ÷ 대역폭" 임계값과 비교해 compute bound인지 memory bound인지를 판별하는 기준으로, Week 6의 Roofline 분석에서 본격적으로 다룹니다.
 
 그리고 FSDP가 메모리로 얻는 것은 분명합니다. DDP는 rank마다 16 byte/param 전체를 복제하지만, FSDP는 그것을 world_size로 나눕니다. 따라서 결정 기준은 하나입니다:
 
-**모델의 학습 상태(≈ 16 byte/param) + activation이 GPU 한 장에 들어가는가?**
+**선택한 precision 및 optimizer 구성의 학습 상태와 activation이 GPU 한 장에 들어가는가?**
 
-- **들어간다** → DDP를 쓰십시오. 통신이 가장 적고, wrapping 단위 같은 결정도 필요 없어서 오히려 DDP 쪽이 "알아서 해 주는" 정도가 높습니다. 80GB GPU 기준으로 mixed precision Adam은 대략 1~3B 파라미터까지가 이 영역입니다.
-- **안 들어간다** → FSDP 외에 선택지가 없습니다. 7B 모델만 되어도 학습 상태가 112GB라 단일 GPU를 넘어섭니다.
-- **애매하다**(모델은 들어가는데 batch를 못 키우거나 아슬아슬하다) → 중간 지점이 있습니다. FSDP2의 `reshard_after_forward=False`(ZeRO-2에 해당)는 forward 후 parameter를 버리지 않아 backward의 all-gather를 아끼면서, gradient와 optimizer state만 sharding해 메모리를 줄입니다.
+- **들어간다** → DDP는 parameter all-gather가 없고 wrapping 단위를 정할 필요가 없어 구성이 단순합니다.
+- **안 들어간다** → FSDP, tensor parallel, pipeline parallel 또는 offload를 이용해 학습 상태와 activation을 분산해야 합니다.
+- **Parameter 복제는 가능하지만 gradient와 optimizer state를 줄여야 한다** → FSDP2의 `reshard_after_forward=False`는 forward 후 unsharded parameter를 유지하고 gradient와 optimizer state를 sharding하는 구성을 제공합니다.
 
-정리하면 FSDP의 장점은 자동화가 아니라 순전히 메모리입니다. batch가 충분히 큰 영역에서는 속도 손해도 거의 없기 때문에, 실무에서 "일단 FSDP"가 되어 가는 것이 손해 보는 선택은 아닙니다. 다만 메모리가 문제가 아닌 작은 모델이라면 DDP가 더 단순하고(wrapping 단위 결정이 없고 실패 모드도 적음), batch가 작아 통신이 병목인 영역에서는 forward all-gather가 없는 DDP가 유리합니다.
+FSDP의 주된 장점은 학습 상태의 memory sharding입니다. 통신과 계산이 충분히 overlap되는 workload에서는 추가 통신 비용을 줄일 수 있습니다. 메모리 제약이 없거나 per-device batch가 작아 통신이 병목이면 parameter all-gather가 없는 DDP가 더 단순하고 빠를 수 있습니다.
 
 ### Tensor Parallel 예제 코드
 
@@ -948,19 +950,19 @@ fully_shard(model, mesh=mesh_2d["dp"])
 > 둘 다 다룹니다. Collective communication API를 호출하는 입장에서는 통신해야 한다는 사실만 알 뿐 상대 프로세스가 같은 노드인지 다른 노드인지는 모릅니다. 그 판별은 backend가 내부에서 처리하며, 같은 노드 안이면 NVLink/SHM 같은 빠른 경로를, 다른 노드면 네트워크 프로토콜을 사용해 통신을 수행합니다.
 
 > **Q. `torch.compile`과 `torch.distributed`는 어떤 순서로 적용되나요? 통합되지 않아 놓치는 최적화가 있나요?**
-> `torch.distributed`가 먼저 적용된 후 `torch.compile`이 수행됩니다. 즉 torchrun으로 분산 환경을 세팅하고 모델을 분산 형태로 변환한 뒤에야 그 분산 모델을 컴파일합니다. 컴파일러 입장에서 collective communication op은 처리해야 할 op 중 하나일 뿐인데, graph break를 일으키지 않으면 FX graph 안으로 들어가 backend 컴파일러로 함께 넘어가고, graph break를 일으키면 그 op만 eager로 떨어지고 graph가 그 지점에서 끊깁니다. 두 시스템을 하나로 묶었다면 더 끌어낼 수 있는 최적화가 분명히 있겠지만, 문제 자체가 너무 커서 현실적으로는 따로 푸는 편이 자연스럽습니다.
+> 적용 순서는 wrapper와 PyTorch 버전에 따라 다릅니다. DDP에서는 DDP wrapper에 `torch.compile`을 적용해 DDPOptimizer가 bucket 경계를 고려하도록 하는 경로가 있고, compiler troubleshooting 문서에서는 wrapper module 처리 문제가 있을 때 내부 module만 compile하는 방법도 안내합니다. FSDP도 지원 범위와 graph break 여부가 달라질 수 있으므로 사용하는 PyTorch 버전의 distributed compiler 문서를 확인해야 합니다. FX graph에 포함된 collective는 backend가 처리할 수 있지만, 지원되지 않는 wrapper 또는 operation은 graph break를 만들 수 있습니다.
 
 > **Q. 대용량 분산 처리는 보통 Hadoop/MapReduce를 쓰는데, PyTorch는 왜 MPI 형태를 골랐나요?**
-> Hadoop/MapReduce도 본질적으로는 shared memory를 가정하지 않는 분산 모델이라 MPI와 크게 다르지 않습니다. 다만 MapReduce는 storage 위 데이터 처리에 가깝고 collective의 종류가 제한적인 반면, MPI는 다양한 collective를 표준적으로 정의해 둬서 분산 학습에서 필요한 통신 패턴을 표현하기에 더 자연스러운 모델입니다.
+> Hadoop MapReduce는 storage에 기록된 key-value data를 map, shuffle, reduce 단계로 처리하는 data-processing model이며 fault recovery와 task scheduling을 runtime이 관리합니다. MPI는 process 사이의 message passing과 collective communication을 제공하는 API입니다. 분산 학습은 반복되는 tensor collective와 세밀한 동기화가 필요하므로 MPI와 유사한 process/rank/collective model을 사용합니다.
 
 
 ## 보충: 새로운 축, Expert Parallel과 Context Parallel
 
-최근 모델 구조의 변화가 축을 두 개 더 만들었습니다. 미리 답부터 하면, 둘 다 inference 전용이 아니라 학습에서 먼저 필요해진 기법입니다.
+Expert Parallel과 Context Parallel은 학습과 inference 모두에서 사용할 수 있으며, 모델 구조와 sequence 길이에 따라 필요성이 결정됩니다.
 
 **Expert Parallel**(EP)은 MoE(Mixture of Experts) 모델 전용 축입니다. MoE는 FFN 자리에 expert를 수십~수백 개 두고, token마다 router가 고른 일부(top-k)만 계산합니다. parameter 수는 dense 모델의 몇 배인데 실제 계산은 일부만 쓰므로, "계산은 감당되는데 weight가 안 들어가는" 메모리 병목이 극단적으로 커집니다. EP는 expert들을 GPU에 나눠 배치하고, 각 token을 담당 expert가 있는 GPU로 보냈다가(all-to-all dispatch) 계산이 끝나면 되돌려 받습니다(all-to-all combine). 지금까지 본 all-gather/reduce-scatter가 아니라 all-to-all이 주역이라는 점, 그리고 어떤 token이 어느 GPU로 갈지가 데이터(router 출력)에 따라 매 step 달라지는 동적 통신이라는 점에서 앞의 정적인 병렬화들과 성격이 다릅니다. GShard/Switch Transformer의 학습에서 나온 기법이고, DeepSeek-V3처럼 MoE가 주류가 되면서 학습·inference 양쪽의 표준 축이 됐습니다. dense 모델에는 필요 없습니다.
 
-**Context Parallel**(CP)은 sequence가 너무 길 때의 축입니다. activation 메모리는 sequence 길이에 비례하므로, context가 100k token쯤 되면 batch 1개의 activation조차 GPU 한 장에 들어가지 않습니다. CP는 한 sequence를 잘라 여러 GPU에 나누는데, 문제는 attention이 sequence 전체를 봐야 한다는 점입니다. Ring Attention 계열 기법은 각 rank가 자기 구간의 Q를 들고 있고, K/V block들을 ring 형태의 P2P 통신으로 이웃 rank에 돌려 가며 부분 attention을 누적해서 전체 attention을 정확히 계산합니다. 앞에서 "high-level 패키지가 P2P를 실제로 얼마나 활용하는지는 명확하지 않다"고 했는데, CP가 P2P가 주역이 되는 대표 사례입니다. Llama 3의 long-context 학습 단계에 쓰였고, PyTorch에도 experimental API(`torch.distributed.tensor.experimental.context_parallel`)로 들어와 있습니다.
+**Context Parallel**(CP)은 긴 sequence의 activation과 attention 계산을 여러 GPU에 분할합니다. 구현에 따라 K/V block을 ring P2P로 순환시키거나 all-gather 또는 all-to-all 기반 교환을 사용할 수 있습니다. PyTorch의 experimental context parallel API도 여러 attention communication strategy를 제공합니다.
 
 이름이 비슷한 Sequence Parallel과의 구분도 해 두겠습니다. Megatron 계열에서 말하는 SP는 TP의 보조 기법으로, TP가 쪼개지 못하는 구간(LayerNorm, Dropout)의 activation을 sequence 방향으로 나눠 메모리를 아끼는 것입니다. attention 계산 자체를 sequence로 쪼개는 독립된 축인 CP와는 다른 기법입니다.
 
@@ -969,7 +971,7 @@ fully_shard(model, mesh=mesh_2d["dp"])
 
 ## 보충: DeepSpeed, Accelerate, 그리고 Ray
 
-강의에서는 PyTorch가 직접 제공하는 병렬화 패키지까지만 다뤘지만, 실무에서는 DeepSpeed, Hugging Face Accelerate, Ray 같은 이름이 항상 함께 등장합니다. "그냥 Accelerate를 쓰면 알아서 다 되는 것 같은데, 안에서 뭐가 어떻게 쓰이는 건지" 혼란스럽기 쉬운 지점이라, 강의에는 없었던 내용이지만 이들도 앞의 패키지들과 같은 방식(예제 코드 → 내부 동작)으로 정리해 둡니다. 본문에서 본 것처럼 DeepSpeed는 FSDP와 같은 ZeRO 논문에서 출발한 형제 구현이고, Accelerate는 병렬화 구현이 아니라 이들을 갈아끼우는 스위치보드이며, Ray는 그보다 바깥에서 클러스터 자원을 관리하는 orchestrator입니다.
+이 절에서는 PyTorch 외부에서 자주 함께 사용하는 DeepSpeed, Hugging Face Accelerate, Ray의 역할을 구분합니다. DeepSpeed는 ZeRO 계열의 병렬화 runtime을 제공하고, Accelerate는 DDP·FSDP·DeepSpeed의 설정과 실행을 통합하는 frontend이며, Ray Train은 worker와 cluster resource를 관리하는 orchestrator입니다.
 
 ### DeepSpeed 예제 코드
 
@@ -1014,7 +1016,7 @@ DDP/FSDP가 "모델만 감싸고 loop는 그대로"인 것과 달리 loop 자체
 - **Stage 2**: gradient에 hook을 걸어, backward 중 각 rank가 자신이 담당하는 partition의 gradient만 모아 갖도록 reduce합니다.
 - **Stage 3**: forward/backward 전후로 parameter를 gather/partition하는 hook을 등록합니다. FSDP의 all-gather → 계산 → reshard와 같은 그림입니다.
 
-`engine.backward(loss)`는 loss scaling을 적용해 backward를 수행하고, gradient accumulation 경계에서만 통신을 발행합니다. `engine.step()`은 accumulation step 수와 clipping을 확인한 뒤 실제 optimizer step을 수행하고 partition 상태를 유지합니다. 결국 바닥에서 도는 것은 FSDP와 동일한 c10d(NCCL) collective이고, 다른 것은 API 스타일과 아래의 구현 세부입니다.
+`engine.backward(loss)`는 loss scaling을 적용해 backward를 수행하고, gradient accumulation 경계에서 통신을 발행합니다. `engine.step()`은 accumulation step 수와 clipping을 확인한 뒤 optimizer step을 수행하고 partition 상태를 유지합니다. PyTorch integration에서는 NCCL 등의 collective backend를 사용하지만, DeepSpeed는 자체 runtime과 communication abstraction도 포함하므로 FSDP와 동일한 c10d 구현이라고 단정할 수는 없습니다.
 
 ### FSDP vs. DeepSpeed
 
@@ -1022,11 +1024,11 @@ DDP/FSDP가 "모델만 감싸고 loop는 그대로"인 것과 달리 loop 자체
 
 - **Precision 처리**: DeepSpeed는 parameter를 준비하는 시점에 항상 fp32 master weight로 upcast하고 optimizer도 fp32로 돕니다. FSDP는 모델의 `torch_dtype`을 존중해서, mixed precision을 끄면 optimizer까지 low precision으로 돌리는 것도 가능합니다. GPU 수가 적을 때는 이 upcast 오버헤드가 체감될 수 있습니다.
 - **Offload**: FSDP는 parameter/gradient/optimizer state를 전부 CPU로 내리거나 전부 GPU에 두는 all-or-nothing인 반면, DeepSpeed는 parameter와 optimizer state를 따로따로 내릴 수 있고 NVMe offload까지 지원합니다.
-- **설정 노출 방식**: FSDP는 wrapping 단위(FSDP2에서는 `fully_shard` 호출 위치) 등을 사용자가 명시하는 반면, DeepSpeed는 JSON config 하나를 주면 내부에서 알아서 처리하는 스타일입니다.
+- **설정 노출 방식**: FSDP는 wrapping 단위(FSDP2에서는 `fully_shard` 호출 위치) 등을 Python API에서 명시하고, DeepSpeed는 partitioning과 offload 설정의 상당 부분을 JSON config로 받습니다.
 
 ### Accelerate 예제 코드
 
-Accelerate는 새로운 병렬화 구현이 아니라, DDP, FSDP, DeepSpeed를 코드 수정 없이 갈아끼울 수 있게 해 주는 통합 frontend입니다. 사용자 코드는 어떤 backend를 쓰든 하나입니다:
+Accelerate는 새로운 collective 또는 sharding 구현이 아니라 DDP, FSDP, DeepSpeed의 초기화와 실행 interface를 통합하는 frontend입니다. 같은 training loop에서 config로 backend를 선택할 수 있습니다:
 
 ```python
 from accelerate import Accelerator
@@ -1055,18 +1057,18 @@ accelerate launch --config_file ds_z3.yaml train.py   # DeepSpeed ZeRO-3로
 
 ### Accelerate 내부 동작
 
-"알아서 다 되는" 것처럼 보이는 흐름을 뜯어 보면:
+Accelerate의 실행 과정은 다음과 같습니다:
 
 1. `accelerate launch --config_file ...`이 config를 읽고 process들을 띄웁니다. 앞에서 본 torchrun과 같은 역할로, world/rank/rendezvous 개념이 그대로 적용됩니다.
 2. 스크립트 안에서 `Accelerator()`를 생성하면 `AcceleratorState`가 환경 변수를 분석해 지금이 어떤 분산 세팅(단일 GPU, DDP, FSDP, DeepSpeed, …)인지 파악합니다.
 3. `accelerator.prepare(model, optimizer, scheduler, dataloader)`가 실제 변환을 수행합니다. config에 따라 model을 DDP 컨테이너로 감싸거나, FSDP를 적용하거나, DeepSpeed engine으로 초기화합니다. optimizer와 scheduler는 `AcceleratedOptimizer` 같은 얇은 wrapper로 감싸는 정도지만, dataloader는 rank마다 서로 다른 batch를 받도록 batch sampler를 교체해 재생성하고, shuffle 등이 rank 간에 일관되도록 random number generator도 동기화합니다.
 4. `accelerator.backward(loss)`는 backend에 따라 분기합니다. DeepSpeed면 `engine.backward(loss)`를, mixed precision이면 loss scaling을 적용한 `loss.backward()`를, 그 외에는 그냥 `loss.backward()`를 호출합니다. DDP/FSDP의 통신은 어차피 backward hook에서 자동으로 일어나므로 여기서 특별히 할 일이 없습니다.
 
-즉 사용자가 보는 training loop는 하나지만, 실제로 all-gather와 reduce-scatter를 수행하는 것은 여전히 이 강의에서 본 PyTorch 분산 스택(또는 DeepSpeed)입니다. Accelerate는 그 앞의 스위치보드일 뿐입니다. `transformers`의 Trainer도 내부적으로 Accelerate를 사용하므로, "Trainer에 config만 바꿔 끼우면 FSDP↔DeepSpeed 전환이 되는" 것도 같은 원리입니다.
+사용자는 공통 training loop를 사용하지만 collective와 sharding은 선택된 PyTorch 또는 DeepSpeed backend가 수행합니다. `transformers.Trainer`도 Accelerate를 사용하므로 config를 통해 FSDP 또는 DeepSpeed execution path를 선택할 수 있습니다.
 
 ### Ray 예제 코드
 
-**Ray**(정확히는 Ray Train)는 앞의 둘과 층이 다릅니다. Accelerate가 한 학습 스크립트 안에서 backend를 갈아끼우는 스위치라면, Ray는 그 스크립트를 클러스터 위에서 돌리는 orchestrator입니다. torchrun 명령 없이, 학습 함수를 `TorchTrainer`에 넘기면 Ray가 process를 띄웁니다.
+**Ray Train**은 cluster에서 worker process와 resource를 관리하는 orchestrator입니다. 학습 함수를 `TorchTrainer`에 전달하면 Ray가 process를 배치하고 PyTorch distributed environment를 초기화합니다.
 
 ```python
 import ray.train.torch
@@ -1104,11 +1106,11 @@ Ray가 그 위에 더해 주는 것은 클러스터 레벨 기능입니다:
 - **Fault tolerance**: 노드가 죽으면 대체 노드를 확보해 최신 checkpoint에서 학습을 재개합니다(`FailureConfig`).
 - **다중 job 조율**: 여러 모델과 역할을 한 클러스터에서 함께 돌립니다. 최근 RLHF/post-training 프레임워크들이 학습 모델, reward 모델, rollout용 inference 엔진을 동시에 조율하기 위해 Ray를 채택하는 이유가 이것입니다.
 
-정리하면 세 도구는 층이 다릅니다. DeepSpeed는 FSDP와 같은 층(병렬화 구현), Accelerate는 그 위(backend 스위치), Ray는 가장 바깥(클러스터 orchestration)이므로 서로 배타적이지 않고, Ray worker 안에서 Accelerate나 DeepSpeed 학습을 돌리는 조합도 실제로 쓰입니다.
+정리하면 세 도구는 서로 다른 층에 있고 배타적이지 않습니다. DeepSpeed는 병렬화 runtime, Accelerate는 training frontend, Ray Train은 cluster orchestration을 담당합니다. 따라서 Ray worker 안에서 Accelerate 또는 DeepSpeed를 사용하는 구성도 가능합니다.
 
 ### Big Model Inference: 학습 밖의 sharding
 
-Accelerate에는 학습용 병렬화와 헷갈리기 쉬운 기능이 하나 더 있는데, `device_map="auto"`로 대표되는 **Big Model Inference**입니다. `init_empty_weights()`로 meta device 위에 빈 모델을 만들고(FSDP2의 meta device 초기화와 같은 트릭입니다), `load_checkpoint_and_dispatch()`가 checkpoint를 읽으면서 layer를 GPU → CPU RAM → disk 순으로 배치합니다. forward 시에는 hook이 각 layer의 weight를 실행 직전에 GPU로 올렸다가 끝나면 다시 내립니다.
+Accelerate의 `device_map="auto"`는 학습용 sharding과 별개인 **Big Model Inference** 기능입니다. `init_empty_weights()`는 meta device에 model structure를 만들고, `load_checkpoint_and_dispatch()`는 checkpoint를 읽으면서 layer를 GPU, CPU RAM, disk에 배치합니다. Forward hook은 실행할 layer의 weight를 필요할 때 device로 이동합니다.
 
 겉보기에는 FSDP와 비슷하지만 목적이 다릅니다. 이것은 inference 전용이고, 여러 GPU에 걸쳐 있어도 계산은 naive하게 순차 실행됩니다(한 GPU가 계산하는 동안 나머지는 idle). "리소스가 부족한 환경에서 어쨌든 돌게 만드는" 편의 기능이지, 병렬로 빨라지는 기능이 아닙니다.
 
@@ -1118,7 +1120,7 @@ Accelerate에는 학습용 병렬화와 헷갈리기 쉬운 기능이 하나 더
 - **대규모 pretraining**: PyTorch native 스택인 **torchtitan**이 FSDP2 + TP + PP를 DTensor 위에서 조합하는(3D parallelism) 대표 사례이고, Megatron-LM / NeMo 계열도 여전히 널리 쓰입니다.
 - **Inference / serving**: 학습용 sharding이 아니라 vLLM, SGLang 같은 전용 엔진(TP 중심)을 씁니다. 다음 강의에서 다룰 vLLM이 바로 이 영역입니다.
 
-정리하면, 어떤 프레임워크를 고르든 바닥에서 돌아가는 것은 이 강의에서 다룬 c10d collective 위의 ZeRO 스타일 sharding입니다. Accelerate는 그것을 고르는 스위치이고, DeepSpeed와 FSDP는 같은 아이디어의 두 구현이며, 트렌드는 PyTorch native(FSDP2 + DTensor) 쪽으로 수렴하는 중입니다.
+PyTorch DDP·FSDP·TP는 c10d collective와 DTensor 등의 PyTorch distributed primitive를 사용합니다. DeepSpeed는 ZeRO 계열 sharding을 자체 runtime으로 제공하고, Accelerate는 이들 backend를 공통 API로 설정합니다. Ray Train은 선택한 backend의 worker를 cluster에 배치합니다.
 
 <div class="text-xs mt-2">
 
@@ -1136,9 +1138,9 @@ Accelerate에는 학습용 병렬화와 헷갈리기 쉬운 기능이 하나 더
 * 기존 op으로 cover되지 않는 새로운 op이 필요한 경우
 * op 인터페이스는 그대로 두되 PyTorch가 제공하는 op의 성능이 부족해 자체 구현으로 갈아끼우고 싶은 경우
 
-NVIDIA GPU 환경을 가정한다면 CUDA(또는 cuBLAS, cuTLASS) 같은 NVIDIA 제공 도구로 작성할 수 있고, Triton처럼 custom kernel 작성에 특화된 언어를 활용하는 방법도 다룹니다.
+NVIDIA GPU 환경을 가정한다면 CUDA, cuBLAS, CUTLASS 같은 NVIDIA 제공 도구로 작성할 수 있고, Triton처럼 custom kernel 작성에 특화된 언어를 활용하는 방법도 다룹니다.
 
-**vLLM**: PyTorch보다 한 단계 위 레벨에 있는 LLM inference / serving 프레임워크로, 현재 사실상 표준에 가까운 위치를 차지하고 있습니다. vLLM의 전체 구조, vLLM이 제공하는 최적화 기능, 그리고 그런 최적화를 PyTorch 기본 op만으로는 표현할 수 없기 때문에 vLLM이 정의해 둔 custom op 셋이 어떤 모양인지를 함께 살펴볼 예정입니다.
+**vLLM**: PyTorch보다 한 단계 위에서 동작하며 널리 사용되는 오픈소스 LLM inference / serving framework입니다. vLLM의 전체 구조와 최적화 기능, 그리고 PyTorch 기본 op의 조합만으로 구현하기 어려운 serving kernel을 custom op으로 연결하는 방식을 살펴볼 예정입니다.
 
 ### Q&A
 
@@ -1149,7 +1151,7 @@ NVIDIA GPU 환경을 가정한다면 CUDA(또는 cuBLAS, cuTLASS) 같은 NVIDIA 
 > 리벨리온 컴파일러는 sharding 기능을 갖고 있습니다. 다만 이 sharding을 다른 노드로 넘어가는 계산까지 활용할지에 대해서는 아직 그렇게 가지는 않을 가능성이 높습니다. AMD가 어떻게 처리하고 있는지는 확인이 필요합니다.
 
 > **Q. Hadoop/MapReduce와 MPI는 어떻게 다른가요?**
-> Hadoop은 디스크에 있는 데이터를 긁어와 처리하는 디스크 기반 분산이고, MPI는 메모리에 데이터가 이미 로딩된 상황에서 동작합니다. 그런 의미에서 Hadoop도 shared memory를 가정하지는 않으므로 OpenMP보다는 MPI 쪽에 가깝고, MapReduce의 reduce 단계는 MPI의 `allreduce`와 모델적으로 크게 다르지 않습니다.
+> Hadoop MapReduce는 storage의 key-value data를 map, shuffle, reduce 단계로 처리하고 runtime이 task scheduling과 fault recovery를 관리합니다. MPI는 실행 중인 process가 message와 collective operation으로 직접 통신하는 API입니다. MapReduce의 reduce는 key별 결과를 특정 reducer에 모으는 단계이므로 모든 rank가 같은 결과를 받는 MPI `allreduce`와 semantics가 다릅니다.
 
 > **Q. Transformer가 사실상 표준이 됐는데 custom kernel 수요는 계속 있나요?**
 > 네. 특히 Attention은 context length가 길어질수록 가장 비싸지는 부분이고, 이를 가속하는 기법만도 계속 새로 나오고 있습니다. DRAM access를 줄이는 최적화도 있고, NVIDIA가 새 GPU에 공격적으로 추가하는 hardware feature를 활용하려면 같은 기능의 커널도 GPU 세대마다 다시 작성해야 합니다. Flash Attention v1 → v2 → v3가 GPU 발전에 맞춰 진화한 것이 대표 사례입니다.
