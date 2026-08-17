@@ -422,14 +422,16 @@ Flash Attention은 이를 타일 단위로 쪼개서(tiling), 한 타일을 처�
 
 KV cache가 실제로 얼마나 큰지 감을 잡아 보면, 토큰 하나당 저장량은 $2 \times \text{bytes} \times K \times H \times L$ 입니다($K$ = KV head 수, $H$ = head dimension, $L$ = layer 수, 앞의 2는 K와 V). 예를 들어 LLaMA-13B(MHA)를 bf16으로 8K 컨텍스트까지 돌리면 시퀀스 하나의 KV cache가 약 6.7GB로, 배치 4면 이미 모델 weight(26GB)보다 커집니다. 이런 크기의 버퍼를 어떻게 잡아두느냐가 그대로 서빙 용량을 좌우합니다.
 
-KV cache를 그냥 잡아두려면 기본적으로 max sequence length 기준으로 한 번에 다 할당해 둬야 합니다. 그런데 실제 들어오는 request들은 시퀀스 길이가 제각각이어서, max에 한참 못 미치는 짧은 request들에서는 잡아만 놓고 안 쓰는 메모리 공간이 잔뜩 생깁니다. 이런 "낭비된 슬롯들" 때문에 같은 GPU 메모리(HBM)에서 동시에 처리할 수 있는 request 수가 줄어들어 처리량이 바운드됩니다.
+KV cache를 그냥 잡아두려면 기본적으로 max sequence length 기준으로 한 번에 다 할당해 둬야 합니다. 그런데 실제 들어오는 request들은 시퀀스 길이가 제각각이어서, max에 한참 못 미치는 짧은 request들에서는 잡아만 놓고 안 쓰는 메모리 공간이 잔뜩 생깁니다. 이런 "낭비된 슬롯들"(internal fragmentation) 때문에 같은 GPU 메모리(HBM)에서 동시에 처리할 수 있는 request 수가 줄어들어 처리량이 바운드됩니다.
+
+여기에 **external fragmentation**이 더해집니다. Request마다 KV cache를 연속된(contiguous) buffer로 잡아야 하므로, 길이가 다른 request들이 들어오고 나가기를 반복하면 buffer들 사이에 새 request가 들어가기에는 작은 빈 구간들이 남습니다. 남은 메모리 총량이 충분해도 연속 공간이 없어 할당하지 못하는 것입니다. vLLM 논문의 측정으로는 기존 서빙 시스템에서 KV cache용 메모리 중 실제 토큰 저장에 쓰인 비율이 20.4~38.2%에 그쳤습니다.
 
 Paged Attention은 OS의 virtual memory · paging과 거의 같은 발상으로 이 문제를 풉니다.
 
 - **Logical cache block** - 충분히 많은 request × 충분히 긴 시퀀스를 다 담을 수 있다고 *논리적으로만* 가정한 큰 주소 공간
 - **Physical cache block** - GPU DRAM(HBM) 위의 실제 한정된 메모리
 
-둘을 decouple해두고, 실제로 채워진 만큼만 physical에 할당(on-demand allocation)합니다. 그 결과 max를 가정한 over-provisioning 없이도 긴 시퀀스를 안전하게 다룰 수 있고, 빈 슬롯 낭비가 사라져 동시에 처리할 수 있는 request 수도 늘어납니다. Flash Attention과 함께 긴 시퀀스의 attention을 효율적으로 처리하는 대표적인 기법으로 널리 쓰입니다.
+둘을 decouple해두고, 실제로 채워진 만큼만 physical에 할당(on-demand allocation)합니다. Max를 가정한 over-provisioning이 필요 없고, 고정 크기 block은 physical 메모리에서 연속일 필요가 없어 external fragmentation도 사라집니다. 낭비는 각 시퀀스의 마지막 block에 남는 빈 자리 정도로 한정되어, 동시에 처리할 수 있는 request 수가 늘어납니다. Flash Attention과 함께 긴 시퀀스의 attention을 효율적으로 처리하는 대표적인 기법으로 널리 쓰입니다.
 
 <div class="flex justify-center mt-4">
   <img src="/images/06/slide21_1.png" alt="Paged Attention: KV cache의 logical cache block과 physical cache block을 decouple해 on-demand로 할당하는 구조" class="h-56" />
