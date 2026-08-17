@@ -1,0 +1,45 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="About" currentPath="/about">
+  <div class="content-container">
+    <div class="index-header">
+      <h1 class="index-title">About</h1>
+      <p class="index-subtitle">이 강의 시리즈를 만든 사람들</p>
+    </div>
+
+    <div class="about-body">
+      <p>
+        이 사이트는 모두의연구소
+        <a href="https://modulabs.co.kr/labs/230" target="_blank" rel="noopener noreferrer">
+          PyTorch + NPU LAB</a>에서 진행한 PyTorch Internal 강의 시리즈를 엮은 것입니다.
+      </p>
+
+      <dl class="about-credits">
+        <div class="about-credit">
+          <dt>강의</dt>
+          <dd>김홍석 &mdash; 리벨리온(Rebellions) CSO</dd>
+        </div>
+        <div class="about-credit">
+          <dt>편집</dt>
+          <dd>
+            <a href="https://liam.kim" target="_blank" rel="noopener noreferrer">김종수</a>
+            &mdash; 강의록을 엮고 내용을 검증·보완
+          </dd>
+        </div>
+        <div class="about-credit">
+          <dt>진행</dt>
+          <dd>
+            <a href="https://modulabs.co.kr/labs/230" target="_blank" rel="noopener noreferrer">
+              모두의연구소 PyTorch + NPU LAB</a>
+          </dd>
+        </div>
+      </dl>
+
+      <p class="index-note">
+        2026년 8월에 PyTorch 2.13 기준으로 내용을 검증·업데이트하고 일부 내용을 추가했습니다.
+      </p>
+    </div>
+  </div>
+</BaseLayout>

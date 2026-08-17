@@ -622,6 +622,43 @@ a:hover {
   flex-shrink: 0;
 }
 
+/* ===== About Page ===== */
+.about-body {
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.about-body > p {
+  margin: 0 0 1.5rem;
+}
+
+.about-credits {
+  margin: 0 0 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.about-credit {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.about-credit dt {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--accent);
+  min-width: 3.5rem;
+  flex-shrink: 0;
+}
+
+.about-credit dd {
+  margin: 0;
+  font-size: 1rem;
+}
+
 /* ===== Article (Lecture Detail) ===== */
 .article-header {
   margin-bottom: 2rem;

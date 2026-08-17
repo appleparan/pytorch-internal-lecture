@@ -6,6 +6,7 @@ export const siteConfig = {
   lang: 'ko',
   nav: [
     { label: 'Lectures', href: '/' },
+    { label: 'About', href: '/about' },
   ],
   social: {
     github: 'https://github.com/appleparan/pytorch-internal-lecture',
