@@ -15,20 +15,20 @@ PyTorch + NPU 온라인 모임 #3 | 2024-12-18
 
 ## 오늘 다룰 주제들
 
-이번 강의는 "graph mode는 왜, 그리고 어떻게 필요해졌는가"라는 질문에서 출발해, tracing 개념의 뿌리에서 PyTorch 2.0의 컴파일 파이프라인 전체까지 따라갑니다.
+이번 강의에서는 graph mode가 필요한 이유, graph capture 방식, PyTorch 2.x의 compilation pipeline을 설명합니다.
 
 - PyTorch의 역사와 2.0의 변화 - eager mode 중심이던 PyTorch에 graph mode가 더해지기까지의 배경, 그리고 2.0 전체 아키텍처에서 이번 강의가 다루는 범위
 - Graph capturing - graph mode의 근간이 되는 tracing
-    - Tracing 개념 - 컴퓨터 구조 분야의 고전 사례로 정리: out-of-order execution, trace cache, partial evaluation
+    - Tracing 개념과 관련 사례 - trace cache, partial evaluation, 그리고 동적 최적화와의 비교
     - PyTorch 1.0의 시도와 한계 - `jit.trace`(입력 의존성 검증 부재), `jit.script`(Python subset 처리 범위의 한계)
-    - 2.0의 해법 Dynamo - 오늘의 핵심 주제. CPython bytecode 수준의 trace 생성, guard를 통한 안전성 검증, graph break를 통한 trace 불가 구간 자동 분할
+    - TorchDynamo - CPython bytecode 분석, guard를 통한 입력 조건 검증, graph break를 통한 graph 분할
 - IR lowering - 컴파일러 구조에 가까워진 2.0에서 정립된 IR 개념과, Dynamo가 만든 FxGraph가 Torch IR → Aten/Prims IR → Inductor Loop-Level IR로 낮아지는 과정
 - Device backend 통합 - `torch.compile` 컴파일 파이프라인에 사용자 정의 device backend를 연결하는 방법
 
 
 ## PyTorch의 역사와 2.0의 변화
 
-PyTorch 2.0에서 가장 크게 변한 부분은 그래프 모드(graph mode)의 도입입니다. 그래프 모드가 왜 필요해졌는지 알려면 먼저 PyTorch가 걸어온 길을 간략히 짚어볼 필요가 있습니다.
+PyTorch 2.0의 주요 변화는 `torch.compile`을 중심으로 한 graph capture 및 compilation stack의 도입입니다. 이에 앞서 PyTorch 1.x의 eager execution과 TorchScript를 살펴봅니다.
 
 ### Lua Torch 시대
 
@@ -49,9 +49,9 @@ Lua보다 Python이 훨씬 더 인기 있는 언어였기 때문에, Meta(당시
 
 PyTorch의 인기가 높아지면서, production 환경에서도 사용할 수 있는 형태로 발전할 필요가 생겼습니다. PyTorch 1.0에서는 **TorchScript**[^torchscript] (`jit.trace`, `jit.script`) 기능이 추가되어 그래프 캡처 기능이 도입되었습니다.
 
-[^torchscript]: PyTorch 1.0에서 도입된 그래프 캡처·배포용 서브시스템으로, 모델을 Python runtime 없이 실행 가능한 형태로 변환하는 것이 목표였습니다. Week 1의 Q&A에서 짧게 언급했으며, 뒤의 "PyTorch 1.0의 시도와 한계"에서 `jit.trace`/`jit.script`의 한계를 자세히 다룹니다.
+[^torchscript]: PyTorch 1.0에서 도입된 그래프 캡처·배포용 서브시스템으로, 모델을 Python runtime 없이 실행 가능한 형태로 변환하는 것이 목표였습니다. 현재 TorchScript는 deprecated 상태이며 새 export 용도에는 `torch.export`가 권장됩니다. 이 절에서는 역사적 배경으로 `jit.trace`와 `jit.script`를 다룹니다.
 
-### PyTorch 2.0: 그래프 모드의 본격 도입
+### PyTorch 2.0: `torch.compile` 도입
 
 PyTorch 2.0에서는 1.0 대비 가장 크게 변한 부분이 그래프 모드입니다. 전체적인 구조는 프론트엔드 → 백엔드 → 코드 생성 백엔드의 형태로, 일반적인 컴파일러 아키텍처와 유사합니다. 다만 몇 가지 차이점이 있습니다:
 
@@ -83,9 +83,9 @@ https://pytorch.org/get-started/pytorch-2.0/
 
 ## Graph Capturing
 
-Graph mode의 근간이 되는 tracing을 세 단계로 살펴봅니다. 먼저 컴퓨터 구조 분야의 고전 사례로 tracing 개념을 정리하고, PyTorch 1.0의 시도(`jit.trace`, `jit.script`)와 그 한계를 짚은 뒤, 2.0의 해법인 Dynamo의 동작 원리를 따라갑니다.
+Graph capture를 세 단계로 살펴봅니다. 먼저 trace와 partial evaluation을 설명하고, PyTorch 1.x의 `jit.trace`·`jit.script`를 검토한 뒤, TorchDynamo의 bytecode analysis와 guard 동작을 설명합니다.
 
-### Tracing 개념: 컴퓨터 구조의 고전 사례들
+### Tracing과 관련 최적화 개념
 
 Tracing은 프로그램을 실제로 실행하면서, 어떤 코드가 어떤 순서로 실행되었는지를 기록하는 기법입니다. 그 바탕이 되는 Control Flow Graph(CFG)와 Trace의 개념부터 정리하겠습니다.
 
@@ -156,7 +156,7 @@ L9:  output(r);
 
 이론적으로 프로그램 전체를 trace로 만들 수 있지만, 두 가지 한계가 있습니다:
 
-- **전체 Trace 생성은 비효율적**: 1GHz CPU라면 1초에 10억 개의 Op이 수행되므로, 일반적인 프로그램에서는 엄청나게 긴 trace가 생성됩니다. (머신러닝 코드는 예외일 수 있습니다.)
+- **전체 Trace 생성은 비효율적**: 장시간 실행되는 일반 프로그램의 모든 instruction을 기록하면 trace가 매우 커지고 기록 자체의 overhead도 발생합니다.
 - **Trace는 입력 의존적**: 같은 프로그램이라도 입력이 다르면 trace가 달라지므로, 하나의 trace만으로 모든 실행을 일반화할 수 없습니다.
 
 #### Trace 기반 최적화
@@ -167,24 +167,23 @@ L9:  output(r);
 2. 프로그램 실행 중 해당 trace에 진입했다고 판단되면, 실제 코드 대신 미리 최적화된 trace를 불러와 실행
 3. 만약 trace misprediction이 발생하면 trace에서 빠져나와 상황을 복구
 
-#### Out-of-Order Execution: Trace 최적화의 대표 사례
+#### Out-of-Order Execution과 동적 최적화
 
-Super-scalar 아키텍처의 **Out-of-Order Execution**은 대표적인 trace 기반 최적화입니다.
-Out-of-Order engine의 목표는 instruction을 재배열하여 **Instruction-Level Parallelism(ILP)** 을 극대화하는 것인데, 이를 위해서는 스케줄링 scope이 클수록 유리합니다. 독립적인 instruction을 찾아야 하므로 pool이 클수록 좋기 때문입니다.
+Super-scalar processor의 **Out-of-Order Execution**은 instruction window 안에서 dependency가 해결된 instruction을 동적으로 선택해 **Instruction-Level Parallelism(ILP)** 을 높입니다. 이는 hot path를 기록하고 재사용하는 tracing JIT와 같은 분류는 아니지만, runtime의 관찰 결과와 추측을 이용해 실행 순서를 최적화한다는 제한된 관점에서 비교할 수 있습니다.
 
 문제는 일반적인 프로그램에서 매 5～6개 instruction마다 branch가 발생한다는 것입니다. Branch가 나타나면 실제로 어느 방향으로 뛸지 모르므로, 그 이후의 instruction을 미리 스케줄링하기 어렵습니다. 결국 branch 사이의 5～6개 instruction만 보고 ILP를 찾아야 하니 효율이 낮아집니다.
 
-이를 해결하기 위해 **Branch Prediction**을 out-of-order engine에 결합합니다:
+Processor는 **Branch Prediction**을 이용해 아직 결과가 확정되지 않은 branch 뒤의 instruction도 instruction window에 공급합니다:
 
-1. 확률이 높은 방향으로 trace를 생성하되, branch prediction을 여러 번 반복하여 긴 trace를 구성
-2. 이 긴 trace를 대상으로 out-of-order execution을 수행하면 성능이 크게 향상
-3. 만약 prediction이 틀리면(misprediction), **Reorder Buffer**(ROB)를 통해 rollback. 실제 결과를 commit하기 전에 in-order로 저장해두고, branch 결과가 확정되면 그때 publish
+1. Branch predictor가 다음 instruction address를 예측
+2. 예측 경로의 instruction을 fetch하고 dependency가 해결된 instruction부터 실행
+3. Prediction이 틀리면 잘못 실행한 결과를 폐기하고 올바른 경로에서 다시 실행
 
-이 구조가 결국 PyTorch 2.0의 Dynamo가 하는 일과 매우 유사합니다. Dynamo도 실행 가능한 trace를 미리 추출하여 최적화하고, 동일한 패턴이 반복되면 이를 활용합니다.
+TorchDynamo도 runtime 조건을 검사한 뒤 이전 compilation 결과를 재사용하지만, branch prediction이나 Reorder Buffer를 사용하지는 않습니다. Dynamo는 Python bytecode를 상징적으로 분석하고, 입력 조건을 guard로 표현하며, tensor 연산을 FX graph로 생성합니다.
 
 이 외에도 trace 기반 최적화의 대표적인 사례로 다음을 다룹니다:
 
-- **Trace cache**: 자주 반복 실행되는 trace(hot trace)를 연속된 메모리 블록(cached blob)으로 미리 저장해 두었다가, 같은 구간이 다시 실행되면 한 번에 fetch
+- **Trace cache**: 예측된 제어 흐름 순서로 decoded micro-op을 저장해 instruction fetch 및 decode 비용을 줄이는 하드웨어 구조
 - **Partial evaluation**: 사전에 실행 가능한 계산을 미리 처리하여 연산을 제거. PyTorch 2.0의 Dynamo가 수행하는 최적화의 바탕이 되는 개념
 - **ML compiler의 graph mode**: Trace를 통해 실행할 연산자를 식별하고, trace에 대한 partial evaluation으로 Python 코드를 효과적으로 제거
 
@@ -192,7 +191,7 @@ Out-of-Order engine의 목표는 instruction을 재배열하여 **Instruction-Le
 
 Trace Cache는 Instruction Cache + Branch Prediction을 더 최적화한 형태입니다. Branch Prediction이 없으면 분기가 결정되기 전까지 instruction을 미리 fetch할 수 없기 때문에 예측을 수행하는데, 그럼에도 Instruction Cache는 점프가 많아지면 fetch 효율이 떨어지는 문제가 있습니다. Bank conflict가 발생하거나 cache miss로 원하는 데이터가 캐시에 없을 가능성이 높아지기 때문입니다.
 
-Trace Cache는 이를 해결하기 위해 메모리의 비연속적인 구간을 하나의 연속적인 블록으로 묶어 fetch를 최적화합니다. Pentium 4 프로세서에서 최초로 적용되었습니다.
+Trace Cache는 예측된 제어 흐름을 따라 decoded micro-op을 연속적으로 저장해 fetch와 decode를 최적화합니다. Pentium 4가 이를 상용 x86 processor에 적용한 대표 사례입니다.
 
 <ThemeImage
   darkSrc="/images/03/trace-cache-dark.svg"
@@ -337,19 +336,19 @@ def function(inputs):
 - **근본 원인**: `jit.trace`는 input이 static한지 dynamic한지를 분석하지 않고, 단순히 가정만 함. 연산 자체는 문제가 없으며, input이 static했는지 아닌지에 따라 trace의 안전성이 결정됨
 - 이 문제는 앞서 다룬 "입력에 따라 trace가 달라지는" 문제와 정확히 동일
 
-> **Q**: `jit.trace`나 `jit.script`로 직접 최적화할 부분을 지정해서 커널 퓨전을 했는데, PyTorch 버전 업그레이드로 Dynamo를 지원하면서 학습 throughput이 크게 올랐습니다. Dynamo는 알아서 최적화를 해주는 느낌인데, 이렇게 이해해도 될까요?
+> **Q**: `jit.trace`나 `jit.script`로 직접 최적화할 부분을 지정해서 커널 퓨전을 했는데, PyTorch 버전 업그레이드로 Dynamo를 지원하면서 학습 throughput이 크게 올랐습니다. Dynamo가 최적화까지 직접 수행한다고 이해해도 될까요?
 >
 > **A**: `jit.trace`나 `jit.script` 자체는 최적화를 해주지 않습니다. Trace를 뽑아주는 역할만 하고, 최적화는 별도입니다. Dynamo의 경우 자동화된 최적화 백엔드와 결합하여 동작합니다. Throughput 향상은 Dynamo가 tracing할 수 있는 범위가 더 넓어서 추가 최적화가 가능했거나, trace에 적용되는 최적화 수준 자체가 더 높았기 때문일 수 있습니다.
 
 > **Q**: Dynamo가 CPython과 통합됐다는 것이 CPython의 플러그인 형태로 동작하는 건가요?
 >
-> **A**: 비슷하게 생각할 수 있습니다. CPython의 원래 기능을 오버라이드하고 확장하여 구현한 것으로, CPython의 VM 실행 컨텍스트 자체에 붙어서 추가 작업을 수행하는 방식입니다. 이에 대해서는 뒤에서 더 자세히 다룹니다.
+> **A**: Dynamo는 CPython에 내장된 plugin이 아니라 CPython이 제공하는 frame evaluation API(PEP 523)를 사용하는 C extension입니다. Compile된 함수가 실행되는 동안 frame evaluation 함수를 교체해 bytecode를 분석하고 변환합니다.
 
-### 2.0의 해법: Dynamo
+### TorchDynamo
 
 `jit.trace`와 `jit.script` 모두 근본적인 한계가 있었기 때문에, PyTorch 2.0에서는 이를 한 번에 해결하기 위해 Dynamo를 도입했습니다.
 
-Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, CPython에 직접 통합하여 bytecode 수준에서 end-to-end trace를 생성한다는 점입니다. 이를 통해:
+Dynamo는 별도의 Python subset interpreter를 만들지 않고 CPython의 frame evaluation API를 사용해 bytecode를 분석합니다. 이를 통해:
 
 - Python 전체 언어를 지원 (`jit.script`의 subset 문제 해결)
 - Guard로 입력 의존성을 검증하고, 조건이 달라지면 재컴파일하는 안전한 tracing (`jit.trace`의 검증 없는 입력 의존 문제 해결)
@@ -357,9 +356,9 @@ Dynamo의 핵심 차별점은 별도의 interpreter를 만든 것이 아니라, 
 
 #### Python 기초: CPython 동작 방식
 
-Dynamo는 CPython에 직접 통합되어 동작하므로, 먼저 CPython이 코드를 실행하는 방식을 이해할 필요가 있습니다.
+Dynamo가 frame 단위에서 bytecode를 분석하므로, 먼저 CPython이 코드를 실행하는 방식을 이해할 필요가 있습니다.
 
-Python 코드가 실행되면 CPython이 소스 코드를 bytecode로 변환하고, 이 bytecode를 VM의 evaluation loop에서 실행합니다. 이때 interpreter가 실행하는 bytecode instruction 하나하나를 기록하면 그것이 곧 trace입니다. 즉, Python 프로그램의 trace를 뽑아내는 것 자체는 개념적으로 그렇게 어려운 일이 아닙니다. 하지만 모든 bytecode 실행을 기록하면 과도하게 긴 trace가 생성되고 오버헤드가 크기 때문에, 최적화 없이 이 방식을 그대로 사용하는 것은 비효율적입니다.
+Python 코드가 실행되면 CPython이 소스 코드를 bytecode로 변환하고 VM의 evaluation loop에서 실행합니다. Dynamo는 이 실행을 그대로 기록하지 않습니다. 대신 bytecode instruction을 순서대로 상징 실행하면서 Python 값과 tensor 연산을 추적하고, 컴파일 가능한 tensor 연산을 FX graph에 추가합니다.
 
 CPython의 동작 방식을 조금 더 자세히 들여다보겠습니다.
 
@@ -371,11 +370,11 @@ CPython의 기본 동작은 다음과 같습니다:
 2. 소스 코드를 **code object**로 컴파일 (compiler)
 3. Code object 내의 bytecode를 실행 (virtual machine)
 
-즉, Python 소스 코드가 입력되면 이를 bytecode로 변환하고, VM의 evaluation loop에서 bytecode instruction을 하나씩 실행합니다. 이때 실행되는 instruction을 순서대로 기록하면 그것이 곧 trace가 됩니다.
+즉, Python 소스 코드는 code object의 bytecode로 변환되어 evaluation loop에서 실행됩니다. Dynamo는 frame의 code object를 입력으로 받아 별도의 bytecode analysis와 transformation을 수행합니다.
 
 #### Python VM 구조
 
-Dynamo 자체가 CPython에 직접 integration 되어 있기 때문에, Python VM의 구조를 이해하는 것이 중요합니다. Python VM은 다음과 같은 계층 구조로 이루어져 있습니다 (아래에서 위로):
+Dynamo가 CPython frame evaluation API를 사용하므로 Python VM의 frame 구조를 이해하는 것이 중요합니다. Python VM은 다음과 같은 계층으로 설명할 수 있습니다:
 
 - **Evaluation loop** - code object에 들어 있는 bytecode를 스트리밍 방식으로 하나씩 읽어 실행하는 루프
 - **Frame** - 함수 단위로 관리되는 데이터 구조(per-function data structure). 각 함수 호출 시 새로운 frame이 생성되며, frame 내부에 code object와 evaluation loop이 존재
@@ -388,11 +387,9 @@ Dynamo 자체가 CPython에 직접 integration 되어 있기 때문에, Python V
 
 > 참고: https://jasonleaster.github.io/2016/02/21/architecture-of-python-virtual-machine/
 
-위 그림처럼 call stack은 frame object의 linked list로 표현됩니다. 이론적으로는 evaluation loop에서 실행되는 bytecode를 모두 기록하면 end-to-end trace를 생성할 수 있습니다.
-
 #### Dynamo의 동작 원리
 
-프로그램의 실행을 끝까지 따라가면 하나의 linear한 trace가 생성됩니다. 하지만 이 긴 trace 중 일부 구간은 dynamic input에 따라 다른 동작을 할 수 있어, static한 behavior가 보장되지 않습니다. Dynamo는 이러한 trace 불가능한 구간(graph break 지점)을 식별하여, 그 부분을 제외한 나머지를 여러 개의 안전한 trace로 분할합니다.
+Dynamo는 bytecode를 분석하면서 tensor 연산을 FX graph로 수집합니다. Python 동작을 graph에 포함할 수 없는 지점에서는 graph break를 만들고, 앞에서 수집한 graph를 compiler backend로 전달한 뒤 Python 실행을 재개합니다.
 
 <ThemeImage
   darkSrc="/images/03/torch-dynamo-dark.svg"
@@ -412,7 +409,7 @@ Dynamo 자체가 CPython에 직접 integration 되어 있기 때문에, Python V
 
 #### CPython과의 통합
 
-앞서 언급했듯 Dynamo는 CPython 자체에 integration되어 동작합니다. 아래 그림의 왼쪽이 Python의 기본 동작, 오른쪽이 Dynamo가 이를 확장한 모습입니다:
+Dynamo는 CPython의 frame evaluation API를 이용해 frame 실행에 개입합니다. 아래 그림의 왼쪽은 Python의 기본 동작, 오른쪽은 Dynamo가 frame evaluation을 교체한 모습입니다:
 
 <img src="/images/03/slide21_1.png" alt="Python 기본 frame 실행과 Dynamo의 frame evaluation 확장 비교 다이어그램" class="h-64" />
 
@@ -448,7 +445,7 @@ Dynamo는 CPython 소스를 수정하는 대신, CPython이 제공하는 **frame
 
 위 다이어그램이 Dynamo의 내부 흐름입니다. Bytecode analysis → bytecode transformation → FxGraph construction → user-defined compilation → guard insertion의 과정을 거칩니다.
 
-여기서 처음 등장하는 **FX Graph**는 `torch.fx` 모듈이 제공하는 그래프 형태의 IR(intermediate representation)입니다. 모델이 수행하는 tensor 연산 하나하나를 node로, 연산 간의 입출력 관계를 edge로 표현한 자료구조이며, Dynamo는 bytecode를 분석하면서 만나는 tensor 연산들을 이 그래프에 차례로 기록합니다. 실제로는 `torch.fx.GraphModule` 객체로 만들어지고 내부 그래프를 동등한 Python 코드로 출력해 볼 수도 있어서, 이후 단계의 compiler들이 다루기 좋은 표준 컨테이너 역할을 합니다. 즉 지금까지 "trace"라고 불러온 것이 PyTorch 2.0에서 실제로 저장되는 형태가 바로 FX Graph입니다.
+여기서 처음 등장하는 **FX Graph**는 `torch.fx` 모듈이 제공하는 그래프 형태의 IR(intermediate representation)입니다. 모델의 tensor 연산을 node로, 연산 사이의 입출력 관계를 edge로 표현합니다. Dynamo는 bytecode를 분석하면서 발견한 tensor 연산을 `torch.fx.GraphModule`에 추가하고, 이후 compiler backend는 이 graph module을 입력으로 받습니다.
 
 #### Trace 생성 과정
 
@@ -456,7 +453,7 @@ Dynamo는 CPython 소스를 수정하는 대신, CPython이 제공하는 **frame
 
 **입력:** 실행할 bytecode와 처리할 input. Tensor의 **데이터 값**은 dynamic input으로, tensor의 **메타데이터**(Python class, dtype, device, requires_grad, dispatch key, ndim, shape/strides 등)와 **그 외 Python 값**은 static input으로 가정합니다. 즉 기본적으로 그래프는 입력 tensor의 shape에 대해 specialize됩니다.
 
-**생성:** bytecode와 input을 가지고 graph break가 발생할 때까지 실행을 추적하여 trace를 생성하고, bytecode transformation을 수행하여 최적화된 코드를 caching합니다.
+**생성:** Dynamo는 bytecode와 example input을 상징적으로 분석해 graph break 전까지 FX graph를 만들고, 이 graph를 호출하도록 bytecode를 변환합니다. Guard, transformed bytecode, compilation 결과는 cache entry에 저장됩니다.
 
 **Caching된 최적화 코드의 구성 요소:**
 
@@ -496,7 +493,7 @@ Graph break 이후, resumed function의 bytecode를 가지고 위의 과정을 r
 
 #### Resume이 불가능한 graph break: skipped functions
 
-지금까지의 설명은 "graph break가 나오면 그 지점에서 안전하게 분할하고, resumed function으로 이어서 실행한다"는 전제였습니다. 하지만 `fullgraph=False`(기본값)로 동작하는 `torch.compile`이 항상 이렇게 깔끔하게 분할·재개할 수 있는 것은 아닙니다. 다음과 같은 경우에는 Dynamo가 graph break 지점에서 resume할 방법을 찾지 못해, 해당 함수의 컴파일 자체를 포기하고 이후 호출부터 통째로 eager로 실행합니다:
+지금까지의 설명은 graph break 지점에서 graph를 분할하고 resumed function으로 실행을 이어갈 수 있는 경우를 다뤘습니다. `fullgraph=False`인 경우에도 항상 resume bytecode를 만들 수 있는 것은 아닙니다. 다음과 같은 경우에는 해당 frame의 compilation을 중단하고 이후 호출을 eager mode로 실행할 수 있습니다:
 
 - 반복문(loop) 내부에서 발생한 graph break
 - 대부분의 context manager 내부에서 발생한 graph break
@@ -563,12 +560,12 @@ recompile_and_add_another_cache_entry()
 2. 통과하는 entry가 있으면 그 cache된 최적화 코드를 그대로 실행 — compilation overhead 없음
 3. 모든 entry가 실패하면 recompile하여 새로운 cache entry를 추가. 단 `recompile_limit`(기본 8)을 넘으면 이후 컴파일은 중단되고 eager로 skip 실행
 
-결국 Dynamo는 앞서 본 고전 사례들과 같은 패턴입니다. 반복되는 구간에서 trace를 추출해 최적화하고(out-of-order execution), 최적화된 결과를 cache해 두었다가 재사용하며(trace cache), static input의 영향을 미리 계산해 Python 코드를 제거합니다(partial evaluation).
+Dynamo는 bytecode analysis로 FX graph와 guard를 생성하고, guard가 유효한 동안 compilation 결과를 재사용합니다. Static하게 결정할 수 있는 Python 값은 graph capture 중 평가하고, runtime tensor 계산은 FX graph에 남깁니다. Out-of-order execution과 trace cache는 runtime 정보를 이용한다는 공통점을 설명하는 비교 사례이며, Dynamo와 동일한 구현 방식은 아닙니다.
 
 
 ## IR Lowering
 
-PyTorch 2.0에서 크게 개선된 부분 중 하나가 IR들이 lowering되는 과정을 체계적으로 설계한 것입니다. Dynamo에서 생성된 FxGraph는 여러 단계의 IR lowering을 거쳐 최종적으로 백엔드에서 실행됩니다:
+PyTorch 2.x compiler stack은 graph를 backend가 처리할 수 있는 operator 집합과 내부 IR로 변환합니다. 아래 그림은 Inductor를 사용하는 대표적인 경로이며, 실제 decomposition 단계와 사용되는 IR은 backend 및 graph에 따라 달라질 수 있습니다:
 
 <Mermaid wide>
 {`graph LR
@@ -595,12 +592,12 @@ Lowering된 IR을 받아 Inductor의 **Loop-level IR**로 변환합니다. 이 �
 
 ### Torch IR, Aten, Core Aten, and Prims IR
 
-PyTorch의 IR 체계는 상위에서 하위로 단계적으로 lowering되는 여러 계층으로 나뉩니다:
+PyTorch compiler 문서에서는 backend가 받을 수 있는 operator 집합을 다음과 같이 구분합니다. 모든 graph가 아래 집합을 순서대로 전부 거치는 것은 아닙니다:
 
 - **Torch IR** - Python 코드 수준에서 보이는 모든 연산자(operators)가 포함된 가장 상위 레벨의 IR. PyTorch이 지원하는 2,000개가 넘는 연산자에 해당 (PyTorch 2.0 발표 시점 기준 수치)
 - **Aten IR** - Torch IR을 약 750개의 canonical한 연산자로 정리한 IR (PyTorch 2.0 발표 시점 기준 수치). 기존에 이미 PyTorch를 지원하고 있는 backend가 사용 (Intel CPU, NVIDIA GPU 등)
 - **Core Aten IR** - Aten에서 더 작고 표현이 간결한 subset으로 정리한 약 190개의 operations(`torch.compiler_ir` 문서 기준, 2.13 시점 193개). 반드시 저수준의 ops를 의미하는 것은 아니며, avgpool2d, convolution 등의 high-level ops도 포함
-- **Prims IR** - Core Aten과 비슷하지만, 타입 정보와 broadcasting을 명시적으로 표현하여 백엔드로 직접 전달할 수 있도록 변환된 형태. 약 120개의 primitives(2.13 시점 123개)
+- **Prims IR** - Core Aten과 비슷하지만, 타입 정보와 broadcasting을 명시적으로 표현하여 backend 구현을 단순화할 수 있는 primitive 집합. 내부 operation 수는 PyTorch 버전에 따라 달라집니다.
 
 아래 코드는 이 lowering에 사용되는 decomposition table을 구성하는 예시입니다:
 
@@ -617,7 +614,7 @@ decomp_table = torch._decomp.get_decompositions([
 ])
 ```
 
-이 lowering 과정은 AOT Autograd가 수행하며, decomposition table을 활용하여 연산을 변환합니다. Decomposition table에는 target 연산들의 구성으로 변환 규칙이 정의되어 있으며, 기본 변환(default)을 사용할 수도 있고 필요에 따라 직접 구성할 수도 있습니다.
+AOTAutograd와 backend compiler는 decomposition table을 사용해 상위 연산을 더 작은 연산으로 변환할 수 있습니다. 어떤 decomposition을 적용할지는 compilation 경로와 backend 설정에 따라 달라집니다.
 
 > 참고: https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/torch.compiler_ir.html
 

@@ -21,13 +21,13 @@ PyTorch + NPU 온라인 모임 #2 | 2024-12-11
 
 ## 오늘 다룰 주제들
 
-`x = torch.matmul(y, z)` 한 줄을 실행하면 내부에서 정확히 무슨 일이 일어날까요? 이 질문에서 출발해, 55단계에 달하는 call stack을 끝까지 해부하고 그 과정에서 등장한 개념들을 다시 정리하는 흐름으로 진행합니다.
+`x = torch.matmul(y, z)`를 실행할 때 발생하는 55단계의 call stack을 호출 순서대로 분석하고, 각 단계에 사용되는 PyTorch internal 개념을 정리합니다.
 
 - `torch.matmul`의 call stack 추적 - CUDA GEMM 진입점에 breakpoint를 걸면 드러나는 55단계 호출 깊이의 정체
     - Python → C++ 바인딩 → matmul dispatch → mm의 autograd kernel → CUDA kernel redispatch → cuBLAS 진입 순으로 전체 경로를 따라가기
     - dispatcher가 dispatch key set을 계산해 kernel을 고르고 redispatch를 반복하는 구조
     - call stack의 상당 부분은 반복되는 dispatch logic이거나 `native_functions.yaml`, `derivatives.yaml`에서 자동 생성된 코드 → 55단계 깊이만큼 사람이 관리하는 코드가 많은 것은 아님
-- Eager mode에 대한 detail - 예제에서 등장한 개념들을 세 축으로 나눠 정리
+- Eager mode의 구성 요소 - 예제에서 등장한 개념들을 세 축으로 나눠 정리
     - Tensor: TensorImpl·Storage로 이어지는 내부 구조, view·clone 같은 lifecycle
     - Operator: dispatcher와 dispatch key(set)가 동작하는 메커니즘
     - Runtime: Device, Stream, Event, DeviceGuard, Allocator 등 저수준 인프라
@@ -104,8 +104,7 @@ GPU에서 matmul이 수행되도록 설정한 상태에서 CUDA GEMM[^gemm] 진�
 #53 __libc_start_call_main at ../sysdeps/nptl/libc_start_call_main.h:58
 #54 __libc_start_main_impl at ../csu/libc-start.c:360
 ```
-> Call depth가 무려 55단계나 됨
-> 뭔가 엄청 복잡한 일이 일어나고 있는 것처럼 보임
+> Call depth는 55단계이며, 다음 절에서 이를 역할별로 구분합니다.
 
 Eager mode에서는 breakpoint를 잡은 시점에서 이전 상태를 파악하기 어려운 경우도 많지만, `torch.matmul` 같은 경우에는 call stack을 보면 어떤 과정을 거쳐 어떤 일이 일어났는지 거의 다 파악할 수 있습니다.
 
@@ -307,7 +306,7 @@ Call stack에서 자동 생성된 코드가 차지하는 비중이 큽니다. �
 
 #### Dispatch Logic
 
-Dispatch logic은 call stack에서 반복적으로 등장하며, 템플릿으로 구현된 반복 패턴입니다. 어떤 op이 실행될 때, 그 op이 어떤 조건에서 어떤 일을 해야 하는지를 결정하는 과정이 있으며, 이를 위해 **dispatch key**와 **dispatch key set**이라는 개념이 사용됩니다. Key set을 뽑은 뒤 Dispatcher에게 물어보면, 등록된 구현체를 찾아 호출합니다.
+Dispatch logic은 call stack에서 반복적으로 등장하는 template 기반 패턴입니다. Dispatcher는 operator의 tensor-like argument와 thread-local state에서 **dispatch key set**을 구성하고, 우선순위가 가장 높은 key에 등록된 kernel을 조회해 호출합니다.
 
 <details>
 <summary><strong>Dispatch logic 반복 패턴 (6회)</strong></summary>
@@ -340,7 +339,7 @@ Dispatch table에는 각 key에 해당하는 function pointer가 들어 있습�
 
 #### 개발자가 직접 작성한 부분
 
-Call stack이 55단계나 되니 엄청나게 복잡한 구조라고 생각할 수 있지만, 실제로는 많은 부분이 자동 생성된 코드이거나 반복적으로 수행되는 dispatcher logic입니다. 이러한 요소들을 제외하고 나면, 개발자가 실제로 신경 써서 작성해야 하는 코드는 생각보다 적습니다. 남은 부분은 크게 두 가지인데, 하나는 matmul이 input shape에 따라 적절한 연산을 선택하는 비교적 일반적인 코드(#25-26)이고, 다른 하나는 CUDA에서 mm operator가 실행되기 위해 필요한 device-specific 구현(#0-4)입니다. 이처럼 실제 mm operator와 밀접하게 연관된 함수들은 관리할 수 있을 정도로 간소화됩니다.
+55단계 중 상당수는 자동 생성된 wrapper와 반복되는 dispatcher logic입니다. 직접 작성되는 핵심 부분은 `matmul`이 input shape에 따라 연산을 선택하는 코드(#25-26)와 CUDA에서 `mm` operator를 실행하는 device-specific 구현(#0-4)으로 구분할 수 있습니다.
 
 <details>
 <summary><strong>개발자가 직접 작성한 코드 vs 자동 생성/dispatch 코드</strong></summary>
@@ -602,7 +601,7 @@ Tensor add_Tensor(const Tensor & self, const Tensor & other, Scalar alpha) {
 
 ### cuBLAS로 진입하는 과정
 
-Call stack의 최상위에서 실제로 cuBLAS로 진입하는 과정이 발생합니다. 여기서 `structured`라고 표시된 부분은 `native_functions.yaml`의 `structured: True` 태그와 동일한 의미입니다. Structured kernel은 입력과 출력 텐서를 다룰 때 텐서의 구성 방식과 sanity check을 어떻게 수행할지에 대한 특정 패턴을 정의하고, 그 패턴에 맞춰 구현체가 만들어집니다. 실제 구현체가 호출되기 전에 이를 래핑하는 자동 생성된 코드가 입력 텐서의 sanity를 체크하고, structured kernel이 처리할 수 있도록 준비합니다. 개발자는 이 잘 정리된 형태의 kernel 구현체만 작성하면 되고, 나머지 껍데기 부분은 코드 생성 도구가 자동으로 만들어 냅니다.
+Call stack의 최하위에서 cuBLAS 호출이 발생합니다. 여기서 `structured`는 `native_functions.yaml`의 `structured: True` 태그를 의미합니다. Structured kernel은 입력 검증, output tensor 준비, 실제 kernel 구현의 역할을 일정한 형태로 분리합니다. 입력 검증과 output 준비를 담당하는 wrapper는 code generator가 생성하므로, 개발자는 정규화된 tensor를 받는 kernel 구현에 집중할 수 있습니다.
 
 ```cpp
 #0 at::cuda::blas::gemm<float>
@@ -851,7 +850,7 @@ at::Tensor my_add_cuda(const at::Tensor& ta, const at::Tensor& tb) {
 |---|---|---|
 | `view()` | 차원을 변경하며, stride를 자동 계산하여 설정 | `x = torch.arange(6).view(2, 3)` |
 | `transpose()` | 두 차원의 순서를 교환한 view 생성 | `y = x.transpose(0, 1)` |
-| `permute()` | 모든 차원의 순서를 재배한 view 생성 | `y = x.permute(2, 0, 1)` |
+| `permute()` | 모든 차원의 순서를 재배열한 view 생성 | `y = x.permute(2, 0, 1)` |
 | `as_strided()` | 차원과 stride를 직접 지정해 view 생성 | `y = torch.as_strided(x, (2, 2), (1, 2))` |
 
 **차원의 축소**: 특정 차원을 제거하거나 크기를 축소하는 경우 (예: `(2, 3, 4)` → `(2, 12)` 또는 `(24,)`). Storage는 공유하고 metadata만 변경됩니다.
@@ -972,7 +971,7 @@ Dispatch table은 C++의 virtual table과 유사하지만 중요한 차이점이
 | | C++ vtable | PyTorch Dispatch Table |
 |---|---|---|
 | **할당 단위** | 클래스(class)별 | **operator별** - 새 operator 추가 시 새 dispatch table만 할당하면 됨 |
-| **dispatch 기준** | 첫 번째 인자(`this`)만 고려 | **모든 인자**(multiple dispatch) + **thread-local state(TLS)** 고려 |
+| **dispatch 기준** | 첫 번째 인자(`this`)만 고려 | **모든 Tensor 인자**(multiple dispatch) + **thread-local state(TLS)** 고려 |
 | **boxing/unboxing** | 없음 | calling convention의 일부로 **boxing/unboxing 지원** |
 
 PyTorch에서 확장성의 핵심은 새로운 subclass를 만드는 것이 아니라 새로운 operator를 정의하는 것이므로, vtable 대신 이 방식이 더 적합합니다. 반면 dispatch key는 자유롭게 확장할 수 없으며, 새 dispatch key를 추가하려면 PyTorch core에 패치를 제출해야 합니다.
@@ -1532,7 +1531,7 @@ libtorch_python.so  libtorch.so  libtorch_xxx.so  libc10_xxx.so  libc10.so
   - Backend integration point
   - namespace: `c10`
 - **Generated files**
-  - 주로 Op별 C++ frontend, AutoGrad kernels, dispatch registration 코드
+  - 주로 Op별 C++ frontend, autograd kernels, dispatch registration 코드
   - `native_functions.yaml`와 `derivatives.yaml`로부터 생성
 
 참고: https://discuss.pytorch.org/t/whats-the-difference-between-aten-and-c10/114034/3
