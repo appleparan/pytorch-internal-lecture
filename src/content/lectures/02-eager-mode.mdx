@@ -21,7 +21,7 @@ PyTorch + NPU 온라인 모임 #2 | 2024-12-11
 
 ## 오늘 다룰 주제들
 
-`x = torch.matmul(y, z)`를 실행할 때 발생하는 55단계의 call stack을 호출 순서대로 분석하고, 각 단계에 사용되는 PyTorch internal 개념을 정리합니다.
+`x = torch.matmul(y, z)` 한 줄을 실행하면 내부에서 정확히 무슨 일이 일어날까요? 이 질문에서 출발해, 55단계에 달하는 call stack을 끝까지 따라가고 그 과정에서 등장한 PyTorch internal 개념을 정리합니다.
 
 - `torch.matmul`의 call stack 추적 - CUDA GEMM 진입점에 breakpoint를 걸면 드러나는 55단계 호출 깊이의 정체
     - Python → C++ 바인딩 → matmul dispatch → mm의 autograd kernel → CUDA kernel redispatch → cuBLAS 진입 순으로 전체 경로를 따라가기
@@ -340,7 +340,7 @@ Dispatch table에는 각 key에 해당하는 function pointer가 들어 있습�
 
 #### 개발자가 직접 작성한 부분
 
-55단계 중 상당수는 자동 생성된 wrapper와 반복되는 dispatcher logic입니다. 직접 작성되는 핵심 부분은 `matmul`이 input shape에 따라 연산을 선택하는 코드(#25-26)와 CUDA에서 `mm` operator를 실행하는 device-specific 구현(#0-4)으로 구분할 수 있습니다.
+Call stack이 55단계나 되니 매우 복잡한 구조처럼 보이지만, 상당수는 자동 생성된 wrapper와 반복되는 dispatcher logic입니다. 이를 구분하고 나면 개발자가 직접 작성하는 핵심 부분은 `matmul`이 input shape에 따라 연산을 선택하는 코드(#25-26)와 CUDA에서 `mm` operator를 실행하는 device-specific 구현(#0-4)으로 정리할 수 있습니다.
 
 <details>
 <summary><strong>개발자가 직접 작성한 코드 vs 자동 생성/dispatch 코드</strong></summary>

@@ -32,7 +32,7 @@ ML Framework은 AI Ecosystem에서 다음과 같은 역할을 합니다:
 
 PyTorch, TensorFlow, JAX 등의 ML Framework은 모델을 기술하는 것에서 나아가 GPU와 같은 AI 가속기를 효과적으로 활용하는 것이 핵심입니다. 프로그래밍 언어적 성격으로 모델을 직접 작성하고 제공하며, 컴파일러 역할로 AI 가속기에 그대로 매핑하는 대신 트랜스포메이션 과정을 통해 하드웨어 타겟에 최적화합니다.
 
-현대 ML Framework에는 heterogeneous computing, distributed computing, compiler technology, numerical computing 분야에서 발전한 기술이 함께 사용됩니다.
+ML Framework의 발전은 이전 연구와 산업적 성과가 축적된 결과입니다. 서로 다른 분야에서 발전한 기술적 흐름이 합쳐져 지금의 ML Framework를 구성하고 있습니다.
 
 > **Q: PyTorch의 경우, ML 컴파일러의 이름이 있을까요?**
 >
@@ -65,7 +65,7 @@ PyTorch, TensorFlow, JAX 등의 ML Framework은 모델을 기술하는 것에서
 
 ## ML Framework의 배경 기술
 
-ML Framework에 영향을 준 네 가지 기술 분야인 heterogeneous computing, supercomputing, ML compiler, numerical computing을 차례로 살펴봅니다.
+ML Framework은 서로 다른 뿌리를 가진 네 가지 기술적 흐름 위에서 만들어졌습니다. Heterogeneous computing, supercomputing, ML compiler, numerical computing을 하나씩 살펴봅니다.
 
 ### Heterogeneous Computing with GPU
 
@@ -105,7 +105,7 @@ OpenCL과 HSA도 heterogeneous computing을 지원하지만, NVIDIA GPU 기반 M
 
 ### Supercomputing
 
-슈퍼컴퓨팅은 대규모 계산을 처리하는 고성능 컴퓨팅 기술입니다. 전통적으로 물리학 시뮬레이션, 천문학, 기후 모델링, 항공우주 및 에너지 연구 등에 사용되었고, 현재는 대규모 머신러닝에도 사용됩니다.
+슈퍼컴퓨팅은 매우 복잡한 계산을 처리하기 위한 고성능 컴퓨팅 기술입니다. 현재는 머신러닝도 대표적인 workload지만, 전통적으로 물리학 simulation, 천문학, 기후 modeling, 항공우주와 에너지 연구 같은 과학·공학 분야에서 사용되었습니다. 미국의 National Laboratory도 이러한 supercomputer로 대규모 과학 계산을 수행합니다.
 
 #### 슈퍼컴퓨팅과 인터넷 서비스의 차이
 

@@ -410,7 +410,7 @@ torchrun을 실행하면 내부적으로 다음과 같은 단계를 거칩니다
 
 이 과정이 끝나면 비로소 PyTorch script가 시작되고, 각 프로세스는 자신에게 할당된 학습 task를 수행합니다.
 
-Elastic mode에서 node나 worker가 실패하면 `torchrun`은 worker group을 재시작하고 rendezvous를 다시 수행할 수 있습니다. 학습 상태 복구에는 별도의 checkpoint가 필요합니다.
+Fault tolerance 측면에서도 랑데뷰는 중요한 역할을 합니다. Elastic mode에서 node나 worker가 실패하면 `torchrun`은 worker group을 재시작하고, 남아 있거나 새로 합류한 worker들로 랑데뷰를 다시 수행할 수 있습니다. 학습 계산은 마지막 checkpoint부터 재개해야 하므로 학습 상태를 복구하려면 별도의 checkpoint 저장이 필요합니다.
 
 ### Task 수행 코드
 
@@ -635,7 +635,7 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 ## PyTorch가 제공하는 모델 병렬화 패키지들
 
-여기까지가 c10d level의 저수준 분산 통신입니다. 실제 모델 학습에서는 일반적으로 PyTorch의 고수준 병렬화 API를 사용합니다. **Data Parallel 계열**(DDP, ZeRO, FSDP)은 parameter, gradient, optimizer state의 복제 또는 sharding 방식을 결정하고, **Model Parallel 계열**(TP, SP, PP)은 모델의 연산을 여러 device에 분할합니다. **Expert Parallel**(EP)과 **Context Parallel**(CP)은 뒤의 보충 절에서 다룹니다.
+여기까지가 c10d level의 저수준 분산 통신입니다. 실제 model 학습에서는 이런 저수준 API를 직접 사용하기보다 PyTorch의 고수준 병렬화 package를 사용하는 경우가 많습니다. 병렬화 기법의 이름이 많아(DDP, FSDP, ZeRO, TP, SP, PP, …) 헷갈리기 쉬운데, **"무엇을 복제하고 무엇을 쪼개는가"를 기준으로 보면 지도가 그려집니다.** 계산은 그대로 두고 학습 상태(parameter·gradient·optimizer state)를 어떻게 배치할지의 축이 **Data Parallel 계열**(DDP, ZeRO, FSDP)이고, 계산 자체를 쪼개는 축이 **Model Parallel 계열**(TP, SP, PP)입니다. **Expert Parallel**(EP)과 **Context Parallel**(CP)은 강의 뒤의 보충 절에서 다룹니다.
 
 이 지도는 PyTorch 공식 문서의 계층 구분과도 그대로 대응됩니다. [PyTorch Distributed Overview](https://docs.pytorch.org/tutorials/beginner/dist_overview.html)는 분산 스택을 병렬화 API(DDP, FSDP2, TP, PP) → sharding primitive(DTensor, DeviceMesh) → 통신 계층(c10d) → launcher(torchrun)의 4개 층으로 정리하는데, 이 강의가 아래(c10d)에서 위(병렬화 패키지)로 올라온 순서를 뒤집으면 정확히 그 구조입니다. 모델 크기에 따른 선택 기준(한 GPU에 들어가면 DDP, 안 들어가면 FSDP2, FSDP2로도 한계에 부딪히면 TP/PP)도 공식 권고와 아래에서 볼 내용이 일치합니다.
 
@@ -650,7 +650,7 @@ NCCL backend의 경우, 내부적으로 NCCLComm 객체가 소멸되면서 `nccl
 
 [^mixed-precision]: forward/backward 계산은 fp16/bf16 저정밀로 수행하고, 수치 안정성을 위해 optimizer에는 fp32 master weight를 유지하는 학습 기법. Optimizer state에 fp32 master weight(4 byte)가 포함되는 이유입니다.
 
-위와 같이 fp16/bf16 parameter와 gradient, fp32 master weight 및 Adam state를 사용하는 구성에서는 parameter당 약 16 byte가 필요합니다. 이 가정에서 7B 모델의 weight는 14GB이고 전체 학습 상태는 약 112GB입니다. 실제 사용량은 optimizer, gradient dtype, mixed-precision 구현 및 activation에 따라 달라집니다. 분산 학습 방식은 이 상태 중 어떤 항목을 rank별로 sharding할지 결정합니다.
+위와 같이 fp16/bf16 parameter와 gradient, fp32 master weight 및 Adam state를 사용하는 구성에서는 parameter당 약 16 byte가 필요합니다. 이 가정에서 7B model의 weight는 14GB지만 학습 상태는 activation을 제외해도 약 112GB입니다. Inference에서는 2 byte면 되는 parameter가 이 training 구성에서는 8배의 상태를 요구한다는 차이가 분산 학습 전략의 출발점입니다. 실제 사용량은 optimizer, gradient dtype, mixed-precision 구현과 activation에 따라 달라지며, 각 전략은 이 상태 중 무엇을 rank별로 sharding할지 결정합니다.
 
 ### Data Parallel 축: DDP → ZeRO → FSDP
 
@@ -662,17 +662,17 @@ Microsoft의 **ZeRO**(Zero Redundancy Optimizer, 2019) 논문은 이 중복을 �
 - **Stage 2**: gradient까지 sharding
 - **Stage 3**: parameter까지 sharding하고, 계산 직전에 all-gather로 모았다가 끝나면 버림
 
-**Fully Sharded Data Parallel**(FSDP)은 ZeRO Stage 3에서 영감을 받은 PyTorch의 fully sharded data parallel 구현입니다. Parameter를 rank별로 sharding하고, module 계산 전에 필요한 parameter를 all-gather한 뒤 계산 후 다시 reshard합니다. Gradient는 reduce-scatter하고 optimizer state도 rank별로 유지합니다. 각 rank는 서로 다른 data batch에 대해 동일한 module 계산을 수행하므로 data parallel 방식에 해당합니다.
+**Fully Sharded Data Parallel**(FSDP)은 ZeRO Stage 3 algorithm을 PyTorch에 구현한 것입니다. Parameter를 rank별로 나눠 두고, module을 계산하기 직전에 필요한 조각을 all-gather해 완전한 parameter를 만든 뒤 계산이 끝나면 다시 reshard합니다. Gradient는 reduce-scatter하고 optimizer state도 rank별로 나눠 유지합니다. 즉 쪼개는 것은 학습 상태이고, 각 rank는 서로 다른 data batch에 대해 동일한 module 계산을 수행하므로 여전히 Data Parallel입니다.
 
 계보를 시간순으로 정리하면 다음과 같습니다:
 
 - **2019**: Microsoft가 ZeRO 논문 발표
 - **2020**: Microsoft가 ZeRO의 구현체인 **DeepSpeed** 라이브러리 공개
-- **2021**: Meta가 FairScale 라이브러리에서 같은 아이디어를 FSDP라는 이름으로 구현
+- **2021**: Meta가 FairScale 라이브러리에서 ZeRO-3에 해당하는 FSDP를 구현
 - **2022**: FairScale의 FSDP가 PyTorch 1.11에 정식 편입됨. 이 버전이 FSDP1
 - **2024**: per-parameter sharding으로 재설계한 FSDP2(`fully_shard`) 공개
 
-즉 DeepSpeed와 FSDP는 같은 논문에서 출발한 두 구현입니다. DeepSpeed는 "partitioning", FSDP는 "sharding"이라 부를 뿐 하는 일은 같고, ZeRO stage와는 다음과 같이 대응됩니다:
+DeepSpeed는 ZeRO Stage 1~3를 제공하는 library이고, FSDP의 중심은 ZeRO-3에 해당하는 full sharding입니다. 다만 FSDP에서도 설정에 따라 parameter를 forward 이후에 바로 reshard할지 선택할 수 있어, ZeRO-2와 비슷한 메모리·통신 trade-off를 구성할 수 있습니다. 동작상 가까운 설정을 정리하면 다음과 같습니다:
 
 | ZeRO stage | Sharding 대상 | FSDP1 설정 | FSDP2 설정 |
 |---|---|---|---|
@@ -683,7 +683,7 @@ Microsoft의 **ZeRO**(Zero Redundancy Optimizer, 2019) 논문은 이 중복을 �
 
 DeepSpeed와의 실무적 차이는 뒤의 보충 섹션에서 다룹니다.
 
-FSDP에는 두 세대의 구현이 있습니다. **FSDP1**은 `FullyShardedDataParallel` wrapper API이고, **FSDP2**는 `fully_shard`와 DTensor를 사용하는 새 구현입니다. FSDP1 API도 제공되지만 신규 구성에는 FSDP2 사용과 기존 FSDP1 code의 migration이 권장됩니다. 두 구현은 sharding → all-gather → 계산 → reshard라는 기본 동작을 공유하지만 parameter 표현이 다릅니다.
+FSDP에는 두 세대의 구현이 있습니다. **FSDP1**은 `FullyShardedDataParallel` wrapper API이고, **FSDP2**는 `fully_shard`와 DTensor를 사용하는 새 구현입니다. FSDP1은 deprecated되었으며, 기존 code와 API는 아직 남아 있지만 신규 구성에는 FSDP2를 사용해야 합니다. 두 구현은 sharding → all-gather → 계산 → reshard라는 기본 동작을 공유하지만 parameter 표현이 다릅니다.
 
 ### Model Parallel 축: TP, SP, PP
 
@@ -816,7 +816,7 @@ FSDP2의 내부 동작은 initialization, forward, backward 세 단계로 나눌
 
 ### DDP vs. FSDP: 언제 무엇을 쓰나
 
-FSDP는 DDP의 상위 호환이 아닙니다. FSDP는 학습 상태를 sharding해 device memory 사용량을 줄이는 대신 parameter all-gather와 reshard 통신을 추가합니다.
+가장 헷갈리기 쉬운 질문은 "FSDP가 더 새로우니 DDP보다 항상 좋은가?"입니다. FSDP는 DDP의 상위 호환이 아닙니다. 학습 상태를 sharding해 device memory 사용량을 줄이는 대신 parameter all-gather와 reshard 통신을 추가하므로, 둘은 memory와 communication의 trade-off 관계입니다.
 
 내부 동작을 봤으니 step당 통신량을 비교할 수 있습니다. parameter 전체 크기를 P라 하면:
 
@@ -1106,7 +1106,7 @@ Ray가 그 위에 더해 주는 것은 클러스터 레벨 기능입니다:
 - **Fault tolerance**: 노드가 죽으면 대체 노드를 확보해 최신 checkpoint에서 학습을 재개합니다(`FailureConfig`).
 - **다중 job 조율**: 여러 모델과 역할을 한 클러스터에서 함께 돌립니다. 최근 RLHF/post-training 프레임워크들이 학습 모델, reward 모델, rollout용 inference 엔진을 동시에 조율하기 위해 Ray를 채택하는 이유가 이것입니다.
 
-세 도구의 책임은 서로 다릅니다. DeepSpeed는 병렬화 runtime, Accelerate는 training frontend, Ray Train은 cluster orchestration을 담당합니다. 따라서 Ray worker 안에서 Accelerate 또는 DeepSpeed를 사용하는 구성도 가능합니다.
+정리하면 세 도구는 서로 다른 층에 있고 배타적이지 않습니다. DeepSpeed는 병렬화 runtime, Accelerate는 training frontend, Ray Train은 cluster orchestration을 담당합니다. 따라서 Ray worker 안에서 Accelerate 또는 DeepSpeed를 사용하는 구성도 가능합니다.
 
 ### Big Model Inference: 학습 밖의 sharding
 
@@ -1140,7 +1140,7 @@ PyTorch DDP·FSDP·TP는 c10d collective와 DTensor 등의 PyTorch distributed p
 
 NVIDIA GPU 환경을 가정한다면 CUDA, cuBLAS, CUTLASS 같은 NVIDIA 제공 도구로 작성할 수 있고, Triton처럼 custom kernel 작성에 특화된 언어를 활용하는 방법도 다룹니다.
 
-**vLLM**: PyTorch보다 한 단계 위 레벨에 있는 LLM inference / serving 프레임워크로, 현재 사실상 표준에 가까운 위치를 차지하고 있습니다. vLLM의 전체 구조, vLLM이 제공하는 최적화 기능, 그리고 그런 최적화를 PyTorch 기본 op만으로는 표현할 수 없기 때문에 vLLM이 정의해 둔 custom op 셋이 어떤 모양인지를 함께 살펴볼 예정입니다.
+**vLLM**: PyTorch보다 한 단계 위에서 동작하며 널리 사용되는 오픈소스 LLM inference / serving framework입니다. vLLM의 전체 구조와 최적화 기능, 그리고 PyTorch 기본 op의 조합만으로 구현하기 어려운 serving kernel을 custom op으로 연결하는 방식을 살펴볼 예정입니다.
 
 ### Q&A
 
