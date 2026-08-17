@@ -260,7 +260,7 @@ Decode 이야기에서 계속 등장할 개념 하나를 여기서 분명히 해
 
 > 출처: [Optimizing Inference for Long-Context and Large Batch Sizes with NVFP4 KV Cache (NVIDIA)](https://developer.nvidia.com/blog/optimizing-inference-for-long-context-and-large-batch-sizes-with-nvfp4-kv-cache/)
 
-다만 공짜는 아닙니다. 계산을 아낀 대신, (1) 시퀀스 길이에 비례해 자라는 메모리 용량을 차지하고(얼마나 커지는지는 뒤의 Paged Attention 절에서 계산합니다), (2) 매 decode 스텝마다 지금까지 쌓인 cache 전체를 HBM[^hbm]에서 다시 읽어야 합니다. 결국 Decode는 매 스텝 "weight 전체 + 계속 자라는 KV cache 전체"를 메모리에서 스트리밍하면서 정작 연산은 토큰 하나 분량만 하는 구조가 되고, 이것이 바로 다음 절에서 볼 "Decode는 Memory Bound"라는 진단의 실체입니다. 그래서 위 그림의 출처처럼 KV cache 자체를 FP8·NVFP4 같은 저정밀 포맷으로 양자화해 용량과 읽기 트래픽을 줄이는 것도 최근에는 표준적인 최적화 축이 되었습니다.
+KV cache의 비용은 두 가지입니다. 시퀀스 길이에 비례해 메모리를 차지하고(크기는 뒤의 Paged Attention 절에서 계산합니다), 매 decode 스텝마다 쌓인 cache 전체를 HBM[^hbm]에서 다시 읽어야 합니다. 그래서 Decode는 매 스텝 weight 전체와 KV cache 전체를 읽으면서 연산은 토큰 하나 분량만 합니다. 다음 절의 "Decode는 Memory Bound"라는 진단이 이 구조에서 나옵니다. KV cache를 FP8·NVFP4 같은 저정밀 포맷으로 양자화해 용량과 읽기 트래픽을 줄이는 것도 같은 이유입니다.
 
 [^hbm]: High Bandwidth Memory. DRAM die를 수직으로 쌓아 프로세서와 같은 패키지 안에서 매우 넓은 버스로 연결한 메모리. AI 가속기 오프칩 메모리의 사실상 표준으로, 일반 DRAM보다 대역폭이 훨씬 높지만 on-chip 메모리(SRAM)보다는 여전히 느립니다.
 
@@ -338,7 +338,7 @@ X축의 **Arithmetic Intensity**는 알고리즘의 고유 특성으로, "메모
 
 ### Continuous Batching
 
-가장 직관적인 발상은 Prefill에서 했던 것처럼 여러 토큰을 동시에 처리하면 된다는 것입니다. 다만 Decode 안에서 한 토큰과 다음 토큰 사이에는 의존성이 있어 그게 어렵습니다. 그래서 여러 request를 묶어 병렬로 돌리는 쪽으로 시선을 돌립니다.
+지금까지는 request 하나를 기준으로 이야기했습니다. 서빙에서는 여러 사용자의 request가 서로 다른 시점에 도착하고, 프롬프트 길이도 응답 길이도 제각각입니다. 그리고 앞서 봤듯 단일 request의 Decode는 weight 전체를 읽고 토큰 하나 분량만 계산합니다. 연산기가 놀고 있으니, 같은 스텝에 다른 request의 decode 토큰을 함께 처리하면 됩니다. weight를 한 번 읽어 $B$개 request에 재사용하면 arithmetic intensity가 $B$배가 됩니다. Prefill이 토큰 축에서 얻던 이득을 request 축에서 얻는 것입니다. 한 request 안의 토큰들과 달리 request 사이에는 의존성이 없어서 묶는 데 제약도 없습니다. 남는 문제는 어떻게 묶을 것인가, 즉 스케줄링입니다.
 
 가장 단순한 형태가 **Static / Dynamic Batching**입니다. 여러 request를 묶어서 모든 layer를 lock-step으로 동시에 진행합니다. 메모리 효율은 individual request 처리보다 분명히 올라가지만, 각 request가 얼마나 빨리/느리게 끝날지 미리 알 수 없다는 게 문제입니다. 한 배치의 모든 request가 같은 lock-step으로 가야 하므로, 가장 느린 애가 끝날 때까지 모두 기다려야 하고, 빈 자리가 생겨 원하는 만큼 성능이 안 나옵니다.
 
