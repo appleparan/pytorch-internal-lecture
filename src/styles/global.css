@@ -459,15 +459,83 @@ a:hover {
   border-radius: 3px;
 }
 
-/* Hide ToC on narrow screens */
+/* Mobile ToC toggle button and backdrop are hidden on desktop */
+.toc-toggle,
+.toc-backdrop {
+  display: none;
+}
+
+/* Present ToC as a bottom sheet on narrow screens */
 @media (max-width: 999px) {
   .lecture-grid {
     grid-template-columns: 1fr;
     max-width: 930px;
   }
 
+  .toc-toggle {
+    display: flex;
+    position: fixed;
+    bottom: 30px;
+    left: 30px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--back-to-top-bg);
+    color: var(--back-to-top-color, #ffffff);
+    border: none;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+  }
+
+  .toc-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.3s ease,
+      visibility 0.3s ease;
+    z-index: 400;
+  }
+
+  .toc-backdrop.toc-open {
+    opacity: 1;
+    visibility: visible;
+  }
+
   .toc-sidebar {
-    display: none;
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    border-right: none;
+    border-radius: 12px 12px 0 0;
+    padding: 1.25rem 1.5rem 2rem;
+    margin: 0;
+    transform: translateY(100%);
+    visibility: hidden;
+    transition:
+      transform 0.3s ease,
+      visibility 0.3s ease;
+    z-index: 410;
+  }
+
+  .toc-sidebar.toc-open {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  body.toc-locked {
+    overflow: hidden;
   }
 }
 

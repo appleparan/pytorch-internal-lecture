@@ -16,20 +16,78 @@ const tocHeadings = headings.filter((h) => h.depth >= 2 && h.depth <= 4);
 ---
 
 {tocHeadings.length > 0 && (
-  <nav class="toc-sidebar" aria-label="Table of Contents">
-    <h2 class="toc-title" id="toc-heading">Contents</h2>
-    <ul class="toc-list" aria-labelledby="toc-heading">
-      {tocHeadings.map((heading) => (
-        <li class={`toc-item toc-h${heading.depth}`}>
-          <a href={`#${heading.slug}`}>{heading.text}</a>
-        </li>
-      ))}
-    </ul>
-  </nav>
+  <>
+    <button
+      class="toc-toggle"
+      id="toc-toggle"
+      type="button"
+      aria-label="Table of contents"
+      aria-expanded="false"
+      aria-controls="toc-sidebar"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="4" cy="6" r="1"></circle>
+        <line x1="9" y1="6" x2="20" y2="6"></line>
+        <circle cx="4" cy="12" r="1"></circle>
+        <line x1="9" y1="12" x2="20" y2="12"></line>
+        <circle cx="4" cy="18" r="1"></circle>
+        <line x1="9" y1="18" x2="20" y2="18"></line>
+      </svg>
+    </button>
+    <div class="toc-backdrop" id="toc-backdrop"></div>
+    <nav class="toc-sidebar" id="toc-sidebar" aria-label="Table of Contents">
+      <h2 class="toc-title" id="toc-heading">Contents</h2>
+      <ul class="toc-list" aria-labelledby="toc-heading">
+        {tocHeadings.map((heading) => (
+          <li class={`toc-item toc-h${heading.depth}`}>
+            <a href={`#${heading.slug}`}>{heading.text}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  </>
 )}
 
 <script>
   let currentObserver: IntersectionObserver | null = null;
+  let currentKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
+
+  function closeTocSheet() {
+    const nav = document.getElementById('toc-sidebar');
+    const backdrop = document.getElementById('toc-backdrop');
+    const toggle = document.getElementById('toc-toggle');
+    nav?.classList.remove('toc-open');
+    backdrop?.classList.remove('toc-open');
+    document.body.classList.remove('toc-locked');
+    toggle?.setAttribute('aria-expanded', 'false');
+  }
+
+  function initTocSheet() {
+    // Clean up previous keydown listener before re-registering
+    if (currentKeydownHandler) {
+      document.removeEventListener('keydown', currentKeydownHandler);
+      currentKeydownHandler = null;
+    }
+
+    const toggle = document.getElementById('toc-toggle');
+    const nav = document.getElementById('toc-sidebar');
+    const backdrop = document.getElementById('toc-backdrop');
+    if (!toggle || !nav || !backdrop) return;
+
+    toggle.addEventListener('click', () => {
+      const isOpen = nav.classList.toggle('toc-open');
+      backdrop.classList.toggle('toc-open', isOpen);
+      document.body.classList.toggle('toc-locked', isOpen);
+      toggle.setAttribute('aria-expanded', String(isOpen));
+    });
+
+    backdrop.addEventListener('click', closeTocSheet);
+
+    currentKeydownHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeTocSheet();
+    };
+    document.addEventListener('keydown', currentKeydownHandler);
+  }
 
   function initToc() {
     // Clean up previous observer and listeners
@@ -37,6 +95,8 @@ const tocHeadings = headings.filter((h) => h.depth >= 2 && h.depth <= 4);
       currentObserver.disconnect();
       currentObserver = null;
     }
+
+    initTocSheet();
 
     const tocLinks = document.querySelectorAll<HTMLAnchorElement>('.toc-item a');
     if (tocLinks.length === 0) return;
@@ -113,6 +173,7 @@ const tocHeadings = headings.filter((h) => h.depth >= 2 && h.depth <= 4);
 
         target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         history.pushState(null, '', `#${id}`);
+        closeTocSheet();
       });
     });
   }

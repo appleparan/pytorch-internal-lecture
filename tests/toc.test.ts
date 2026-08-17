@@ -83,3 +83,32 @@ describe("ToC across all lecture pages", () => {
     expect(html).toContain('class="lecture-grid"');
   });
 });
+
+describe("Mobile ToC", () => {
+  let lectureHtml: string;
+  let indexHtml: string;
+
+  beforeAll(() => {
+    lectureHtml = readBuildOutput("lectures/02-eager-mode");
+    indexHtml = readBuildOutput("");
+  });
+
+  it("renders a toc-toggle button with correct aria attributes", () => {
+    expect(lectureHtml).toContain('class="toc-toggle"');
+    expect(lectureHtml).toContain('aria-expanded="false"');
+    expect(lectureHtml).toContain('aria-controls="toc-sidebar"');
+  });
+
+  it("renders a toc-backdrop element", () => {
+    expect(lectureHtml).toContain('class="toc-backdrop"');
+  });
+
+  it("gives the ToC nav an id of toc-sidebar", () => {
+    expect(lectureHtml).toContain('id="toc-sidebar"');
+  });
+
+  it("does not render mobile ToC markup on the index page", () => {
+    expect(indexHtml).not.toContain("toc-toggle");
+    expect(indexHtml).not.toContain("toc-backdrop");
+  });
+});
