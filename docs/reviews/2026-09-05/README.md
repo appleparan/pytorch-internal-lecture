@@ -14,6 +14,8 @@
 | 06 | [06-beyond-pytorch.md](06-beyond-pytorch.md) | Causal 그림 = Non-causal 그림 동일 파일(174), 이미지 alt 불일치 5건(377/408/864/321/803), continuous batching "layer 단위"(345), "Programming Guide 10%"(782), FA4 "v3 대비 2–3배"(737), `U R A HELP CHAPP`(221) |
 | 07 | [07-cpu-gpu-npu.md](07-cpu-gpu-npu.md) | slide16_1 = slide17_1 동일 파일(193/205), loop_vliw SVG 스케줄 오류(566), "SW로는 iteration별 레지스터 표현 불가"(418), SIMT 정의(837), Occupancy 정의(856), "공짜가 아닙니다"(856), 1992 vs 1994 논문(666) |
 
+출처 검증 총괄: [../source-verification-2026-09-05.md](../source-verification-2026-09-05.md). 강의별 상세 표는 각 문서의 "출처 검증" 절.
+
 ## 강의 전체에 걸친 패턴
 
 - **동일 이미지 파일 2회 사용**: 06(slide06_1=slide07_2), 07(slide16_1=slide17_1), 02(slide13_1=slide38_1). 앞 두 건은 잘못된 그림이 들어간 것.

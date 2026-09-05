@@ -47,7 +47,7 @@
 | 841/923 | 고아 footnote, "앞 절의 임계" 없음 | 839행에 참조 삽입 |
 | 883 | Megatron 그림 f/g·전치 설명 없음 | "A=Wᵀ, Colwise(w1)=A 열분할, g=all_reduce" |
 | 918-925 | FSDP1+TP "합성 불가", "8~16-way 한계" | FSDP1도 `DTensorExtensions`로 조합 가능. 8~16은 TPU v5p 분석 조건 명시 |
-| 1078-1087 | Ray 예제 `optimizer` 미정의 | `prepare_optimizer(Adam(model.parameters()))` |
+| 1078-1087 | Ray 예제 `optimizer` 미정의 | `optimizer = torch.optim.Adam(model.parameters())` 직접 생성 (`prepare_optimizer`는 현재 Ray에서 deprecated·AMP 전용 — 출처 검증 #18) |
 
 ## 한쪽만 제기한 항목 (검토 필요)
 
@@ -65,6 +65,71 @@
 - **Fable A4-17 line 672**: 1.11 편입은 beta.
 - **Fable A4-19 line 893**: FSDP2 dim-0 sharding은 기본값, `shard_placement_fn`으로 변경 가능.
 - **Fable A2-9 line 918**: 한 문단에 2D DTensor/3D/CP·EP/torchtitan/FSDP1 역사 5주제.
+
+## 출처 검증 (2026-09-05)
+
+검증 방법: PyTorch GitHub 소스는 `raw.githubusercontent.com/pytorch/pytorch/v2.13.0/<path>`로 전체 파일을 받아 `sed -n`/`grep -n`으로 해당 줄 대조. 문서(docs.pytorch.org, deepspeed.readthedocs.io, docs.ray.io, docs.nvidia.com, jax-ml.github.io, huggingface.co)는 `curl -sL -A "Mozilla/5.0"`로 받아 텍스트 추출 후 원문 대조(필요시 WebFetch 대체 없이 curl로 충분히 렌더됨). DeepSpeed/Accelerate/Ray는 각 저장소의 `master`/`main` 브랜치 최신 소스로 대조(태그 고정 없음 — 버전 차이 가능성 있음, 개별 판정에 표기). 429/403은 없었음.
+
+| # | 인용 위치 | 출처 | 접근 | 판정 | 근거 (인용/줄 번호) |
+|---|---|---|---|---|---|
+| 1 | 요약 L13, Fable A4-2 (L541) | v2.13.0 `torch/csrc/cuda/Module.cpp` `THCPModule_setDevice_wrap` | 200 | 지지 | 함수는 L66 시작, L71 `torch::utils::device_lazy_init(at::kCUDA);` 호출 후 L72 `c10::cuda::set_device(...)`. "CUDA 초기화 안 함" 주장과 반대라는 리뷰 지적이 정확 |
+| 2 | 요약 L14, Fable A4-3 (L362) | v2.13.0 `torch/distributed/run.py` 866행 | 200 | 지지 | L866: `"node_rank is only used for static rdzv_backend. It will be ignored "` — 인용한 줄 번호까지 정확히 일치 |
+| 3 | Fable A4-5 (L554/578) | v2.13 공식 docs `distributed.html` (wait/stream semantics) | 200 | 지지 | 2.13/2.14 두 버전 모두 동일 문구 확인: "In the case of CUDA collectives, will block the currently active CUDA stream until the operation is completed (but will not block the CPU)." |
+| 4 | Fable A4-6 (L607) | v2.13.0 `torch/distributed/rendezvous.py` `_create_c10d_store`/`_torchelastic_use_agent_store` | 200 | 지지 | L188-206: `if _torchelastic_use_agent_store(): return TCPStore(..., is_master=False, ...)` / `else: start_daemon = rank==0; is_master=start_daemon` — 인용과 정확히 일치 |
+| 5 | Fable A4-7 (L631) | v2.13.0 `destroy_process_group`(실제 위치는 `torch/distributed/distributed_c10d.py`) | 200 | 지지 | L2404-2406: "shutdown all backends in the order of pg names. shutting down in order because ncclCommAbort() was a 'collective' call in some versions of NCCL." 코드가 `for pg_to_shutdown ...: pg_to_shutdown.shutdown()` — barrier 아니라는 지적과 인용 주석 모두 정확 |
+| 6 | Fable A4-8 (L686) | v2.13.0 소스에 deprecation 없음 + PyTorch tutorial 배너 | 200 | 지지 | Module.cpp/fully_sharded_data_parallel.py 등 v2.13.0 소스에 클래스 단위 deprecation 문구 없음(직접 검색 결과 없음). 반면 `docs.pytorch.org/tutorials/.../FSDP_tutorial.html`(현재 2.14 렌더) 상단 Note에 "FSDP1 is deprecated. FSDP1 tutorials are archived in [1] and [2]" 존재 — Fable의 "tutorial 배너에는 있다"는 서술과 일치. 단, 2.13 시점 렌더는 별도 확인 못함(현재 stable/latest가 2.14로 리다이렉트) |
+| 7 | Fable A4-9 (L694), 요약 하단 "fully_shard class swap" | v2.13.0 `_fully_shard/_fully_shard.py` 294행 | 200 | 지지 | L294: `modules, cls_to_fsdp_cls, FSDPModule, "FSDP", _unimplemented_deepcopy` — 294행 및 `"FSDP"` 접두사까지 정확히 일치 |
+| 8 | Fable A4-11 (L779) | HF Accelerate FSDP 문서(use_orig_params로 frozen/trainable 혼합) | 200 | 지지 | `huggingface.co/docs/accelerate/en/usage_guides/fsdp`: "fsdp_use_orig_params: If True, allows non-uniform requires_grad during init, which means support for interspersed frozen and trainable parameters." 단, Fable이 언급한 정확한 문서명은 "fsdp1_vs_fsdp2"였는데 그 페이지(`concept_guides/fsdp1_vs_fsdp2`)에는 "frozen" 단어가 없고, 실제로는 `usage_guides/fsdp` 페이지에 있음 — 문서명 자체는 부정확 |
+| 9 | Fable A4-13 (L918) | "PyTorch 2.0~2.3 tutorial에서 지원" (FSDP1+TP) | — | 접근불가 | 구체적 URL이 제시되지 않아 어느 tutorial인지 특정 불가. 검증 시도 안 함(출처 미제시) |
+| 10 | Fable A4-14 (L305-313) | v2.13 공식 docs "four built-in backends" | 200 | 지지 | `docs.pytorch.org/docs/2.13/distributed.html` "Backends" 절: "torch.distributed supports four built-in backends" (gloo, mpi, nccl, xccl). UCC는 이 표에 없고 별도로 "NCCL, Gloo, and UCC backend are currently supported"(batch_isend_irecv 절)로만 언급 — 리뷰의 "UCC는 빌드 옵션" 결론과 일관 |
+| 11 | Fable A4-15 (L503) | v2.13 docs 표 — Gloo GPU 지원 | 200 | 지지 | 같은 표에서 gloo GPU 열: broadcast=✓, all_reduce=✓, reduce_scatter=✓ — 인용대로 정확 |
+| 12 | Fable A4-18 (L923) / Codex A4-19 (L922-925) | JAX scaling book training 장 | 200 | 지지 | jax-ml.github.io/scaling-book/training: "Tensor Parallelism becomes communication bound when Y > M_Y·F/2550. For most models this is between 8 and 16-way tensor parallelism." — TPUv5p의 `C_int8/W_ici` 상수를 사용한 TPU 전용 분석이 명시되어 있어, "GPU 일반론이 아니라 TPU v5p 분석"이라는 지적 정확 |
+| 13 | Fable A4-19 (L893) | v2.13.0 `fully_shard(shard_placement_fn=...)` | 200 | 지지 | `_fully_shard.py` L64-103: `fully_shard(..., shard_placement_fn: Callable[...] | None = None, ...)` 파라미터 실재 |
+| 14 | Fable A4-20 (L569-579) | v2.13.0 `distributed_c10d.py` 3245-3252행 | 200 | 지지 | L3245: `work = group.allreduce([tensor], opts)`, 뒤이어 L3248-3252 `elif work is not None: work.wait()` — 인용 줄 번호·생략된 분기 지적 모두 정확 |
+| 15 | Fable 하단 검증목록 | v2.13.0 `_env_rendezvous_handler` | 200 | 지지 | `rendezvous.py` L242: `def _env_rendezvous_handler(...)`, L291에서 `"env"`로 등록 — 실재 확인 |
+| 16 | Fable 하단 검증목록 | `_DEFAULT_BUCKET_CAP_MB = 25` | 200 | 지지 | `torch/nn/parallel/distributed.py` L31: `_DEFAULT_BUCKET_CAP_MB = 25` — 정확 |
+| 17 | Fable 하단 검증목록 | `ColwiseParallel`=Shard(0)/`RowwiseParallel`=Shard(1) | 200 | 지지 | `torch/distributed/tensor/parallel/style.py` L128 `Shard(0)`(Colwise weight), L260 `Shard(1)`(Rowwise weight) — 정확 |
+| 18 | 요약 L50, Fable A4-16 (L1078-1087) | 제안: `prepare_optimizer(Adam(model.parameters()))` | 200 | 불일치 | Ray 최신 소스(`ray/train/torch/train_loop_utils.py`) L296-317: `prepare_optimizer`는 `@Deprecated`이며 AMP(자동 혼합정밀도) 전용 wrapper. 공식 TorchTrainer 예제(docs.ray.io)는 `optimizer = torch.optim.SGD(model.parameters(), lr=lr)`를 `prepare_model` 뒤에 그냥 직접 생성 — 리뷰의 제안 코드가 이제는 지양되는 API를 가리킴. "optimizer 미정의"라는 원 지적 자체는 유효하나 제안 수정안이 부정확 |
+| 19 | Codex 방법론 (L161) | `docs.pytorch.org/tutorials/intermediate/TP_tutorial.html` | 200 | 지지 | 페이지가 현재 "PyTorch Tutorials 2.14.0+..." 로 렌더됨(버전 미고정 tutorial) — "링크된 TP tutorial은 검토 시 2.14를 표시" 진술과 일치 |
+| 20 | Codex A1-1 (L167) | `docs.pytorch.org/tutorials/beginner/dist_overview.html` | 200 | 지지 | 페이지는 c10d를 "c10d communication APIs"로만 지칭, "Core Layer" 같은 확장 명칭 없음 — "공식 API 명칭이 아니다"라는 지적과 일치 |
+| 21 | Codex A1-4 (L694) | `_fully_shard/_fully_shard.py` (일반 링크) | 200 | 지지 | 파일 실재, `fully_shard()`/`reshard()`/`unshard()` 등 인용된 개념 모두 확인됨(다른 행 참고) |
+| 22 | Codex A1-4 (L694) | `tensor/parallel/style.py` (일반 링크) | 200 | 지지 | 파일 실재, `ColwiseParallel`/`RowwiseParallel` 클래스 확인(행 17 참고) |
+| 23 | Codex A4-2 (L520-534) | `docs.pytorch.org/docs/stable/distributed.html#backends` | 200(redirect) | 부분지지 | `stable`은 현재 `../2.14/distributed.html`로 리다이렉트(2.13 아님). 다만 인용 취지(backend별 device 지원)는 2.13/2.14 모두 동일 텍스트로 확인됨(행 11) — 버전 표기만 유의 필요 |
+| 24 | Codex A4-3 (L333-350) | `torch/distributed/run.py` (일반 링크, v2.13 태그) | 200 | 지지 | 파일 실재, torchrun에 통신 backend 선택 flag가 없다는 주장과 일치(코드에 `--rdzv-backend`만 있고 NCCL/Gloo 선택 옵션 없음) |
+| 25 | Codex A4-4 (L362-379) | `run.py#L794-L823` | 200 | 부분지지 | 해당 앵커는 `get_use_env()`/`_get_logs_specs_class()` 함수 정의로, node_rank 무시 로직과 무관. 실제 근거는 L860-869(`if ... args.node_rank != 0 and args.rdzv_backend != "static": logger.warning("node_rank is only used for static rdzv_backend...")`) — 줄 번호 약 70줄 어긋남, 내용은 정확 |
+| 26 | Codex A4-5 (L386-409) | `elastic/agent/server/api.py#L631-L649` | 200 | 부분지지 | 해당 앵커는 rendezvous 중 rank 할당(`role_ranks`) 계산부로 순서 주장과 간접적 관련. "rendezvous 후 spawn" 순서의 직접 근거는 L695-716(`_initialize_workers`: `self._rendezvous(worker_group)` 다음 `self._start_workers(worker_group)`) — 앵커가 약 65줄 어긋남, 결론은 정확 |
+| 27 | Codex A4-6 (L502-506) | `docs.pytorch.org/docs/stable/distributed.html` (일반) | 200(redirect) | 부분지지 | 위와 동일하게 stable=2.14 리다이렉트. 내용(backend는 통신수단 선택, 연산 device는 tensor가 결정)은 2.13/2.14 공통 |
+| 28 | Codex A4-7 (L541) | `Module.cpp#L61-L66` | 200 | 부분지지 | L61-65는 함수 시그니처 이전 주석/공백이고 `device_lazy_init` 호출은 L71. 앵커가 함수 시작(L66)까지만 걸쳐 있어 정확한 호출 줄을 포함하지 못함 — 내용은 정확, 앵커가 5-6줄 짧음 |
+| 29 | Codex A4-8 (L554-578) | `ProcessGroupNCCL.cpp#L770-L779` | 200 | 부분지지 | L770-779는 `getTraceback`/`printTraceback`(예외 스택 출력) 코드로 wait()와 무관. 실제 `WorkNCCL::wait()`는 L830-846("synchronize() will block the current stream on the NCCL stream" 주석 포함)에 위치 — 앵커가 약 60줄 어긋남, 내용은 정확 |
+| 30 | Codex A4-9 (L585-625) | `rendezvous.py#L129-L190` | 200 | 지지 | `_create_c10d_store` 정의(L162)와 docstring(L166-182), 분기 시작(L188)까지가 범위 안에 있어 대체로 정확. 실제 `return TCPStore(...)` 완결은 L189-206으로 범위를 살짝 넘어감(오차 작음) |
+| 31 | Codex A4-10 (L631-633) | `ProcessGroupNCCL.cpp#L1445` | 200 | 불일치 | 인용된 "ncclCommAbort() was a 'collective' call in some versions of NCCL" 문구는 이 파일이 아니라 `torch/distributed/distributed_c10d.py` L2405-2406에 있음(행 5 참고). L1445 자체는 통신자 abort 루프(`ncclComm->abort(abortReason)`) 일부로 관련은 있으나 인용 주석의 실제 위치가 아님. `ProcessGroupNCCL::shutdown()`(주장의 핵심 근거)은 L1545에 위치, L1445와도 100줄 차이 |
+| 32 | Codex A4-11 (L704-716) | `torch/nn/parallel/distributed.py#L425-L465` | 200 | 부분지지 | 해당 앵커는 `_JoinHook.main_hook`(join 컨텍스트의 buffer 동기화 훅)로, "DDP 초기화·입력 분할 계약"과 직접 관련 없음. 실제 `__init__`의 `device_ids` 검증 로직은 L816-953에 위치 — 앵커가 거의 400줄 어긋남. 주장 자체(global rank를 device index로 쓰면 다중 노드에서 실패)는 코드 구조상 타당 |
+| 33 | Codex A4-12 (L727) | `distributed.py#L1629-L1641` | 200 | 불일치 | 해당 앵커는 `_get_parameters()`/`_check_default_group()`으로 forward나 buffer broadcast와 무관. buffer 동기화가 forward에서 일어난다는 실제 근거는 L1780-1782(`if self._check_sync_bufs_pre_fwd(): self._sync_buffers()`, `_pre_forward()`에서 호출)와 `forward()`(L1884) — 앵커가 150줄 이상 어긋남. 주장 내용(forward에 buffer broadcast 존재)은 정확 |
+| 34 | Codex A4-13 (L777-779) | `fully_sharded_data_parallel.py#L192-L197` | 200 | 부분지지 | 실제 해당 문구("use_orig_params=True... support for mixing frozen and non-frozen parameters, but... higher than expected gradient memory usage")는 L208-213에 위치 — 앵커가 약 15줄 어긋나지만 같은 docstring 블록 안이라 오차는 작음. 내용은 정확 |
+| 35 | Codex A4-14 (L781) | `checkpoint/state_dict_saver.py#L447-L475` | 200 | 지지 | 해당 범위(L447-475 부근)에 `local_step()`/`global_step()`이 `distW.is_coordinator`, `all_local_plans` 등으로 rank 간 plan/metadata를 조율하는 코드가 정확히 위치 — "DCP 저장에 metadata 조율이 있다"는 주장과 일치. 문서 L175에도 "save_state_dict uses collectives to coordinate writes across ranks." 명시 |
+| 36 | Codex A4-14 (L781) | `fully_sharded_data_parallel.py#L636-L644` | 200 | 지지 | `set_state_dict_type()`의 `state_dict_type: StateDictType` 매개변수 정의가 L629부터 시작, `StateDictType.SHARDED_STATE_DICT` 매핑이 L687/692에 존재 — FSDP1에 SHARDED_STATE_DICT가 있다는 주장과 일치, 앵커도 근접 |
+| 37 | Codex A4-15 (L819) | `_fully_shard.py#L103-L122` | 200 | 부분지지 | 해당 범위는 `fully_shard()`의 일반 동작 설명 docstring(all-gather→forward→free→backward→reduce-scatter). "reshard=해제이지 통신 아님"의 직접 근거는 `reshard()` 메서드 docstring L335-339("Reshards... freeing the unsharded parameters if they are allocated")에 있음 — 앵커가 다른 함수를 가리키지만 같은 파일 내 인접 개념. 결론은 정확 |
+| 38 | Codex A4-16 (L821-828) | `docs.pytorch.org/tutorials/intermediate/dist_tuto.html` | 200 | 지지 | 페이지가 ring-allreduce/bandwidth 등 collective 통신량 배경 설명을 담고 있어 일반 참고자료로 타당(구체적 `2(N-1)P/N` 수식 자체는 리뷰어 자체 유도이며 이 튜토리얼에서 직접 인용된 것은 아님 — 그 점에서는 "일반 배경" 수준) |
+| 39 | Codex A4-16 (L821-828) | `docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html` | 200 | 지지 | 같은 맥락(FSDP 통신 순서 배경 자료)으로 타당. 페이지 상단에 "FSDP1 is deprecated" 배너도 확인(행 6과 동일 페이지) |
+| 40 | Codex A4-17 (L843-848) | `_fully_shard.py#L123-L133` | 200 | 부분지지 | 해당 범위는 "grouping parameters for collective efficiency" 설명으로, all-gather된 전체 파라미터가 일시적으로 존재한다는 메커니즘은 뒷받침하지만 "peak memory = 상시 상태 + 임시 버퍼" 수치 주장을 직접 서술하지는 않음 — 취지는 지지, 문구 자체는 간접적 |
+| 41 | Codex A4-18 (L918) | `_init_utils.py#L483-L496` | 200 | 부분지지 | 실제 `_init_extension()`(`state._fsdp_extension = DTensorExtensions(...)`)은 L515-524에 위치 — 앵커가 약 30줄 어긋남. "FSDP1도 DTensorExtensions로 TP와 조합 가능"이라는 주장은 정확 |
+| 42 | Codex A4-19 (L922-925) | jax-ml.github.io/scaling-book/training | 200 | 지지 | 행 12과 동일 근거, 정확 |
+| 43 | Codex A4-20 (L983-1006) | `deepspeed.readthedocs.io/en/stable/initialize.html` | 200 | 무관 | 해당 문서 페이지 자체는 `training_data`가 없을 때 `dataloader`가 `None`이 된다는 내용을 다루지 않음(문서에 "training_data" 언급 없음). 다만 DeepSpeed 소스(`deepspeed/runtime/engine.py` L463-466: `if training_data: self.training_dataloader = self.deepspeed_io(training_data) else: self.training_dataloader = None`, master 브랜치 기준)로 별도 확인한 결과 주장 자체는 사실 — 인용된 "출처"(문서 페이지)는 근거를 제공하지 못하지만 주장은 참 |
+| 44 | Codex A4-21 (L1019) | `deepspeed.readthedocs.io/en/stable/training.html#communication` | 200 | 지지 | 앵커 id(`#communication`)는 페이지에 존재하지 않지만 본문에 정확히 일치하는 문장 있음: "For ZeRO stage 2/3, gradients are reduced/partitioned on every backward() (as in managed mode) and step() finalizes the accumulated partition gradi[ents]." — ZeRO-1/DDP는 step()에서, ZeRO-2/3는 매 backward에서 통신한다는 주장과 정확히 일치 |
+| 45 | Codex A4-22 (L1025) | DeepSpeed `constants.py#L136-L140` | — | 부분지지 | master 브랜치 기준 실제 위치는 L148(`BFLOAT16_MASTER_WEIGHTS_AND_GRADS`), L150(`BFLOAT16_OPTIMIZER_STATES`) — 앵커가 약 10-12줄 어긋나지만 두 옵션 모두 실재. "always FP32"가 성립하지 않는다는 주장 정확(단, 버전 태그 없이 master 기준) |
+| 46 | Codex A4-23 (L1064-1065) | `huggingface/accelerate/utils/deepspeed.py` (main) | 200 | 지지 | `DeepSpeedEngineWrapper.backward()`(L264-282)가 sync 경계에서 `self.engine.step()` 호출, `DeepSpeedOptimizerWrapper.zero_grad()`/`step()`(L308-313)은 각각 `pass`(주석: "accelerator.backward(loss)가 자동으로 처리하므로 구현 불필요") — 인용과 정확히 일치(단 main 브랜치, 버전 미고정) |
+| 47 | Codex A4-23 (L1064-1065) | `huggingface/accelerate/accelerator.py` (main) | 200 | 지지 | `Accelerator.backward()`(L2825-2854): `elif self.scaler is not None: self.scaler.scale(loss).backward(...)`, 그 외 `else: loss.backward(...)`. BF16 경로는 통상 `self.scaler`가 None이라 스케일링 없이 `loss.backward()` 호출 — "BF16은 보통 loss scaling 없음" 주장과 일치 |
+| 48 | Codex A4-24 (L1078-1086) | `docs.ray.io` TorchTrainer 공식 예제 | 200 | 부분지지 | 공식 예제는 `optimizer = torch.optim.SGD(model.parameters(), lr=lr)`를 `prepare_model` 직후 직접 생성(`prepare_optimizer` 미사용) — "optimizer가 정의되지 않으면 학습이 안 된다"는 지적의 배경은 맞으나, 예제가 직접 증명하는 것은 "정상적으로는 optimizer를 명시적으로 만들어야 한다"는 일반 패턴이지 이 강의 코드의 구체적 결함은 아님 |
+| 49 | Codex A4-25 (L1106) | `docs.ray.io` fault-tolerance 가이드 | 200 | 지지 | 가이드가 예제에 "[1] Train worker restoration logic"(`ray.train.get_checkpoint()`)과 "[2] Checkpoint saving and reporting logic"(`ray.train.report(checkpoint=...)`)을 `FailureConfig`와 별도로 명시 — "FailureConfig만으로 복구 안 됨" 주장과 정확히 일치 |
+| 50 | Codex A4-26 (L1148) | `docs.nvidia.com` nvcc 문서 | 200 | 지지 | 페이지 제목/설명: "NVIDIA CUDA Compiler Driver NVCC — The documentation for nvcc, the CUDA compiler driver." — "단일 커널 컴파일 도구"가 아니라 "compiler driver"라는 지적과 정확히 일치 |
+| 51 | Codex A4-27 (L1151) | (출처 없음 — 리뷰어가 "needs verification"으로 자체 표시) | — | 접근불가 | 리뷰 본문에 URL/문서명이 제시되지 않음. Rebellions 컴파일러의 공식 SDK 문서를 찾지 못해 검증 불가 — 리뷰어의 낮은 확신도 표기가 적절함을 확인 |
+
+### 요약
+- 총 51건: 지지 33 / 부분지지 12 / 불일치 3 / 무관 1 / 접근불가 2
+- **불일치(3건, 재검토 필요)**: (32) Codex A4-10의 "ncclCommAbort() was a 'collective' call" 인용 앵커가 잘못된 파일(`ProcessGroupNCCL.cpp#L1445`) — 실제로는 `distributed_c10d.py`에 있음; 주석 인용 자체는 정확하니 링크만 수정하면 됨. (33) Codex A4-12의 `distributed.py#L1629-L1641` 앵커는 forward/buffer와 무관한 코드를 가리킴 — 결론(buffer broadcast 존재)은 옳으나 올바른 근거는 L1780-1782·L1884. (18) 요약의 "prepare_optimizer(Adam(...))" 제안은 현재 Ray에서 `@Deprecated`·AMP 전용 API를 가리켜 수정안으로 부적절 — "optimizer 정의 필요"라는 원 지적은 유지하되 제안 코드는 `optimizer = torch.optim.Adam(model.parameters())` 직접 생성으로 바꿔야 함.
+- **줄 번호 앵커 드리프트(부분지지 다수)**: Codex의 GitHub 링크 중 상당수(#25,26,28,29,30,32,34,37,40,41,45)가 실제 인용 문구보다 15~150줄 벗어나 있음(파일은 맞지만 anchor가 다른 함수를 가리킴). 결론 자체가 틀린 사례는 위 3건뿐이고 나머지는 "같은 파일의 인접/관련 코드"로 재확인됨 — PR 전 앵커만 재계산하면 됨.
+- **버전 표기 유의**: `docs.pytorch.org/docs/stable/...`, `/tutorials/...` 링크는 현재 모두 PyTorch 2.14로 렌더됨(강의는 2.13 고정). 확인 결과 본 리뷰에서 인용된 문구(`wait()` semantics, "four built-in backends", FSDP1 deprecated 배너)는 2.13/2.14 동일하게 확인되어 실질적 문제는 없었으나, 앞으로 유사 인용 시 `/docs/2.13/...`처럼 버전을 명시하는 것이 안전함.
+- **자체 신뢰도 저하 필요 항목**: (44) Codex A4-20의 인용 문서(`deepspeed…/initialize.html`)는 주장을 뒷받침하지 못함(무관) — 다만 DeepSpeed 소스(`engine.py`)로 별도 확인하면 주장 자체는 참이므로, finding의 결론은 유지하되 인용 출처만 GitHub 소스로 교체 권장.
 
 ## 원문 리뷰
 
