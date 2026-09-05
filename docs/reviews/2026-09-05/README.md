@@ -8,7 +8,7 @@
 |---|---|---|
 | 01 | [01-technical-background.md](01-technical-background.md) | NumPy≠pybind11(212), CUDA=PTX/SASS 프로그래밍 모델(380), `torch.compile`=AOT(228), 313–328 역사 절이 Dynamo와 미연결, 60행 define-by-run 대응 뒤집힘 |
 | 02 | [02-eager-mode.md](02-eager-mode.md) | 아키텍처 Mermaid에 Autograd kernel 없음(227), `callWithDispatchKeySlowPath` 역할(188), Front-End가 key set 계산(191), `gemm_internal` 버전 주장(48), Event 절 중복·다이어그램(1119/1134), view 표의 차원 오류(852) |
-| 03 | [03-graph-mode.md](03-graph-mode.md) | Dynamo 루프 6중 반복(390–563), `cos().cos()` 예제 분기 안 바뀜(323), `accumulated_recompile_limit`는 code object 단위(536), frame 안에 eval loop(380), Loop-level IR→Triton(570), Prims 123개(699) |
+| 03 | [03-graph-mode.md](03-graph-mode.md) | Dynamo 루프 6중 반복(390–563), `cos().cos()` 예제 분기 안 바뀜(323), `accumulated_recompile_limit`는 code object 단위(536), frame 안에 eval loop(380), Loop-level IR→Triton(570) |
 | 04 | [04-automatic-differentiation.md](04-automatic-differentiation.md) | fake tensor 불확실(418)·FX→C++ object(571)·D/E 순서(787) 세 메커니즘 오류, "normalization" 11곳, 파이프라인 8회·lazy 9회 반복, Baydin 표 `h-28`, Mermaid에 backward Node 이름 |
 | 05 | [05-distributed-programming.md](05-distributed-programming.md) | **예제 코드 결과가 틀림**(484 local rank 슬라이스, 520 `.to(device)` 누락), `set_device` lazy init(541), `--node_rank` 무시(362), torchrun 순서(386), NCCL `wait()` 의미(554), TorchrunVisualizer 순서 반전 |
 | 06 | [06-beyond-pytorch.md](06-beyond-pytorch.md) | Causal 그림 = Non-causal 그림 동일 파일(174), 이미지 alt 불일치 5건(377/408/864/321/803), continuous batching "layer 단위"(345), "Programming Guide 10%"(782), FA4 "v3 대비 2–3배"(737), `U R A HELP CHAPP`(221) |

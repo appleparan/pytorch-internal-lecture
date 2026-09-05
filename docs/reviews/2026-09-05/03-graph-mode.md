@@ -10,7 +10,7 @@
 - **다이어그램**: 14개 중 8개는 문제없음. 공통 지적: IR lowering Mermaid(570)의 "Loop-Level IR → Triton" 엣지가 틀림(Triton은 codegen된 kernel 소스를 받음), slide22_1(442)은 판독 불가 + 본문 5단계와 라벨 불일치, 467 Mermaid는 recompile→실행 엣지 없음, trace-generation SVG(510)는 guard 검사가 bytecode 실행 뒤로 읽힘, slide15_1(386)은 CPython ≤3.10 frame 구조.
 - **정확성**: 두 리뷰어 공통 high: 380행 "frame 내부에 evaluation loop 존재"(evaluation loop은 frame을 인자로 받는 interpreter 함수), 313행 `jit.script`≈partial evaluator(AOT 컴파일러이며 특화 안 함), 59행 "AOTAutograd가 백엔드에 포함"(frontend), 213행 outstanding trace buffer 역할.
 - **Codex만 잡았고 검증 완료된 high 2건**: (1) 323–335행 예제 `x.cos().cos()` 후 `mean() > 0.5` — cos(cos(x)) ∈ [0.54, 1]이라 어떤 입력에도 분기가 바뀌지 않아 "trace 안전성 없음" 예제로 작동하지 않음. (2) 536행 `accumulated_recompile_limit`를 "프로세스 전체"라 했으나 v2.13.0 `cache_size.py`는 "across ALL regions on this code object"로 **code object 단위**. Fable은 이 줄을 "검증 통과"로 표시했으나 틀렸음.
-- **Fable만 잡은 high**: 699행 Prims "123개" — v2.13.0 `torch._prims.__all__`은 88개(op는 ≤87). Codex는 needs verification 처리.
+- **Fable만 잡은 high였으나 출처 검증에서 기각**: 699행 Prims "123개"를 Fable은 "≤87개"라 정정했지만, v2.13 공식 IR 문서의 Prims 표는 정확히 123개이고 `torch._prims.__all__`도 127개. 강의 원문이 맞음.
 
 ## 두 리뷰어가 일치한 항목 (우선 수정 후보)
 
@@ -51,11 +51,60 @@
 - **Codex A4-10 line 353**: "Python 전체 언어 지원" → capture 범위 있음. graph break/skip으로 공존.
 - **Codex A4-12 line 548**: "기록이나 최적화 없이" → CPython 3.11+ adaptive specialization 존재.
 - **Codex A4-16 line 619**: `stable` 링크는 2.14로 이동함. 2.13 스냅샷 또는 태그 소스로 고정.
-- **Fable A4-1 (high) line 699**: Prims 123개 → v2.13.0 기준 ≤87개. 2.0 발표는 ~250.
+- ~~**Fable A4-1 (high) line 699**: Prims 123개 → ≤87개~~ **기각** (출처 검증 #2·#13: 공식 2.13 문서 표 123개, 소스 `__all__` 127개). 2.0 발표 "~250"만 유효.
 - **Fable A2-4 line 309/321**: "tensor 연산은 dynamic input" → tensor **값**이 dynamic, 제어 흐름과 그 결정값이 static.
 - **Fable A2-6 line 496**: `fullgraph` 최초 등장인데 정의 없음.
 - **Fable A4-11 line 583**: "Aten IR 또는 Prims IR" → Inductor 경로는 ATen. Prims는 별도 경로. needs verification.
 - **Fable 검증 통과 목록 중 536행 항목은 위와 같이 틀렸으므로 무시.** 나머지(2.10 deprecation, Core Aten 193개, automatic dynamic 2.1, skip 규칙, `aot_autograd`/`make_boxed_func` API)는 유효.
+
+## 출처 검증 (2026-09-05)
+
+검증 방법: `curl -sL`로 `raw.githubusercontent.com/pytorch/pytorch/v2.13.0|v2.10.0|v2.9.0/...` 소스 직접 조회(+`sed -n`/`ast`/`pdftotext`로 정밀 대조), `docs.pytorch.org/docs/{2.9,2.13,2.14,stable,main}/...` 및 `docs.python.org/3.11/...`는 `curl -sL` 후 HTML에서 본문 추출, 논문 2건(Rotenberg 1999, Intel Technology Journal 2001)은 PDF 다운로드 후 `pdftotext -layout`으로 원문 대조. 대상 파일 경로는 실제로 `/home/appleparan/src/pytorch-internal-lecture/.claude/worktrees/docs-review-2026-09-05/docs/reviews/2026-09-05/03-graph-mode.md`(과제에 적힌 경로는 세그먼트 중복으로 존재하지 않음).
+
+**핵심 발견(요약 먼저)**: 병합 요약과 Fable 리포트가 "검증 완료"라 표시한 **699행 Prims 개수 정정("88개/≤87개")은 틀렸다.** v2.13.0 `torch/_prims/__init__.py`를 AST로 직접 파싱하면 `__all__`은 127개(RETURN_TYPE 제외 126개 연산)이고, PyTorch가 실제로 배포한 **2.13 공식 문서(`docs.pytorch.org/docs/2.13/.../torch.compiler_ir.html`)의 Prims IR 표는 정확히 123개**를 나열한다. 즉 강의 원문의 "123개"가 정확하고, Fable의 "정정"이 불일치다.
+
+| # | 인용 위치 | 출처 | 접근 | 판정 | 근거 (인용/줄 번호) |
+|---|---|---|---|---|---|
+| 1 | 병합 요약 12행 | `torch/_dynamo/cache_size.py` (v2.13.0) | 200 | 지지 | "Total cache entries across ALL regions on this code object. ... a global safety cap." (raw L88-89, L100-102) — accumulated_recompile_limit은 code object 단위 |
+| 2 | 병합 요약 13·54행 | `torch/_prims/__init__.py` (v2.13.0) `__all__` | 200 | **불일치** | AST 파싱 결과 `__all__` 127개(비-연산 `RETURN_TYPE` 제외 126개). "88개/≤87개"는 근거 없음. 공식 2.13 문서 표는 123개(행 #… 아래 참조) |
+| 3 | Fable Axis3, line 108 (slide10_1) | Rotenberg–Bennett–Smith 1999 논문 Fig. 2 | 200(PDF) | 지지 | "Fig. 2. Microarchitecture." — Trace Predictor·Trace Cache·Execution Engine·outstanding trace buffers·`update`/`branch outcomes` 피드백 화살표 모두 존재(p.113) |
+| 4 | Fable Axis4, line 127 (검증 기준 파일 목록) | `torch/_dynamo/{config.py,convert_frame.py,trace_rules.py}`, `torch/csrc/dynamo/eval_frame_cpp.cpp`, `torch/_dynamo/backends/common.py`, `functorch/compile/__init__.py`, `aten/.../native_functions.yaml`, `torch/_prims/__init__.py`, `docs/source/scripts/build_opsets.py`, 5개 docs md, `torch/jit/_trace.py`(v2.9.0/v2.10.0) | 200(전부) | 지지 | 나열된 모든 경로가 v2.13.0(또는 명시된 태그)에 실제 존재(HTTP 200) |
+| 5 | Fable Axis4, line 129 (`convert_frame.py:2035-2040`) | `torch/_dynamo/convert_frame.py` (v2.13.0) | 200 | 지지(줄 번호 근사) | "Set frame execution strategy to RUN_ONLY ... `FrameExecStrategy(FrameAction.RUN_ONLY, FrameAction.RUN_ONLY)`" 실제 위치는 L2035-2037(인용 범위 2035-2040과 거의 일치) |
+| 6 | Fable Axis4, line 129 (2.10 deprecation) | `torch/jit/_trace.py` v2.9.0 vs v2.10.0 | 200 | 지지 | v2.10.0 L997-1002: "`torch.jit.trace` is deprecated..." `DeprecationWarning`; v2.9.0에는 해당 경고 없음(확인) |
+| 7 | Fable Axis4, line 129 (Core Aten 193개) | `aten/src/ATen/native/native_functions.yaml` (v2.13.0) | 200 | 지지 | `tags:.*core` 매칭 193건(grep) — 공식 2.13 문서 Core Aten IR 표의 `aten.` 행 수(193)와도 일치(교차검증) |
+| 8 | Fable Axis4, line 129 (434행 eval_frame hook 범위) | `torch/_dynamo/eval_frame.py` (v2.13.0) | 200 | 부분지지 | `__enter__`/`__exit__` 메서드 존재 확인(L883, L897)했으나 "compile된 함수 호출 범위에서만"이라는 정확한 스코프 로직까지는 깊이 검증하지 못함 |
+| 9 | Fable Axis4, line 129 (439행 trace_rules.py 존재) | `torch/_dynamo/trace_rules.py` (v2.13.0) | 200 | 지지 | 파일이 v2.13.0 태그에 실존(HTTP 200) |
+| 10 | Fable Axis4, line 129 (454행 guard tensor 메타데이터, overview 91-98행) | `docs/source/user_guide/torch_compiler/torch.compiler_dynamo_overview.md` (v2.13.0) | 200 | 지지 | L89-97: "Python class... dtype... device... requires_grad... dispatch_key... ndim... sizes*... strides*" — 목록·줄 번호 거의 정확히 일치 |
+| 11 | Fable Axis4, line 129 (496-502행 skip 조건) | `.../compile/programming_model.skipped_functions.md` (v2.13.0) | 200 | 지지 | "the skip is only applied to the current function and NOT any nested function calls. `torch.compile` will still attempt to compile nested calls." |
+| 12 | Fable Axis4, line 129 (679-691행 API 존재) | `functorch/compile/__init__.py`, `torch/_dynamo/backends/{common,registry}.py` (v2.13.0) | 200 | 지지 | `make_boxed_func`(functorch/compile), `def aot_autograd(**kwargs)`(backends/common.py L133), `def register_backend`/`def list_backends`(backends/registry.py L85,L141) 모두 실존 |
+| 13 | Fable A4-1, line 131/699 (Prims "123개"→"≤87개" 정정, 2.0 발표 "~250") | `torch/_prims/__init__.py`(v2.13.0), `docs.pytorch.org/docs/2.13/.../torch.compiler_ir.html`, `pytorch.org/get-started/pytorch-2.0/` | 200(전부) | **불일치**(개수 정정) / 지지(~250 부분) | 2.13 공식 문서 Prims IR 표: 정규식으로 스키마 행 카운트 **123개**(강의 원문과 정확히 일치). 2.0 발표문: "PrimTorch canonicalizes ~2000+ ... down to ~250 primitive operators" — ~250은 정확히 확인됨. Fable의 88/≤87은 근거 불명 |
+| 14 | Fable A4-3, line 133 (213/228행 outstanding trace buffer 정의) | Rotenberg et al. 1999, §2.2 (p.113) | 200(PDF) | 지지 | "The outstanding trace buffers ... are used to 1) construct new traces that are not in the trace cache and 2) track branch outcomes ... allowing detection of mispredictions and repair" — "유망 후보 선별"이 아니라 "조립+오예측 복구" |
+| 15 | Codex A1-4, line 655/160 | `docs.pytorch.org/docs/2.14/.../torch.compiler_custom_backends.html#overview` | 200 | 지지 | 페이지 도달 확인, "Backend Object" 대신 callable 계약 설명 섹션 존재(내용상 A4-14와 동일 페이지) |
+| 16 | Codex A3-5, line 386/187 | `docs.python.org/3.11/whatsnew/3.11.html#cheaper-lazy-python-frames` | 200 | 지지 | "Old-style frame objects are now created only when requested by debuggers or ... `sys._getframe()`... For most user code, no frame objects are created at all." |
+| 17 | Codex A3-9, line 510-515/192 | `raw.../v2.13.0/torch/_dynamo/cache_size.py` | 200 | 지지 | 캐시가 `f_code`의 `co_extra`(코드 객체)에 귀속됨(주석 L16-18) — "PyFrameObject로 감싸 호출별 frame에 저장되는 것처럼" 보이는 그림 구조가 실제 구조와 다름 |
+| 18 | Codex A3-10, line 570-591/193 | `raw.../v2.13.0/torch/_inductor/codegen/triton.py` | 200 | 지지 | `def codegen_kernel(...) -> str:` docstring: "Convert the TritonKernel from Inductor SIMD IR to triton code" (L6336-6340) — Triton은 코드 문자열을 받음, IR을 직접 받지 않음 |
+| 19 | Codex A4-1, line 305-309/197 | `docs.pytorch.org/docs/2.9/generated/torch.jit.trace.html` | 200 | 지지 | "You must provide example inputs, and **we run the function**, recording the operations performed on all the tensors." |
+| 20 | Codex A4-2, line 300-313/198 | `docs.pytorch.org/docs/2.9/generated/torch.jit.script.html` | 200 | 지지 | "will **inspect the source code, compile it as TorchScript code** using the TorchScript compiler" |
+| 21 | Codex A4-3, line 341/199 | `docs.pytorch.org/docs/2.9/jit.html` | 200 | 지지 | "optimized"/"optimize" 관련 언급 다수, jit.trace 설명에 "will be optimized using just-in-time compilation" — TorchScript에 최적화 경로가 있음을 뒷받침 |
+| 22 | Codex A4-5, line 536/201 | `raw.../v2.13.0/cache_size.py` + `docs.pytorch.org/docs/main/.../programming_model.recompilation.html#changing-the-cache-size-limit` | 200(둘 다) | 지지 | cache_size.py 상동(행 #1). recompilation 문서: "all nested function calls **WILL be skipped** (Dynamo will try to use previously compiled bytecode for the nested functions)" — main 문서지만 v2.13.0 스냅샷과 대조해 내용 동일함을 직접 diff로 확인 |
+| 23 | Codex A4-7, line 190-207/203 | Intel Technology Journal Q1 2001, "Trace Cache" 절 | 200(PDF) | 지지 | "The Trace Cache is the primary or Level 1 (L1) instruction cache ... Only when there is a Trace Cache miss does the NetBurst microarchitecture fetch and decode instructions from the Level 2 (L2) cache." — 별도 L1 I-cache가 아니라 L2 경로 |
+| 24 | Codex A4-8, line 213-229/204 | Rotenberg et al. 1999 §2.2 (p.113) | 200(PDF) | 지지 | 행 #14와 동일 인용. "후보 선별" 아님, "trace 조립+오예측 복구" |
+| 25 | Codex A4-9, line 192/205 | Rotenberg et al. 1999 Abstract·§1 (p.111) | 200(PDF) | 지지 | Abstract: "instruction fetch bandwidth requirements will also increase... Conventional instruction caches hinder this effort because long instruction sequences are not always in contiguous cache locations." bank conflict/cache miss 확률 언급 없음 |
+| 26 | Codex A4-10, line 353/206 | `docs.pytorch.org/docs/main/.../programming_model.skipped_functions.html` | 200 | 지지 | 행 #11과 동일 문서 계열. "완전 지원"이 아니라 skip/capture 범위가 있음을 뒷받침 |
+| 27 | Codex A4-11, line 380/207 | `docs.python.org/3.11/whatsnew/3.11.html#inlined-python-function-calls` | 200 | 부분지지 | "Python will call an evaluating C function to interpret that function's code" — eval loop이 별도 C 함수라는 취지는 뒷받침하나, "frame이 eval loop를 담지 않는다"를 문자 그대로 확인해주는 문장은 아님(간접 지지) |
+| 28 | Codex A4-12, line 548/208 | `docs.python.org/3.11/whatsnew/3.11.html#pep-659-specializing-adaptive-interpreter` | 200 | 지지 | "Python will then replace the current operation with a more specialized one" — CPython 3.11+에 adaptive specialization 존재, "기록/최적화 없음" 주장과 배치 |
+| 29 | Codex A4-13, line 538/209 | `raw.../v2.13.0/torch/_dynamo/config.py` + `docs.pytorch.org/docs/2.14/generated/torch.compile.html` | 200(둘 다) | 지지 | config.py L185-186 `automatic_dynamic_shapes` 기본 True(env `"1"`). torch.compile 문서: "`dynamic=True`... generate a kernel that is as dynamic as possible... `dynamic=False`... we will NEVER generate dynamic kernels... By default (None), we automatically detect" — 인용과 정확히 일치 |
+| 30 | Codex A4-14, line 657-670/210 | `docs.pytorch.org/docs/2.14/.../torch.compiler_custom_backends.html#overview` | 200 | 지지 | 행 #15와 동일 페이지, custom backend 최소 예제 계약 설명 확인 |
+| 31 | Codex A4-15, line 677-688/211 | `raw.../v2.13.0/torch/_functorch/aot_autograd.py` + `docs.pytorch.org/docs/2.14/.../torch.compiler_custom_backends.html#custom-backends-after-aotautograd` | 200(둘 다) | 지지 | 소스 L470 `aot_autograd_decompositions: dict = {}`(기본 빈 dict), L510 `decompositions = aot_config.decompositions or {}`. 문서: "AOTAutograd produces FX graphs consisting of core Aten ops." — 문서는 무조건적으로 서술하지만 소스상 기본값은 빈 dict라는 Codex의 "needs verification" 근거가 실재함 |
+| 32 | Codex A4-16, line 619/212 | `docs.pytorch.org/docs/stable/.../torch.compiler_ir.html` | 200(리다이렉트) | 지지 | 응답 본문이 JS/meta-refresh: `location.replace("../../../2.14/.../torch.compiler_ir.html"...)` — stable이 현재 2.14로 이동함을 직접 확인 |
+| 33 | Codex A4-17, line 651/213 | `docs.pytorch.org/docs/2.14/generated/torch.compile.html` | 200 | 지지 | 행 #29와 동일 페이지. guard 통과 시 재사용, 새 조건 시 추가 컴파일이라는 서술과 일치 |
+| 34 | Codex 검증범위 요약, line 317/217 | `pytorch.org/blog/pytorch-2-12-release-blog/` | 200 | 지지 | "Torchscript is now Deprecated — Torchscript was deprecated in **2.10** and `torch.export` should be used to replace the jit trace and script APIs" — 정확히 일치 |
+
+### 요약
+- 총 34건: 지지 30 / 부분지지 2(#8, #27) / 불일치 2(#2, #13 개수 부분) / 무관 0 / 접근불가 0
+- **가장 중요한 하향 조정**: 병합 요약 12·13·54행과 Fable A4-1(line 699, "high" 확신)의 "Prims 123개는 틀렸고 실제 ≤87개"라는 정정 자체가 틀렸다. v2.13.0 소스의 `__all__`은 127개(비연산 1개 제외 126개)이고, PyTorch가 실제 배포한 2.13 버전 공식 문서의 Prims IR 표는 정확히 **123개** 행을 담고 있어 강의 원문 숫자와 일치한다. "Codex는 needs verification 처리"라고 적힌 부분이 오히려 맞았다 — 이 항목은 리뷰 문서에서 **삭제/역정정**해야 한다.
+- 나머지 불일치·무관 항목 없음. Codex가 잡은 high 항목들(cos().cos() 예제, accumulated_recompile_limit 범위, Pentium 4 trace cache miss 경로, outstanding trace buffer 정의, jit.trace/jit.script 오분류, dynamic=True/False 의미, stable→2.14 링크 이동)은 모두 1차 소스로 재확인되어 그대로 반영 가능.
+- #8(eval_frame.py hook 범위), #27(frame/eval loop 분리 근거로 쓰인 3.11 changelog)은 인용 자체는 유효하지만 주장 전체를 문자 그대로 뒷받침하는 문장까지는 확인하지 못해 부분지지로 낮춤 — 결론을 바꾸지는 않음.
 
 ## 원문 리뷰
 
